@@ -82,4 +82,4 @@ Now that you understand the history of Windows Server and the fundamental differ
 
 [click here to download windows server 2025 ISO](https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025)
 
-Proceed to the **[Lab 1: Server Installation and Network Configuration](#)** to begin your hands-on journey.
+Proceed to the **[Lab 1: Server Installation ](lab1.1.md)** to begin your hands-on journey.
