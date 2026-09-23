@@ -17,7 +17,7 @@ This project provides **100% browser-based interactive simulations** for complex
 
 
 * [Lab 1: 🖥️ Introduction & installation of  Windows Server 2025](lab1.md)
-* 
+  
 * [Lab 2: 🖥️  VMware Installation & Virtual Machine Provisioning](lab2.md)
 
 ---
