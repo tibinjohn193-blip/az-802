@@ -80,4 +80,6 @@ Designed for highly virtualized, software-defined datacenters and cloud-centric 
 ## 🚀 What's Next?
 Now that you understand the history of Windows Server and the fundamental differences between Core, GUI, Standard, and Datacenter, you are ready to proceed with the installation and configuration of your first Server 2025 environment. 
 
+[click here to download windows server 2025 ISO](https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025)
+
 Proceed to the **[Lab 1: Server Installation and Network Configuration](#)** to begin your hands-on journey.
