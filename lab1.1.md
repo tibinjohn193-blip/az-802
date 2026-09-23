@@ -51,4 +51,4 @@ Follow these steps within the browser simulation to complete the installation:
 * Choosing **"Desktop Experience"** is crucial if you need a graphical interface (GUI).
 * Windows Setup handles the heavy lifting of disk partitioning automatically if you select unallocated space.
 
-[**Launch the Interactive Simulation Now**](#) *(Replace this # with your actual lab HTML link)*
+[**Launch the Interactive Simulation Now**](https://tibinjohn193-blip.github.io/az-802/lab1.html)
