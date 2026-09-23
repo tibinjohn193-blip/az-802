@@ -17,7 +17,7 @@ VMware Workstation Pro is a powerful "Type-2 Hypervisor". Simply put, it is a so
 
 ---
 
-## 🔗 Official Download Links
+## 🔗  Download Links
 To build this environment on your actual physical machine, you will need to download the following software:
 
 ### 1. VMware Workstation Pro (Free for Personal Use)
@@ -59,7 +59,7 @@ Open VMware and create a new VM with the following specific hardware configurati
 
 Ready to practice? Click the link below to start the interactive browser-based lab!
 
-### 👉 [LAUNCH LAB 2: VMware & VM Provisioning Simulator](lab2.html) 👈
+### 👉 [LAUNCH LAB 2: VMware & VM Provisioning Simulator](https://tibinjohn193-blip.github.io/az-802/lab2.html) 👈
 
 *(If the link above does not work, ensure you are accessing it via the GitHub Pages URL).*
 
