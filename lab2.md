@@ -1,4 +1,3 @@
-
 # 🖥️ Lab 2: VMware Installation & Virtual Machine Provisioning
 
 Welcome to Lab 2! In this lab, we focus on setting up the foundation for your server environment using VMware Workstation. 
@@ -22,10 +21,9 @@ VMware Workstation Pro is a powerful "Type-2 Hypervisor". Simply put, it is a so
 To build this environment on your actual physical machine, you will need to download the following software:
 
 ### 1. VMware Workstation Pro (Free for Personal Use)
-
-* **Download Portal:** [l - VMware Desktop Hypervisors](https://www.techspot.com/downloads/189-vmware-workstation-for-windows.html)
-* *(Instructions: You must create a free Broadcom account. During the software installation, select "For Personal Use" to activate it without needing a license key).*
-
+Broadcom has made VMware Workstation Pro completely free for personal and educational use.
+* **Download Portal:** [ VMware Desktop Hypervisors](https://www.techspot.com/downloads/189-vmware-workstation-for-windows.html)
+  
 ### 2. Windows Server 2025 Evaluation ISO
 Microsoft provides a free 180-day evaluation ISO image for testing and learning purposes.
 * **Download Portal:** [Microsoft Evaluation Center - Windows Server 2025](https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025)
@@ -57,7 +55,17 @@ Open VMware and create a new VM with the following specific hardware configurati
 
 ---
 
+## 🚀 Launch the Interactive Simulation
+
+Ready to practice? Click the link below to start the interactive browser-based lab!
+
+### 👉 [LAUNCH LAB 2: VMware & VM Provisioning Simulator](lab2.html) 👈
+
+*(If the link above does not work, ensure you are accessing it via the GitHub Pages URL).*
+
+---
+
 ## ⏭️ What's Next? (Refer to Lab 1)
 Once you press a key, the Windows loader (spinning circle) will appear. **Congratulations! The hardware provisioning phase is complete.** 
     
-Since the actual Windows Server 2025 OS installation process is quite detailed, **please switch to [Lab 1: Windows Server 2025 OS Installation](#)** to continue with the setup and configuration of the server operating system.
+Since the actual Windows Server 2025 OS installation process is quite detailed, **please switch to Lab 1** to continue with the setup and configuration of the server operating system.
