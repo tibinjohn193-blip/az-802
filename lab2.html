@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab: VMware Workstation 26H1 - Full VM Creation Wizard</title>
+<style>
+    :root {
+        --win-bg: url('https://images.unsplash.com/photo-1617471346061-5d329ab9c574?q=80&w=1920&auto=format&fit=crop');
+        --taskbar-bg: rgba(20, 20, 20, 0.85);
+        --accent: #0078D7;
+        --vm-dark: #1e1e1e;
+        --vm-header: #2d2d30;
+        --vm-sidebar: #252526;
+        --vm-highlight: #007acc;
+    }
+
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; overflow: hidden; background-color: #000; user-select: none; }
+    #desktop { width: 100%; height: 100%; background: var(--win-bg) no-repeat center center fixed; background-size: cover; position: relative; }
+
+    /* Lab Guide Panel */
+    #exam-panel { position: absolute; top: 20px; right: 20px; width: 350px; background: rgba(255, 255, 255, 0.95); border: 2px solid var(--accent); border-radius: 8px; padding: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); z-index: 15000; color: #1B1B1B; max-height: 80vh; overflow-y:auto;}
+    #exam-header { cursor: move; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px; position: sticky; top:0; background: rgba(255, 255, 255, 0.95);}
+    #instruction-text { font-size: 13px; line-height: 1.5; margin: 0; }
+    #instruction-text code { background: #e0e0e0; padding: 2px 4px; border-radius: 3px; font-weight: bold; color: #d84315; }
+
+    /* Taskbar & Desktop Icons */
+    .taskbar { position: absolute; bottom: 0; left: 0; right: 0; height: 50px; background: var(--taskbar-bg); display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 8000; border-top: 1px solid rgba(255,255,255,0.1); }
+    .tb-icon { width: 36px; height: 36px; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 20px; color: white; }
+    
+    .desktop-icons { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 15px; }
+    .d-icon { display: flex; flex-direction: column; align-items: center; cursor: pointer; width: 85px; padding: 5px; border-radius: 4px; }
+    .d-icon:hover { background: rgba(255,255,255,0.1); }
+    .d-icon .i-img { font-size: 40px; margin-bottom: 5px; text-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+    .d-icon .i-text { color: white; font-size: 12px; text-align: center; text-shadow: 0 1px 3px black; font-weight: 500; line-height: 1.2;}
+
+    /* Base Window */
+    .window { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,0.5); display: none; flex-direction: column; border-radius: 6px; overflow: hidden; border: 1px solid #999;}
+    .window.show { display: flex; }
+    .win-header { height: 32px; background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 12px; border-bottom: 1px solid #eee; flex-shrink: 0; cursor: move; }
+    .win-controls span { padding: 5px 10px; cursor: pointer; }
+    .win-controls span:hover { background: #e81123; color: white; }
+    
+    .btn { padding: 6px 20px; border: 1px solid #ccc; background: #e1e1e1; border-radius: 3px; cursor: pointer; font-family: inherit; font-size: 13px;}
+    .btn:hover:not(:disabled) { background: #e5f1fb; border-color: #0078D7; }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover:not(:disabled) { background: #005a9e; }
+    .btn:disabled { color: #aaa; cursor: not-allowed; background: #f5f5f5;}
+
+    /* Installer Window */
+    #installer-win { width: 550px; height: 400px; z-index: 5000; }
+    .inst-layout { display: flex; flex-grow: 1; height: 0; }
+    .inst-left { width: 160px; background: #003399; display: flex; align-items: center; justify-content: center; color: white; font-size: 80px; }
+    .inst-right { flex-grow: 1; padding: 25px; background: #fff; overflow-y: auto; font-size: 13px; position:relative;}
+    .inst-footer { padding: 12px 20px; background: #f0f0f0; border-top: 1px solid #dfdfdf; display: flex; justify-content: flex-end; gap: 10px; }
+    
+    .inst-step { display: none; flex-direction: column; height: 100%; }
+    .inst-step.active { display: flex; }
+    .inst-title { font-size: 18px; color: #003399; margin-top: 0; margin-bottom: 15px; }
+
+    #inst-bar-container { height: 15px; border: 1px solid #ccc; background: #eee; margin-top: 20px; overflow: hidden; display:none;}
+    #inst-bar { height: 100%; width: 0%; background: #0078D7; transition: width 0.3s; }
+
+    /* VMware Main Window */
+    #vmware-win { width: 950px; height: 650px; background: var(--vm-dark); color: #fff; border: 1px solid #444; z-index: 5100; border-radius: 0; }
+    .vm-header { background: var(--vm-header); height: 35px; display: flex; align-items: center; padding: 0 15px; font-size: 12px; cursor: move; justify-content: space-between; border-bottom: 1px solid #111;}
+    .vm-toolbar { background: var(--vm-header); height: 30px; display: flex; align-items: center; padding: 0 10px; gap: 15px; font-size: 13px; border-bottom: 1px solid #444;}
+    
+    /* Dropdown Menus */
+    .menu-bar-item { cursor: pointer; padding: 4px 8px; position: relative; }
+    .menu-bar-item:hover { background: #3e3e42; }
+    .dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #f2f2f2; color: #000; border: 1px solid #ccc; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); z-index: 9000; min-width: 200px; flex-direction: column; }
+    .dropdown-item { padding: 6px 15px; cursor: pointer; font-size: 12px; }
+    .dropdown-item:hover { background: #91c9f7; }
+    
+    /* VM Right Click Menu */
+    #vm-context-menu { display: none; position: absolute; background: #f2f2f2; color: #000; border: 1px solid #ccc; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); z-index: 9999; min-width: 150px; flex-direction: column; font-size: 12px; }
+
+    .vm-tab { padding: 8px 15px; background: var(--vm-sidebar); border-right: 1px solid #111; cursor: pointer; border-top: 3px solid transparent;}
+    .vm-tab.active { background: var(--vm-dark); border-top-color: var(--vm-highlight); }
+    .vm-main { display: flex; flex-grow: 1; height: 0; }
+    .vm-sidebar { width: 220px; background: var(--vm-sidebar); border-right: 1px solid #333; padding: 10px 0; overflow-y: auto; font-size: 13px; }
+    .vm-item { padding: 5px 15px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .vm-item:hover { background: #333; }
+    .vm-item.active { background: #37373d; border-left: 3px solid var(--vm-highlight); }
+    .vm-content { flex-grow: 1; display: flex; flex-direction: column; background: var(--vm-dark); }
+    
+    .home-tab-content { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; }
+    .big-btn { display: flex; flex-direction: column; align-items: center; gap: 15px; background: #2d2d30; padding: 30px; border-radius: 10px; cursor: pointer; border: 1px solid #444; transition: 0.2s;}
+    .big-btn:hover { background: #333; border-color: var(--vm-highlight); }
+    
+    .vm-tab-content { display: none; flex-direction: column; height: 100%; }
+    .vm-power-bar { background: #252526; padding: 10px 20px; display: flex; gap: 15px; border-bottom: 1px solid #333; }
+    .power-btn { display: flex; align-items: center; gap: 8px; color: #4CAF50; cursor: pointer; font-size: 13px; font-weight: bold;}
+    .power-btn:hover { text-decoration: underline; }
+    .vm-screen { flex-grow: 1; background: #000; position: relative; display: flex; align-items: center; justify-content: center; }
+
+    /* Custom VM Wizard */
+    .wizard-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 5200; }
+    .wizard-win { width: 620px; background: #f0f0f0; box-shadow: 0 5px 20px rgba(0,0,0,0.5); display: flex; flex-direction: column; border: 1px solid #999; color: #000; }
+    .wiz-header { background: #fff; padding: 15px 20px; border-bottom: 1px solid #ddd; }
+    .wiz-title { font-size: 18px; font-weight: bold; color: #003399; margin: 0 0 5px 0; }
+    .wiz-desc { font-size: 12px; color: #666; margin: 0; }
+    .wiz-body { padding: 20px; background: #fff; flex-grow: 1; font-size: 13px; min-height: 280px; }
+    .wiz-footer { padding: 15px 20px; background: #f0f0f0; border-top: 1px solid #ddd; display: flex; justify-content: flex-end; gap: 10px; }
+    
+    .wiz-step { display: none; }
+    .wiz-step.active { display: block; }
+    
+    .radio-group { margin-bottom: 15px; }
+    .radio-group label { display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-start; cursor: pointer;}
+    .radio-group .desc { font-size: 11px; color: #666; margin-top: 3px; }
+    
+    .input-row { display: flex; flex-direction: column; margin-bottom: 15px; }
+    .input-row label { margin-bottom: 5px; font-weight: 500; }
+    .input-row input, .input-row select { padding: 6px; border: 1px solid #ccc; font-family: inherit; font-size:13px; }
+
+    /* VM Settings (Hardware) */
+    .hw-win { width: 750px; height: 500px; background: #f0f0f0; box-shadow: 0 5px 20px rgba(0,0,0,0.5); display: flex; flex-direction: column; border: 1px solid #999; color: #000; }
+    .hw-body { display: flex; flex-grow: 1; background: #fff; }
+    .hw-left { width: 220px; border-right: 1px solid #ddd; background: #fff; overflow-y: auto; }
+    .hw-item { padding: 10px 15px; display: flex; justify-content: space-between; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f9f9f9;}
+    .hw-item:hover { background: #e5f1fb; }
+    .hw-item.active { background: #cce8ff; font-weight:bold;}
+    .hw-right { flex-grow: 1; padding: 20px; font-size: 13px; background:#fff; position:relative;}
+    .hw-pane { display:none; }
+    .hw-pane.active { display:block; }
+    .pane-title { margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px; color:#003399;}
+
+    /* File Browser Dialog */
+    #file-dialog { width: 600px; z-index: 6000; }
+    .fd-content { padding:0; display:flex; flex-grow:1; background:#fff; height: 350px; }
+    .fd-left { width: 150px; border-right: 1px solid #ddd; background: #f9f9f9; padding: 5px; font-size: 13px; }
+    .fd-nav { padding: 6px 10px; cursor: pointer; margin-bottom: 2px; }
+    .fd-nav.active { background: #cce8ff; border: 1px solid #99d1ff; }
+    .fd-nav:hover:not(.active) { background: #e5f1fb; }
+    .fd-right { flex-grow: 1; padding: 15px; display: flex; gap: 15px; flex-wrap: wrap; align-content: flex-start; }
+    .fd-icon { display: flex; flex-direction: column; align-items: center; width: 80px; padding: 10px; cursor: pointer; border: 1px solid transparent; border-radius: 4px; }
+    .fd-icon:hover { background: #e5f1fb; }
+    .fd-icon.selected { background: #cce8ff; border-color: #99d1ff; }
+    .fd-footer { padding: 12px; background: #f0f0f0; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 10px; }
+
+    /* Success Overlay pointing to Lab 1 */
+    #success-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,30,80,0.9); display: none; justify-content: center; align-items: center; z-index: 20000; flex-direction: column; color: white; backdrop-filter: blur(10px); }
+</style>
+</head>
+<body onclick="closeDropdowns()">
+
+    <!-- LAB PANEL -->
+    <div id="exam-panel">
+        <div id="exam-header">
+            <b style="color: #0067C0; font-size:16px; margin:0; display:flex; align-items:center; gap:5px;"><span style="font-size:20px;">📋</span> Lab Guide</b>
+            <span style="cursor:pointer; font-size:12px; background:#eee; padding:4px 8px; border-radius:4px; color:#333; border:1px solid #ccc;" onclick="toggleExam(this)">Minimize</span>
+        </div>
+        <p id="instruction-text"></p>
+    </div>
+
+    <!-- Desktop -->
+    <div id="desktop">
+        <div class="desktop-icons">
+            <div class="d-icon" onclick="alert('Simulation: This PC is working properly.')">
+                <div class="i-img">💻</div><div class="i-text">This PC</div>
+            </div>
+            <div class="d-icon" id="setup-icon" ondblclick="openInstaller()">
+                <div class="i-img">📦</div><div class="i-text">VMware Setup<br>26H1.exe</div>
+            </div>
+            <div class="d-icon" id="iso-icon" onclick="alert('This is your Windows Server 2025 ISO file. You will select this inside VMware.')">
+                <div class="i-img">💿</div><div class="i-text">Windows_Server<br>_2025.iso</div>
+            </div>
+            <div class="d-icon" id="app-icon" style="display:none;" ondblclick="openVMware()">
+                <div class="i-img">🖥️</div><div class="i-text">VMware<br>Workstation 26</div>
+            </div>
+        </div>
+
+        <div class="taskbar">
+            <div class="tb-icon">🪟</div>
+            <div class="tb-icon">📁</div>
+        </div>
+
+        <!-- 1. VMware Installer Window -->
+        <div class="window" id="installer-win">
+            <div class="win-header">
+                <div>VMware Workstation Pro Setup</div>
+                <div class="win-controls"><span onclick="closeWin('installer-win')">✖</span></div>
+            </div>
+            <div class="inst-layout">
+                <div class="inst-left">🖥️</div>
+                <div class="inst-right">
+                    <div class="inst-step active" id="is-1">
+                        <h2 class="inst-title">Welcome to the VMware Workstation Pro 26H1 Setup Wizard</h2>
+                        <p>The Setup Wizard will install VMware Workstation Pro on your computer. Click Next to continue or Cancel to exit the Setup Wizard.</p>
+                    </div>
+                    <div class="inst-step" id="is-2">
+                        <h2 class="inst-title">End-User License Agreement</h2>
+                        <textarea style="width:100%; height:120px; font-size:11px; margin-bottom:10px;" readonly>VMWARE END USER LICENSE AGREEMENT
+Please read carefully...</textarea>
+                        <label><input type="checkbox" id="cb-eula" onchange="document.getElementById('inst-btn-next').disabled = !this.checked"> I accept the terms in the License Agreement</label>
+                    </div>
+                    <div class="inst-step" id="is-3">
+                        <h2 class="inst-title">Custom Setup</h2>
+                        <p>Install to: <code>C:\Program Files (x86)\VMware\VMware Workstation\</code></p>
+                        <label style="margin-top:10px; display:block;"><input type="checkbox" checked> Add VMware Workstation console tools into system PATH</label>
+                    </div>
+                    <div class="inst-step" id="is-4">
+                        <h2 class="inst-title">Ready to install VMware Workstation Pro</h2>
+                        <p>Click Install to begin the installation.</p>
+                        <div id="inst-bar-container"><div id="inst-bar"></div></div>
+                        <p id="inst-status" style="margin-top:10px; color:#666; font-size:12px; display:none;">Installing...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="inst-footer">
+                <button class="btn" id="inst-btn-back" onclick="prevInst()" disabled>< Back</button>
+                <button class="btn btn-primary" id="inst-btn-next" onclick="nextInst()">Next ></button>
+                <button class="btn" id="inst-btn-cancel" onclick="closeWin('installer-win')">Cancel</button>
+            </div>
+        </div>
+
+        <!-- 2. VMware Main UI -->
+        <div class="window" id="vmware-win">
+            <div class="vm-header">
+                <div>VMware Workstation 26H1</div>
+                <div class="win-controls" style="display:flex;">
+                    <span style="padding:0 10px;">─</span><span style="padding:0 10px;">□</span><span style="padding:0 10px;" onclick="closeWin('vmware-win')">✖</span>
+                </div>
+            </div>
+            <div class="vm-toolbar">
+                <div class="menu-bar-item" onclick="toggleFileMenu(event)">File
+                    <div class="dropdown-menu" id="file-dropdown">
+                        <div class="dropdown-item" onclick="openNewVMWizard()">New Virtual Machine...</div>
+                        <div class="dropdown-item">New Window</div>
+                        <div class="dropdown-item">Open...</div>
+                        <div class="dropdown-item">Close</div>
+                        <div class="dropdown-item" onclick="closeWin('vmware-win')">Exit</div>
+                    </div>
+                </div>
+                <div class="menu-bar-item">Edit</div><div class="menu-bar-item">View</div><div class="menu-bar-item">VM</div><div class="menu-bar-item">Tabs</div><div class="menu-bar-item">Help</div>
+            </div>
+            <div style="display:flex; background:var(--vm-sidebar); padding-left:10px;">
+                <div class="vm-tab active" id="tab-home" onclick="switchTab('home')">🏠 Home</div>
+                <div class="vm-tab" id="tab-vm" style="display:none;" onclick="switchTab('vm')">🖥️ Windows Server 2025</div>
+            </div>
+            <div class="vm-main">
+                <div class="vm-sidebar">
+                    <div style="padding: 5px 10px; color:#aaa; font-weight:bold; font-size:11px; text-transform:uppercase;">My Computer</div>
+                    <div id="vm-list"></div>
+                </div>
+                <div class="vm-content">
+                    
+                    <div class="home-tab-content" id="content-home">
+                        <div class="big-btn" onclick="openNewVMWizard()">
+                            <span style="font-size:40px;">➕</span>
+                            <span style="font-size:18px; font-weight:bold;">Create a New Virtual Machine</span>
+                        </div>
+                    </div>
+
+                    <div class="vm-tab-content" id="content-vm">
+                        <div class="vm-power-bar">
+                            <div class="power-btn" onclick="powerOnVM()">▶ Power on this virtual machine</div>
+                        </div>
+                        <div class="vm-screen" id="vm-screen">
+                            <div style="color:#666; font-size:24px; font-weight:bold;">Windows Server 2025</div>
+                            <div style="position:absolute; bottom:20px; left:20px; color:#999; font-size:12px;">State: Powered Off</div>
+                            
+                            <div id="boot-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:#000; color:#fff; font-family:monospace; padding:20px; box-sizing:border-box;">
+                                <div id="boot-logo" style="display:none; text-align:center; margin-top:20%;">
+                                    <div style="font-size:60px; color:#0078D7; margin-bottom:20px;">🪟</div>
+                                    <div style="width: 30px; height: 30px; border: 3px solid #333; border-top: 3px solid #fff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                                </div>
+                                <div id="boot-text" style="display:none; margin-top:100px; text-align:center; font-size:16px;">
+                                    Press any key to boot from CD or DVD.....
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            
+            <!-- Context Menu for VM item -->
+            <div id="vm-context-menu">
+                <div class="dropdown-item" style="color:#aaa;">Power</div>
+                <div class="dropdown-item" style="color:#aaa;">Manage</div>
+                <div style="border-top:1px solid #ccc; margin:2px 0;"></div>
+                <div class="dropdown-item" onclick="openHwFromRC()">Settings...</div>
+            </div>
+
+            <!-- 3. New VM Wizard (Custom / Extended) -->
+            <div class="wizard-overlay" id="wiz-overlay">
+                <div class="wizard-win" id="new-vm-wiz">
+                    <div class="wiz-header">
+                        <h2 class="wiz-title" id="wiz-title">New Virtual Machine Wizard</h2>
+                        <p class="wiz-desc" id="wiz-desc">What type of configuration do you want?</p>
+                    </div>
+                    <div class="wiz-body">
+                        
+                        <div class="wiz-step active" id="wiz-1">
+                            <div class="radio-group">
+                                <label><input type="radio" name="vmtype"> <div><b>Typical (recommended)</b><div class="desc">Create a Workstation virtual machine in a few easy steps.</div></div></label>
+                                <label><input type="radio" name="vmtype" id="rb-custom" checked> <div><b>Custom (advanced)</b><div class="desc">Create a virtual machine with advanced options, such as SCSI controller type, virtual disk type and compatibility with older VMware products.</div></div></label>
+                            </div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-2">
+                            <div class="input-row"><label>Hardware compatibility:</label><select><option>Workstation 26.x</option><option>Workstation 17.x</option></select></div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-3">
+                            <div class="radio-group">
+                                <label><input type="radio" name="inst"> Installer disc:</label>
+                                <label><input type="radio" name="inst"> Installer disc image file (iso):</label>
+                                <label style="margin-top:15px;"><input type="radio" name="inst" id="rb-later" checked> <div><b>I will install the operating system later.</b><div class="desc">The virtual machine will be created with a blank hard disk.</div></div></label>
+                            </div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-4">
+                            <div class="radio-group"><label><input type="radio" name="g_os" checked> Microsoft Windows</label><label><input type="radio" name="g_os"> Linux</label></div>
+                            <div class="input-row" style="margin-top:20px;"><label>Version:</label><select id="os-version"><option>Windows Server 2022</option><option selected>Windows Server 2025</option></select></div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-5">
+                            <div class="input-row"><label>Virtual machine name:</label><input type="text" value="Windows Server 2025" disabled></div>
+                            <div class="input-row"><label>Location:</label><input type="text" value="C:\Users\Admin\Documents\Virtual Machines\Windows Server 2025" disabled></div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-6">
+                            <div class="radio-group"><label><input type="radio" name="fw"> BIOS</label><label><input type="radio" name="fw" checked> UEFI</label></div>
+                            <label style="margin-left:25px;"><input type="checkbox" checked> Secure Boot</label>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-7">
+                            <div class="input-row"><label>Number of processors:</label><select><option>1</option><option selected>2</option></select></div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-8">
+                            <div class="input-row"><label>Memory for this virtual machine (MB):</label><input type="number" id="wiz-ram" value="2048"></div>
+                            <p style="font-size:11px; color:#666;">Enter 4096 for 4 GB.</p>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-9">
+                            <div class="radio-group">
+                                <label><input type="radio" name="nettype" id="wiz-net-bridge"> Use bridged networking</label>
+                                <label><input type="radio" name="nettype" checked> Use network address translation (NAT)</label>
+                                <label><input type="radio" name="nettype"> Use host-only networking</label>
+                            </div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-10">
+                            <div class="radio-group">
+                                <label><input type="radio" name="io" disabled> BusLogic</label>
+                                <label><input type="radio" name="io" checked> LSI Logic SAS (Recommended)</label>
+                            </div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-11">
+                            <div class="radio-group">
+                                <label><input type="radio" name="dtype"> IDE</label>
+                                <label><input type="radio" name="dtype"> SCSI</label>
+                                <label><input type="radio" name="dtype"> SATA</label>
+                                <label><input type="radio" name="dtype" id="wiz-nvme" checked> NVMe (Recommended)</label>
+                            </div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-12">
+                            <div class="radio-group"><label><input type="radio" name="diskop" checked> Create a new virtual disk</label><label><input type="radio" name="diskop"> Use an existing virtual disk</label></div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-13">
+                            <div class="input-row"><label>Maximum disk size (GB):</label><input type="number" value="60" style="width:100px;"></div>
+                            <div class="radio-group"><label><input type="radio" name="diskst" checked> Split virtual disk into multiple files</label></div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-14">
+                            <div class="input-row"><label>Disk file:</label><input type="text" value="Windows Server 2025.vmdk" disabled></div>
+                        </div>
+
+                        <div class="wiz-step" id="wiz-15">
+                            <p style="margin-top:0; font-weight:bold;">Ready to Create Virtual Machine</p>
+                            <p>Click Finish to create the virtual machine.</p>
+                            <div style="border:1px solid #ccc; padding:10px; background:#f9f9f9; height:120px; overflow-y:auto; margin-bottom:15px; font-family:monospace;" id="wiz-summary"></div>
+                        </div>
+
+                    </div>
+                    <div class="wiz-footer">
+                        <button class="btn" id="wiz-btn-back" onclick="prevWiz()" disabled>< Back</button>
+                        <button class="btn btn-primary" id="wiz-btn-next" onclick="nextWiz()">Next ></button>
+                        <button class="btn" onclick="document.getElementById('wiz-overlay').style.display='none'">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- 4. Virtual Machine Settings (Hardware) -->
+                <div class="hw-win" id="hw-wiz" style="display:none;">
+                    <div class="wiz-header"><h2 class="wiz-title">Virtual Machine Settings</h2></div>
+                    <div class="hw-body">
+                        <div class="hw-left">
+                            <div class="hw-item"><div>Memory</div><div id="lbl-mem">2 GB</div></div>
+                            <div class="hw-item"><div>Processors</div><div>2</div></div>
+                            <div class="hw-item"><div>Hard Disk (NVMe)</div><div>60 GB</div></div>
+                            <div class="hw-item active" id="nav-cd" onclick="switchHw('cd')"><div>CD/DVD (SATA)</div><div id="lbl-cd">Auto detect</div></div>
+                            <div class="hw-item"><div>Network Adapter</div><div id="lbl-net">NAT</div></div>
+                        </div>
+                        <div class="hw-right">
+                            <div class="hw-pane active" id="pane-cd">
+                                <h3 class="pane-title">CD/DVD (SATA)</h3>
+                                <p>Connection</p>
+                                <div class="radio-group" style="margin-top:15px;">
+                                    <label><input type="radio" name="cdtype"> Use physical drive:</label>
+                                    <label style="align-items:center; width:100%;"><input type="radio" name="cdtype" id="rb-iso" onchange="checkCD()"> Use ISO image file:</label>
+                                    <div style="display:flex; gap:10px; margin-left:25px; margin-bottom:15px;">
+                                        <input type="text" id="iso-path" style="flex-grow:1; padding:4px;" disabled>
+                                        <button class="btn" id="btn-browse" style="padding:4px 10px;" disabled onclick="openFileDialog()">Browse...</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="wiz-footer">
+                        <button class="btn btn-primary" onclick="saveHardware()">OK</button>
+                        <button class="btn" onclick="document.getElementById('hw-wiz').style.display='none'; document.getElementById('wiz-overlay').style.display='none';">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fake Open File Dialog -->
+        <div class="window" id="file-dialog">
+            <div class="win-header">
+                <div>Browse for ISO Image</div>
+                <div class="win-controls"><span onclick="closeWin('file-dialog')">✖</span></div>
+            </div>
+            <div class="fd-content">
+                <div class="fd-left">
+                    <div class="fd-nav active">🖥️ Desktop</div>
+                    <div class="fd-nav">📁 Downloads</div>
+                    <div class="fd-nav">📁 Documents</div>
+                    <div class="fd-nav">💽 Local Disk (C:)</div>
+                </div>
+                <div class="fd-right">
+                    <div class="fd-icon" id="fd-iso" onclick="selectDialogFile(this)">
+                        <div style="font-size:32px; margin-bottom:5px;">💿</div>
+                        <div style="font-size:11px; text-align:center; word-break:break-word; line-height:1.2;">Windows_Server_2025.iso</div>
+                    </div>
+                </div>
+            </div>
+            <div class="fd-footer">
+                <label style="font-size:12px; font-weight:bold;">File name:</label>
+                <input type="text" id="fd-filename" style="flex-grow:1; padding:5px; border:1px solid #ccc; font-size:12px;" readonly>
+                <button class="btn btn-primary" id="fd-btn-open" disabled onclick="confirmISO()">Open</button>
+                <button class="btn" onclick="closeWin('file-dialog')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Success Overlay Pointing to Lab 1 -->
+    <div id="success-overlay">
+        <div style="font-size:60px; margin-bottom:20px;">🎉</div>
+        <h1 style="margin:0 0 10px 0;">LAB COMPLETED!</h1>
+        <p style="font-size:18px; margin-top:10px; color:#e0e0e0; text-align:center; max-width:600px; line-height:1.5;">
+            The VM is now successfully booting the ISO image. <br><br>
+            Please proceed to <b>Lab 1</b> to continue with the actual Windows Server 2025 OS installation.
+        </p>
+        <button class="btn btn-primary" style="margin-top:30px; font-size:16px; padding: 10px 30px;" onclick="location.reload()">Restart Lab</button>
+    </div>
+
+<style> @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } </style>
+
+<script>
+    // --- Draggable Windows ---
+    let highestZ = 10000;
+    document.addEventListener('mousedown', function(e) {
+        const header = e.target.closest('.win-header') || e.target.closest('.vm-header') || e.target.closest('#exam-header');
+        if (!header) return;
+        if (e.target.tagName === 'BUTTON' || (e.target.tagName === 'SPAN' && e.target.innerText === 'Minimize') || (e.target.tagName === 'SPAN' && e.target.innerText === 'Expand')) return;
+        e.preventDefault(); const win = header.parentElement;
+        highestZ++; win.style.zIndex = highestZ;
+        let rect = win.getBoundingClientRect(); win.style.right = 'auto'; win.style.bottom = 'auto';
+        if (window.getComputedStyle(win).transform !== 'none') { win.style.transform = 'none'; win.style.left = rect.left + 'px'; win.style.top = rect.top + 'px'; }
+        let shiftX = e.clientX - rect.left; let shiftY = e.clientY - rect.top;
+        function moveAt(pageX, pageY) { win.style.left = pageX - shiftX + 'px'; win.style.top = pageY - shiftY + 'px'; }
+        function onMouseMove(event) { moveAt(event.pageX, event.pageY); }
+        document.addEventListener('mousemove', onMouseMove);
+        document.onmouseup = function() { document.removeEventListener('mousemove', onMouseMove); document.onmouseup = null; };
+    });
+
+    function toggleFileMenu(e) { e.stopPropagation(); const dd = document.getElementById('file-dropdown'); dd.style.display = dd.style.display === 'flex' ? 'none' : 'flex'; }
+    
+    function closeDropdowns() { 
+        document.getElementById('file-dropdown').style.display = 'none'; 
+        const vmCtx = document.getElementById('vm-context-menu');
+        if(vmCtx) vmCtx.style.display = 'none';
+    }
+
+    // --- State & Guide (English) ---
+    let currentStep = 1;
+    let isoSelected = false;
+    let isBridged = false;
+    let isRamSet = false;
+
+    const instructions = {
+        1: "<b>Step 1:</b> Double-click the <b>VMware Setup 26H1.exe</b> icon on the desktop and complete the installation.",
+        2: "<b>Step 2:</b> Installation complete! Now double-click the newly created <b>VMware Workstation 26</b> shortcut on the desktop.",
+        3: "<b>Step 3:</b> Click on <b>Create a New Virtual Machine</b> (or use the File menu).",
+        4: "<b>Step 4:</b> Select <b>Custom (advanced)</b> and click <b>Next</b>.",
+        5: "<b>Step 5:</b> Hardware Compatibility (Workstation 26.x), click <b>Next</b>.",
+        6: "<b>Step 6:</b> Select <b>I will install the operating system later</b> and click <b>Next</b>.",
+        7: "<b>Step 7:</b> Guest OS: Ensure Windows Server 2025 is selected, click <b>Next</b>.",
+        8: "<b>Step 8:</b> Name and Location: leave default, click <b>Next</b>.",
+        9: "<b>Step 9:</b> Firmware Type: Ensure UEFI is selected, click <b>Next</b>.",
+        10: "<b>Step 10:</b> Processors: leave default, click <b>Next</b>.",
+        11: "<b>Step 11:</b> Memory: Change it to <b>4096</b> MB and click <b>Next</b>.",
+        12: "<b>Step 12:</b> Network Type: Select <b>Use bridged networking</b>, click <b>Next</b>.",
+        13: "<b>Step 13:</b> I/O Controller (LSI Logic SAS), click <b>Next</b>.",
+        14: "<b>Step 14:</b> Disk Type: Select <b>NVMe</b>, click <b>Next</b>.",
+        15: "<b>Step 15:</b> Create a new virtual disk, click <b>Next</b>.",
+        16: "<b>Step 16:</b> Disk Capacity (60 GB), click <b>Next</b>, then Disk File, click <b>Next</b>.",
+        17: "<b>Step 17:</b> Review the summary and click <b>Finish</b> to create the Virtual Machine.",
+        18: "<b>Step 18:</b> The VM is created! Now <b>right-click</b> the 'Windows Server 2025' VM in the left sidebar and select <b>Settings...</b> to add the ISO.",
+        19: "<b>Step 19:</b> Go to <b>CD/DVD</b>, select <b>Use ISO image file</b>, click <b>Browse...</b>. In the file dialog, select the <b>Windows Server 2025 ISO</b> from the Desktop, click <b>Open</b>, then <b>OK</b>.",
+        20: "<b>Step 20:</b> Everything is set! Click <b>Power on this virtual machine</b>.",
+        21: "<b>Step 21:</b> <i>Quickly!</i> Click inside the black VM screen and press any key to boot from the CD/DVD.",
+        22: "✅ <b>Lab Complete!</b> The VM is now booting the ISO. Please refer to <b>Lab 1</b> to continue with the actual Windows Server 2025 OS installation."
+    };
+
+    function updateGuide() { document.getElementById('instruction-text').innerHTML = instructions[currentStep]; }
+    function toggleExam(btn) {
+        const text = document.getElementById('instruction-text');
+        if(text.style.display === 'none') { text.style.display = 'block'; btn.innerText = 'Minimize'; } 
+        else { text.style.display = 'none'; btn.innerText = 'Expand'; }
+    }
+    function closeWin(id) { document.getElementById(id).classList.remove('show'); }
+
+    // --- 1. Installer Logic ---
+    function openInstaller() { highestZ++; document.getElementById('installer-win').style.zIndex=highestZ; document.getElementById('installer-win').classList.add('show'); }
+    
+    let instState = 1;
+    function nextInst() {
+        if(instState < 3) {
+            instState++; document.querySelectorAll('.inst-step').forEach(e=>e.classList.remove('active')); document.getElementById('is-'+instState).classList.add('active'); document.getElementById('inst-btn-back').disabled = false;
+        } else if (instState === 3) {
+            instState = 4; document.querySelectorAll('.inst-step').forEach(e=>e.classList.remove('active')); document.getElementById('is-4').classList.add('active'); document.getElementById('inst-btn-next').innerText = "Install";
+        } else if (instState === 4) {
+            document.getElementById('inst-btn-back').disabled = true; document.getElementById('inst-btn-next').disabled = true; document.getElementById('inst-btn-cancel').disabled = true; document.getElementById('inst-bar-container').style.display = 'block'; document.getElementById('inst-status').style.display = 'block';
+            let pct = 0;
+            let intv = setInterval(() => {
+                pct += 15; document.getElementById('inst-bar').style.width = pct + '%';
+                if(pct >= 100) { clearInterval(intv); document.getElementById('inst-status').innerText = "Completed Setup Wizard."; document.getElementById('inst-btn-next').innerText = "Finish"; document.getElementById('inst-btn-next').disabled = false; instState = 5; document.getElementById('app-icon').style.display = 'flex'; }
+            }, 300);
+        } else if (instState === 5) {
+            closeWin('installer-win'); if(currentStep === 1) { currentStep = 2; updateGuide(); }
+        }
+    }
+    function prevInst() {
+        if(instState > 1) { instState--; document.querySelectorAll('.inst-step').forEach(e=>e.classList.remove('active')); document.getElementById('is-'+instState).classList.add('active'); if(instState === 1) document.getElementById('inst-btn-back').disabled = true; document.getElementById('inst-btn-next').innerText = "Next >"; }
+    }
+
+    // --- 2. VMware App Logic ---
+    function openVMware() { highestZ++; document.getElementById('vmware-win').style.zIndex=highestZ; document.getElementById('vmware-win').classList.add('show'); if(currentStep === 2) { currentStep = 3; updateGuide(); } }
+    function switchTab(tab) {
+        document.querySelectorAll('.vm-tab').forEach(t => t.classList.remove('active')); document.querySelectorAll('.vm-tab-content').forEach(c => c.style.display = 'none'); document.querySelectorAll('.home-tab-content').forEach(c => c.style.display = 'none');
+        document.getElementById('tab-' + tab).classList.add('active'); document.getElementById('content-' + tab).style.display = 'flex';
+    }
+
+    // VM Right-Click Logic
+    function rcVM(e) {
+        e.preventDefault(); e.stopPropagation();
+        closeDropdowns();
+        const menu = document.getElementById('vm-context-menu');
+        menu.style.display = 'flex';
+        menu.style.left = e.pageX + 'px';
+        menu.style.top = e.pageY + 'px';
+    }
+    function openHwFromRC() {
+        document.getElementById('vm-context-menu').style.display = 'none';
+        openHardware();
+    }
+
+    // --- 3. Custom VM Wizard (15 Steps) ---
+    let wizStep = 1;
+    function openNewVMWizard() {
+        closeDropdowns();
+        document.getElementById('wiz-overlay').style.display = 'flex'; document.getElementById('new-vm-wiz').style.display = 'flex'; document.getElementById('hw-wiz').style.display = 'none';
+        renderWiz(1); if(currentStep === 3) { currentStep = 4; updateGuide(); }
+    }
+
+    const wTitles = {1:"Virtual Machine Configuration", 2:"Hardware Compatibility", 3:"Guest OS Installation", 4:"Select a Guest OS", 5:"Name the Virtual Machine", 6:"Firmware Type", 7:"Processor Configuration", 8:"Memory for the Virtual Machine", 9:"Network Type", 10:"I/O Controller Types", 11:"Virtual Disk Type", 12:"Select a Disk", 13:"Specify Disk Capacity", 14:"Specify Disk File", 15:"Ready to Create Virtual Machine"};
+    const wDescs = {1:"What type of configuration do you want?", 2:"Choose the hardware compatibility.", 3:"How will you install the guest operating system?", 4:"Which operating system will be installed?", 5:"What name would you like to use?", 6:"Specify the firmware type.", 7:"Specify the number of processors.", 8:"How much memory would you like to use?", 9:"What type of network do you want to add?", 10:"Which SCSI controller type do you want?", 11:"Which disk type do you want to use?", 12:"Which disk do you want to use?", 13:"How large do you want this disk to be?", 14:"Where would you like to store the disk file?", 15:"Click Finish to create the virtual machine."};
+
+    function renderWiz(step) {
+        wizStep = step;
+        document.querySelectorAll('.wiz-step').forEach(s => s.classList.remove('active'));
+        document.getElementById('wiz-' + step).classList.add('active');
+        document.getElementById('wiz-title').innerText = wTitles[step];
+        document.getElementById('wiz-desc').innerText = wDescs[step];
+        
+        let btnNext = document.getElementById('wiz-btn-next');
+        let btnBack = document.getElementById('wiz-btn-back');
+        btnBack.disabled = (step === 1);
+        
+        if (step === 15) { 
+            btnNext.innerText = "Finish"; 
+            document.getElementById('wiz-summary').innerHTML = `Name: Windows Server 2025<br>Location: C:\\...<br>Hard Disk: 60 GB<br>Memory: ${document.getElementById('wiz-ram').value} MB<br>Network Adapter: ${document.getElementById('wiz-net-bridge').checked ? 'Bridged' : 'NAT'}<br>CD/DVD: Auto detect`;
+        } else { btnNext.innerText = "Next >"; }
+
+        // Guide Progression
+        if(step === 2 && currentStep === 4) { currentStep = 5; updateGuide(); }
+        if(step === 3 && currentStep === 5) { currentStep = 6; updateGuide(); }
+        if(step === 4 && currentStep === 6) { currentStep = 7; updateGuide(); }
+        if(step === 5 && currentStep === 7) { currentStep = 8; updateGuide(); }
+        if(step === 6 && currentStep === 8) { currentStep = 9; updateGuide(); }
+        if(step === 7 && currentStep === 9) { currentStep = 10; updateGuide(); }
+        if(step === 8 && currentStep === 10) { currentStep = 11; updateGuide(); }
+        if(step === 9 && currentStep === 11) { currentStep = 12; updateGuide(); }
+        if(step === 10 && currentStep === 12) { currentStep = 13; updateGuide(); }
+        if(step === 11 && currentStep === 13) { currentStep = 14; updateGuide(); }
+        if(step === 12 && currentStep === 14) { currentStep = 15; updateGuide(); }
+        if(step === 13 && currentStep === 15) { currentStep = 16; updateGuide(); }
+        if(step === 15 && currentStep === 16) { currentStep = 17; updateGuide(); }
+    }
+
+    function nextWiz() {
+        if(wizStep === 1 && !document.getElementById('rb-custom').checked) { alert("Please select Custom (advanced) for this lab."); return; }
+        if(wizStep === 3 && !document.getElementById('rb-later').checked) { alert("Please select 'I will install the operating system later'."); return; }
+        if(wizStep === 8 && document.getElementById('wiz-ram').value !== '4096') { alert("Please set Memory to 4096 MB."); return; }
+        if(wizStep === 9 && !document.getElementById('wiz-net-bridge').checked) { alert("Please select Bridged networking."); return; }
+        if(wizStep === 11 && !document.getElementById('wiz-nvme').checked) { alert("Please select NVMe."); return; }
+
+        if(wizStep < 15) {
+            renderWiz(wizStep + 1);
+        } else if (wizStep === 15) {
+            // Finish
+            isRamSet = true; isBridged = true; // Set implicitly via Custom Wizard constraints
+            document.getElementById('lbl-mem').innerText = "4 GB";
+            document.getElementById('lbl-net').innerText = "Bridged";
+
+            document.getElementById('wiz-overlay').style.display = 'none';
+            document.getElementById('tab-vm').style.display = 'block';
+            document.getElementById('vm-list').innerHTML = `<div class="vm-item active" oncontextmenu="rcVM(event)">🖥️ Windows Server 2025</div>`;
+            switchTab('vm');
+            if(currentStep === 17) { currentStep = 18; updateGuide(); }
+        }
+    }
+    function prevWiz() { if(wizStep > 1) renderWiz(wizStep - 1); }
+
+    // --- 4. VM Hardware Settings (CD/DVD via Fake Browser) ---
+    function openHardware() {
+        document.getElementById('wiz-overlay').style.display = 'flex';
+        document.getElementById('new-vm-wiz').style.display = 'none';
+        document.getElementById('hw-wiz').style.display = 'flex';
+    }
+
+    function checkCD() {
+        let isIso = document.getElementById('rb-iso').checked;
+        document.getElementById('btn-browse').disabled = !isIso;
+        if(isIso && currentStep === 18) { currentStep = 19; updateGuide(); }
+    }
+    
+    // Fake File Dialog Logic
+    function openFileDialog() {
+        highestZ++; document.getElementById('file-dialog').style.zIndex = highestZ;
+        document.getElementById('file-dialog').classList.add('show');
+    }
+    function selectDialogFile(el) {
+        document.querySelectorAll('.fd-icon').forEach(i=>i.classList.remove('selected'));
+        el.classList.add('selected');
+        document.getElementById('fd-filename').value = "Windows_Server_2025.iso";
+        document.getElementById('fd-btn-open').disabled = false;
+    }
+    function confirmISO() {
+        closeWin('file-dialog');
+        document.getElementById('iso-path').value = "C:\\Users\\Admin\\Desktop\\Windows_Server_2025.iso";
+        document.getElementById('lbl-cd').innerText = "Using file...";
+        isoSelected = true;
+    }
+
+    function saveHardware() {
+        if(currentStep === 19 && isoSelected) {
+            document.getElementById('hw-wiz').style.display = 'none';
+            document.getElementById('wiz-overlay').style.display = 'none';
+            currentStep = 20; updateGuide();
+        } else {
+            document.getElementById('hw-wiz').style.display = 'none'; document.getElementById('wiz-overlay').style.display = 'none';
+            if(currentStep < 20) alert("Please select the ISO image file.");
+        }
+    }
+
+    // --- 5. Power On & Boot Logic ---
+    function powerOnVM() {
+        if(currentStep === 20) { currentStep = 21; updateGuide(); }
+        
+        const overlay = document.getElementById('boot-overlay');
+        const bootText = document.getElementById('boot-text');
+        overlay.style.display = 'block';
+        
+        setTimeout(() => {
+            bootText.style.display = 'block';
+            
+            overlay.onclick = function() {
+                bootText.style.display = 'none';
+                document.getElementById('boot-logo').style.display = 'block';
+                if(currentStep === 21) { 
+                    currentStep = 22; 
+                    updateGuide(); 
+                    
+                    // Show final redirect to Lab 1 after 3 seconds of spinning
+                    setTimeout(() => {
+                        highestZ++;
+                        document.getElementById('success-overlay').style.zIndex = highestZ;
+                        document.getElementById('success-overlay').style.display = 'flex';
+                    }, 3000);
+                }
+                overlay.onclick = null;
+            };
+            
+            setTimeout(() => {
+                if(currentStep === 21) { bootText.innerText = "Time out. Booting from Network...\nNetwork boot failed.\nPlease reset the VM and try again."; }
+            }, 6000);
+        }, 1500);
+    }
+
+    // Init
+    updateGuide();
+</script>
+</body>
+</html>
