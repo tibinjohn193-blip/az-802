@@ -16,7 +16,7 @@ This project provides **100% browser-based interactive simulations** for complex
 *Click the links below to launch the browser-based simulations:*
 
 
-* [**Lab 1: 🖥️ Introduction to Windows Server 2025](lab1.md)
+* [Lab 1: 🖥️ Introduction to Windows Server 2025](lab1.md)
 
 ---
 
