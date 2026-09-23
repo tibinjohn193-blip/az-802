@@ -15,23 +15,9 @@ This project provides **100% browser-based interactive simulations** for complex
 ## 📚 Interactive Lab Catalog
 *Click the links below to launch the browser-based simulations:*
 
-### Section 1: Core Infrastructure
-* [**Lab 1: Static IP Configuration & DNS Setup**](#)
-* [**Lab 2: Active Directory Domain Services (AD DS) Installation**](#)
-* [**Lab 3: Promoting Server to Domain Controller**](#)
 
-### Section 2: Identity & Security
-* [**Lab 4: Creating Organizational Units (OU) & Users in ADUC**](#)
-* [**Lab 5: Advanced Folder Sharing & NTFS Security**](#)
-* [**Lab 6: BitLocker Drive Encryption & Recovery**](#)
-
-### Section 3: Azure Hybrid Integration *(Coming Soon)*
-* [**Lab 7: Configuring Azure AD Connect**](#)
-* [**Lab 8: Azure Arc Setup for Windows Server**](#)
+* [**Lab 1: 🖥️ Introduction to Windows Server 2025](lab1.md)
 
 ---
 
-## 💻 How to Use the Labs
-1. **Clone this repository** to your local machine:
-   ```bash
-   git clone [https://github.com/your-username/az-802.git](https://github.com/your-username/az-802.git)
+
