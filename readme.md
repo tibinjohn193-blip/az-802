@@ -16,9 +16,11 @@ This project provides **100% browser-based interactive simulations** for complex
 *Click the links below to launch the browser-based simulations:*
 
 
-* [Lab 1: 🖥️ Introduction & installation of  Windows Server 2025](lab1.md)
+* [🖥️ Lab 1:  Introduction & installation of  Windows Server 2025](lab1.md)
   
-* [Lab 2: 🖥️  VMware Installation & Virtual Machine Provisioning](lab2.md)
+* [🖥️ Lab 2: VMware Installation & Virtual Machine Provisioning](lab2.md)
+
+* [🖥️ Lab 3: Active Directory Forest Deployment & Static IP Configuration](lab3.md)
 
 ---
 
