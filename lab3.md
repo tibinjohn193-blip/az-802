@@ -50,5 +50,5 @@ In this browser-based simulation, you will experience a 100% authentic Windows S
 
 Ready to configure your first Active Directory Forest? Click the link below to start the simulation!
 
-### 👉 [LAUNCH LAB 3: AD DS Forest Deployment](lab3.html) 👈
+### 👉 [LAUNCH LAB 3: AD DS Forest Deployment](https://tibinjohn193-blip.github.io/az-802/lab3.html) 👈
 
