@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 3: AD DS Forest Deployment (Strict Authenticity)</title>
+<style>
+    :root {
+        --host-bg: url('https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?q=80&w=1920&auto=format&fit=crop');
+        --server-bg: #004275; 
+        --taskbar-bg: rgba(20, 20, 20, 0.98);
+        --taskbar-hover: rgba(255, 255, 255, 0.1);
+        --accent: #0078D7;
+        --win-border: #808080;
+    }
+
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; overflow: hidden; background-color: #000; user-select: none; }
+    
+    /* Host Desktop */
+    #host-desktop { width: 100%; height: 100%; background: var(--host-bg) no-repeat center center fixed; background-size: cover; position: absolute; top:0; left:0; }
+
+    /* Lab Guide Panel */
+    #exam-panel { position: absolute; top: 20px; right: 20px; width: 350px; background: rgba(255, 255, 255, 0.95); border: 2px solid var(--accent); border-radius: 4px; padding: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); z-index: 2147483647; color: #1B1B1B; max-height: 85vh; overflow-y:auto; transition: 0.3s;}
+    #exam-header { cursor: move; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px; position: sticky; top:0; background: rgba(255, 255, 255, 0.95);}
+    #instruction-text { font-size: 13px; line-height: 1.5; margin: 0; }
+    #instruction-text code { background: #e0e0e0; padding: 2px 4px; border-radius: 3px; font-weight: bold; color: #d84315; }
+
+    .desktop-icons { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 15px; }
+    .d-icon { display: flex; flex-direction: column; align-items: center; cursor: pointer; width: 85px; padding: 5px; border-radius: 4px; }
+    .d-icon:hover { background: rgba(255,255,255,0.1); }
+    .d-icon .i-img { font-size: 40px; margin-bottom: 5px; text-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+    .d-icon .i-text { color: white; font-size: 12px; text-align: center; text-shadow: 0 1px 3px black; font-weight: 500; line-height: 1.2;}
+
+    .btn { padding: 5px 15px; border: 1px solid #ccc; background: #e1e1e1; cursor: pointer; font-family: inherit; font-size: 12px; min-width: 75px;}
+    .btn:hover:not(:disabled) { background: #e5f1fb; border-color: #0078D7; }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover:not(:disabled) { background: #005a9e; }
+    .btn:disabled { color: #aaa; cursor: not-allowed; background: #f5f5f5;}
+
+    /* VMware App Window */
+    #vmware-win { width: 950px; height: 650px; background: #1e1e1e; color: #fff; border: 1px solid #444; position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); display: none; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.8); z-index: 5000; }
+    .vm-header { background: #2d2d30; height: 35px; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; font-size: 12px; cursor: move; border-bottom: 1px solid #111;}
+    .vm-toolbar { background: #2d2d30; height: 30px; display: flex; align-items: center; padding: 0 10px; gap: 15px; font-size: 13px; border-bottom: 1px solid #444;}
+    
+    .menu-bar-item { cursor: pointer; padding: 4px 8px; position: relative; }
+    .menu-bar-item:hover { background: #3e3e42; }
+    .dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #f2f2f2; color: #000; border: 1px solid #ccc; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); z-index: 9000; min-width: 200px; flex-direction: column; }
+    .dropdown-item { padding: 6px 15px; cursor: pointer; font-size: 12px; display: flex; justify-content: space-between;}
+    .dropdown-item:hover { background: #91c9f7; }
+
+    .vm-main { display: flex; flex-grow: 1; height: 0; }
+    .vm-sidebar { width: 220px; background: #252526; border-right: 1px solid #333; padding: 10px 0; overflow-y: auto; font-size: 13px; }
+    .vm-item { padding: 5px 15px; display: flex; align-items: center; gap: 10px; cursor: pointer; background: #37373d; border-left: 3px solid #007acc; }
+    .vm-content { flex-grow: 1; display: flex; flex-direction: column; background: #1e1e1e; position:relative;}
+    
+    .vm-power-bar { background: #252526; padding: 10px 20px; display: flex; gap: 15px; border-bottom: 1px solid #333; }
+    .power-btn { display: flex; align-items: center; gap: 8px; color: #4CAF50; cursor: pointer; font-size: 13px; font-weight: bold;}
+    .power-btn:hover { text-decoration: underline; }
+    
+    /* Fullscreen specific fixes */
+    #vm-screen { flex-grow: 1; background: #000; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; box-sizing:border-box;}
+    #vm-screen:fullscreen { width: 100vw; height: 100vh; background: #000; }
+    #vm-screen:-webkit-full-screen { width: 100vw; height: 100vh; background: #000; }
+    
+    #fs-toolbar { display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); background: #2d2d30; color: white; padding: 5px 20px; border-radius: 0 0 8px 8px; font-size: 13px; z-index: 2147483647; box-shadow: 0 2px 10px rgba(0,0,0,0.5); gap: 15px; align-items:center;}
+    
+    /* Server OS Internal */
+    #server-os { width: 100%; height: 100%; background: var(--server-bg); display: none; position: relative; color:#000; box-sizing:border-box;}
+    #lock-screen { position: absolute; top:0; left:0; width:100%; height:100%; background: var(--server-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index:500;}
+    #login-screen { position: absolute; top:0; left:0; width:100%; height:100%; background: var(--server-bg); display: none; flex-direction: column; align-items: center; justify-content: center; color: white; z-index:500;}
+    
+    #server-desktop { width:100%; height:100%; background: var(--server-bg); display: none; position: relative; overflow:hidden;}
+    .server-watermark { position: absolute; bottom: 60px; right: 20px; color: rgba(255,255,255,0.6); font-size: 16px; text-align: right; }
+    
+    /* OS Taskbar & Start Menu */
+    .os-taskbar { position: absolute; bottom: 0; left: 0; width: 100%; height: 45px; background: var(--taskbar-bg); display: flex; align-items: center; padding: 0 10px; gap: 5px; z-index:800; border-top:1px solid rgba(255,255,255,0.1);}
+    .os-tb-icon { width: 40px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+    .os-tb-icon:hover { background: var(--taskbar-hover); }
+
+    #start-menu { display: none; position: absolute; bottom: 45px; left: 0; width: 320px; background: #fbfbfb; border: 1px solid #ccc; box-shadow: 2px -2px 15px rgba(0,0,0,0.4); z-index: 900; overflow: hidden; flex-direction: column; }
+    .sm-search { padding: 15px; background:#fff; border-bottom:1px solid #eee;}
+    .sm-search input { width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit; font-size: 12px;}
+    .sm-apps { padding: 10px; display:flex; flex-wrap:wrap; gap:10px; }
+    .sm-app-icon { width: 60px; display:flex; flex-direction:column; align-items:center; cursor:pointer; padding:10px; border-radius:4px; font-size:11px; text-align:center;}
+    .sm-app-icon:hover { background:#e5f1fb; }
+
+    /* OS Windows */
+    .os-win { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.5); display: none; flex-direction: column; border: 1px solid var(--win-border); font-size: 12px; z-index: 100;}
+    .os-win-header { background: #fff; height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid #ddd; cursor: move; font-size:12px; font-weight:normal;}
+    .win-close { cursor:pointer; padding:5px 10px; transition:0.2s;}
+    .win-close:hover { background:#e81123; color:white;}
+
+    /* Context Menus */
+    .ctx-menu { display: none; position: absolute; background: #f2f2f2; color: #000; border: 1px solid #ccc; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); z-index: 9999; flex-direction: column; font-size:12px; min-width: 150px; padding:2px 0;}
+    .ctx-item { padding: 5px 20px; cursor: pointer; display:flex; justify-content:space-between; align-items:center;}
+    .ctx-item:hover:not(.disabled) { background: #91c9f7; }
+    .ctx-item.disabled { color: #888; cursor:default;}
+    .ctx-divider { border-top:1px solid #ddd; margin:3px 0;}
+
+    /* Run Dialog */
+    #run-dialog { width: 380px; }
+    .run-body { padding: 20px; display: flex; gap: 15px; align-items:flex-start;}
+    .run-input { flex-grow: 1; }
+    .run-input input { width: 100%; padding: 4px; margin-top: 10px; border: 1px solid #ccc; font-family:inherit;}
+
+    /* Network Connections (ncpa.cpl) */
+    #ncpa-win { width: 650px; height: 400px; }
+    .ncpa-body { flex-grow: 1; background: #fff; padding: 20px; display: flex; gap: 20px; align-content: flex-start; }
+    .net-adapter { width: 140px; text-align: center; cursor: default; padding: 10px; border: 1px solid transparent; }
+    .net-adapter:hover { background: #e5f1fb; border-color: #99d1ff; }
+    .net-adapter.selected { background: #cce8ff; border-color: #99d1ff; }
+
+    /* Adapter Properties */
+    #adapter-props-win { width: 360px; }
+    .prop-list { border:1px solid #999; height:120px; overflow-y:auto; background:#fff; margin:10px 0;}
+    .prop-item { padding:3px 5px; display:flex; align-items:center; gap:5px; cursor:default;}
+    .prop-item:hover { background: #f0f0f0; }
+    .prop-item.selected { background: #0078D7; color: white; }
+
+    /* IPv4 Properties */
+    #ipv4-win { width: 420px; }
+    .ipv4-body { padding: 15px; }
+    .ip-row { display: flex; align-items: center; margin-bottom: 8px; margin-left: 20px;}
+    .ip-row label { width: 140px; }
+    .ip-row input { width: 150px; padding: 3px; border: 1px solid #999; font-family: monospace;}
+
+    /* Server Manager */
+    #sm-win { width: 850px; height: 550px; }
+    .sm-top { background: #333; color: white; height: 40px; display: flex; align-items: center; padding: 0 15px; gap: 20px;}
+    .sm-body { display: flex; flex-grow: 1; background: #eee;}
+    .sm-left { width: 200px; background: #fff; border-right: 1px solid #ddd; padding-top: 10px; }
+    .sm-nav { padding: 10px 15px; cursor: pointer; border-left: 3px solid transparent;}
+    .sm-nav.active { background: #f0f0f0; border-left-color: var(--accent); font-weight: bold;}
+    .sm-right { flex-grow: 1; padding: 20px; overflow-y: auto; background:#fff;}
+    
+    .sm-grid { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;}
+    .sm-tile { width: 48%; border: 1px solid #ddd; padding: 15px; cursor: pointer; transition:0.2s;}
+    .sm-tile:hover { background: #e5f1fb; border-color: #0078D7; }
+    .sm-tile-num { font-size: 20px; color: #0078D7; font-weight: bold; margin-bottom: 5px; }
+
+    .manage-menu { position: absolute; top: 40px; right: 150px; background: #fff; border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: none; flex-direction: column; color:#000;}
+    .manage-item { padding: 8px 15px; cursor: pointer; }
+    .manage-item:hover { background: #e5f1fb; }
+
+    .flag-menu { position: absolute; top: 40px; right: 280px; width:320px; background: #fff; border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: none; flex-direction: column; color:#000; padding:10px;}
+
+    /* Wizards */
+    .wiz-win { width: 750px; height: 520px; display:none; flex-direction: column; position: absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border:1px solid #999; box-shadow:0 5px 20px rgba(0,0,0,0.4); z-index:150;}
+    .wiz-layout { display: flex; flex-grow: 1; height: 0; }
+    .wiz-left { width: 180px; background: #fbfbfb; border-right: 1px solid #e5e5e5; padding: 15px 10px; }
+    .wiz-nav { padding: 5px; color: #666; margin-bottom: 2px; }
+    .wiz-nav.active { font-weight: bold; color: #000; }
+    .wiz-right { flex-grow: 1; padding: 20px; overflow-y: auto; position:relative;}
+    .wiz-footer { padding: 15px; background: #f0f0f0; border-top: 1px solid #ddd; display: flex; justify-content: flex-end; gap: 10px; }
+    .w-step { display: none; }
+    .w-step.active { display: block; }
+    
+    .role-item { display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start;}
+    .sub-input { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+    .sub-input input { padding:4px; width:200px; border:1px solid #ccc; font-family:inherit; font-size:12px;}
+
+    #success-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,30,80,0.95); display: none; justify-content: center; align-items: center; z-index: 300000; flex-direction: column; color: white; backdrop-filter: blur(10px); }
+</style>
+</head>
+<body onclick="closeAllMenus()">
+
+    <!-- LAB PANEL -->
+    <div id="exam-panel">
+        <div id="exam-header">
+            <b style="color: #0067C0; font-size:16px; margin:0; display:flex; align-items:center; gap:5px;">📋 Lab Guide</b>
+            <span style="cursor:pointer; font-size:12px; background:#eee; padding:4px 8px; border-radius:4px; border:1px solid #ccc;" onclick="toggleExam(this)">Minimize</span>
+        </div>
+        <p id="instruction-text"></p>
+    </div>
+
+    <!-- HOST DESKTOP -->
+    <div id="host-desktop">
+        <div class="desktop-icons">
+            <div class="d-icon" ondblclick="openVMware()">
+                <div class="i-img">🖥️</div><div class="i-text">VMware<br>Workstation 26</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VMWARE APP -->
+    <div id="vmware-win">
+        <div class="vm-header">
+            <div>VMware Workstation 26H1</div>
+            <div class="win-controls">
+                <span class="win-close" onclick="document.getElementById('vmware-win').style.display='none'">✖</span>
+            </div>
+        </div>
+        <div class="vm-toolbar">
+            <div class="menu-bar-item">File</div>
+            <div class="menu-bar-item">Edit</div>
+            <div class="menu-bar-item" onclick="toggleMenu(event, 'view-menu')">View
+                <div class="dropdown-menu" id="view-menu">
+                    <div class="dropdown-item" id="btn-fullscreen" onclick="goFullScreen()">Full Screen <span style="color:#888;">F11</span></div>
+                </div>
+            </div>
+            <div class="menu-bar-item" onclick="toggleMenu(event, 'vm-menu')">VM
+                <div class="dropdown-menu" id="vm-menu">
+                    <div class="dropdown-item" id="btn-cad1" onclick="sendCAD()" style="color:#888;">Send Ctrl+Alt+Delete <span style="color:#888;">Ctrl+Alt+Ins</span></div>
+                    <div class="dropdown-item">Settings...</div>
+                </div>
+            </div>
+            <div class="menu-bar-item">Tabs</div><div class="menu-bar-item">Help</div>
+        </div>
+        <div class="vm-main">
+            <div class="vm-sidebar">
+                <div style="padding: 5px 10px; color:#aaa; font-weight:bold; font-size:11px; text-transform:uppercase;">My Computer</div>
+                <div class="vm-item">🖥️ Windows Server 2025</div>
+            </div>
+            <div class="vm-content">
+                <div class="vm-power-bar" id="power-bar">
+                    <div class="power-btn" onclick="powerOnVM()">▶ Power on this virtual machine</div>
+                </div>
+                
+                <!-- VM Screen Area -->
+                <div id="vm-screen">
+                    <div id="vm-off-text" style="color:#666; font-size:24px; font-weight:bold; text-align:center;">Windows Server 2025<br><span style="font-size:14px; font-weight:normal;">State: Powered Off</span></div>
+                    
+                    <!-- Windows Server 2025 Environment -->
+                    <div id="server-os">
+                        
+                        <div id="lock-screen">
+                            <div style="font-size: 80px; font-weight: 300;" id="clock-time">12:00</div>
+                            <div style="font-size: 20px; margin-bottom:50px;">Monday, September 21</div>
+                        </div>
+
+                        <div id="login-screen">
+                            <div style="font-size:100px; line-height:1; background:rgba(255,255,255,0.2); border-radius:50%; padding:10px; margin-bottom:15px;">👤</div>
+                            <div style="font-size:28px; font-weight:600; margin-bottom:20px;">Administrator</div>
+                            <div style="display:flex; width:300px; background:rgba(255,255,255,0.9); border-radius:4px; overflow:hidden;">
+                                <input type="password" id="login-pwd" placeholder="Password" style="flex-grow:1; padding:10px; border:none; outline:none; color:#000;" onkeypress="if(event.key==='Enter') doLogin()">
+                                <button onclick="doLogin()" style="padding:10px 15px; border:none; cursor:pointer; background:rgba(0,0,0,0.1); font-weight:bold;">→</button>
+                            </div>
+                        </div>
+
+                        <!-- Server Desktop -->
+                        <div id="server-desktop" onclick="hideStartMenu(event)">
+                            <div class="server-watermark">Windows Server 2025<br>Standard Evaluation</div>
+                            
+                            <!-- Start Menu -->
+                            <div id="start-menu" onclick="event.stopPropagation()">
+                                <div class="sm-search">
+                                    <input type="text" placeholder="Type here to search">
+                                </div>
+                                <div class="sm-apps">
+                                    <div class="sm-app-icon" onclick="openSM()">
+                                        <svg viewBox="0 0 24 24" fill="#0078D7" width="28" height="28"><path d="M2 4h20v11H2V4zm2 2v7h16V6H4zm-2 13h20v2H2v-2zm8-2h4v2h-4v-2z"/></svg>
+                                        Server Manager
+                                    </div>
+                                    <div class="sm-app-icon" onclick="openRun()">
+                                        <svg viewBox="0 0 32 32" width="28" height="28">
+                                            <rect x="2" y="6" width="28" height="20" rx="2" fill="#fff" stroke="#666" stroke-width="2"/>
+                                            <path d="M2 8 C2 6.895 2.895 6 4 6 L28 6 C29.105 6 30 6.895 30 8 L30 12 L2 12 Z" fill="#0078D7"/>
+                                            <rect x="6" y="15" width="10" height="2" fill="#666"/>
+                                            <rect x="6" y="19" width="6" height="2" fill="#666"/>
+                                            <polygon points="18,14 24,18 18,22" fill="#0078D7"/>
+                                        </svg>
+                                        Run
+                                    </div>
+                                    <div class="sm-app-icon">
+                                        <svg viewBox="0 0 24 24" fill="#555" width="28" height="28"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                                        Settings
+                                    </div>
+                                </div>
+                                <div style="padding:10px; background:#f0f0f0; border-top:1px solid #ddd; display:flex; justify-content:space-between;">
+                                    <span style="font-weight:bold;">Administrator</span>
+                                </div>
+                            </div>
+
+                            <div class="os-taskbar">
+                                <!-- Windows Start Icon -->
+                                <div class="os-tb-icon" onclick="toggleStartMenu(event)" title="Start">
+                                    <svg width="22" height="22" viewBox="0 0 88 88"><path fill="#fff" d="M0,12.4L37.6,7.2v35.3H0V12.4z M41.9,6.5L88,0v42.5H41.9V6.5z M41.9,46.1H88V88L41.9,81.5V46.1z M0,46.1h37.6v34L0,75.6V46.1z"/></svg>
+                                </div>
+                                <div class="os-tb-icon" onclick="openSM()" title="Server Manager">
+                                    <svg viewBox="0 0 24 24" fill="#fff" width="22" height="22"><path d="M2 4h20v11H2V4zm2 2v7h16V6H4zm-2 13h20v2H2v-2zm8-2h4v2h-4v-2z"/></svg>
+                                </div>
+                                <div class="os-tb-icon" title="File Explorer">
+                                    <svg viewBox="0 0 24 24" fill="#E8B04D" width="22" height="22"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                </div>
+                            </div>
+                            
+                            <!-- Run Dialog (Authentic UI) -->
+                            <div class="os-win" id="run-dialog">
+                                <div class="os-win-header"><div>Run</div><div class="win-close" onclick="closeOSWin('run-dialog')">✖</div></div>
+                                <div class="run-body">
+                                    <div>
+                                        <svg viewBox="0 0 32 32" width="35" height="35">
+                                            <rect x="2" y="6" width="28" height="20" rx="2" fill="#fff" stroke="#666" stroke-width="2"/>
+                                            <path d="M2 8 C2 6.895 2.895 6 4 6 L28 6 C29.105 6 30 6.895 30 8 L30 12 L2 12 Z" fill="#0078D7"/>
+                                            <rect x="6" y="15" width="10" height="2" fill="#666"/>
+                                            <rect x="6" y="19" width="6" height="2" fill="#666"/>
+                                            <polygon points="18,14 24,18 18,22" fill="#0078D7"/>
+                                        </svg>
+                                    </div>
+                                    <div class="run-input">
+                                        <div style="margin-bottom:15px;">Type the name of a program, folder, document, or Internet resource, and Windows will open it for you.</div>
+                                        <div style="display:flex; align-items:center; gap:10px;">
+                                            Open: <input type="text" id="run-cmd" value="ncpa.cpl" onkeypress="if(event.key==='Enter') executeRun()">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="padding:10px; background:#f0f0f0; text-align:right; border-top:1px solid #ddd;">
+                                    <button class="btn" onclick="executeRun()">OK</button>
+                                    <button class="btn" onclick="closeOSWin('run-dialog')">Cancel</button>
+                                </div>
+                            </div>
+
+                            <!-- Network Connections -->
+                            <div class="os-win" id="ncpa-win">
+                                <div class="os-win-header"><div>Network Connections</div><div class="win-close" onclick="closeOSWin('ncpa-win')">✖</div></div>
+                                <div style="background:#f5f6f7; padding:5px 10px; border-bottom:1px solid #ddd; display:flex; gap:10px;">
+                                    <span style="color:#666;">Organize ▼</span>
+                                </div>
+                                <div class="ncpa-body" onclick="clearAdapterSelection()">
+                                    <div class="net-adapter" id="eth0" onclick="selectAdapter(event, this)" oncontextmenu="showAdapterMenu(event, this)">
+                                        <div><svg viewBox="0 0 24 24" fill="#0078D7" width="40" height="40"><path d="M20 3H4C2.9 3 2 3.9 2 5v10c0 1.1.9 2 2 2h6v2H8v2h8v-2h-2v-2h6c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 12H4V5h16v10z"/></svg></div>
+                                        <div style="font-weight:bold;">Ethernet0</div>
+                                        <div style="color:#666; font-size:11px;">Network<br>Intel(R) PRO/1000 MT</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Context Menu for Adapter -->
+                            <div class="ctx-menu" id="adapter-menu">
+                                <div class="ctx-item disabled">Disable</div>
+                                <div class="ctx-item disabled">Status</div>
+                                <div class="ctx-item disabled">Diagnose</div>
+                                <div class="ctx-divider"></div>
+                                <div class="ctx-item disabled">Rename</div>
+                                <div class="ctx-item" onclick="openAdapterProps()">Properties</div>
+                            </div>
+
+                            <!-- Ethernet Properties Window -->
+                            <div class="os-win" id="adapter-props-win">
+                                <div class="os-win-header"><div>Ethernet0 Properties</div><div class="win-close" onclick="closeOSWin('adapter-props-win')">✖</div></div>
+                                <div style="padding:15px;">
+                                    Connect using:<br>
+                                    <b>Intel(R) PRO/1000 MT Network Connection</b>
+                                    <p style="margin:15px 0 5px 0;">This connection uses the following items:</p>
+                                    <div class="prop-list">
+                                        <div class="prop-item"><input type="checkbox" checked disabled> Client for Microsoft Networks</div>
+                                        <div class="prop-item"><input type="checkbox" checked disabled> File and Printer Sharing for Microsoft Networks</div>
+                                        <div class="prop-item" id="ipv4-item" onclick="selectPropItem(this)"><input type="checkbox" checked disabled> Internet Protocol Version 4 (TCP/IPv4)</div>
+                                        <div class="prop-item"><input type="checkbox" checked disabled> Internet Protocol Version 6 (TCP/IPv6)</div>
+                                    </div>
+                                    <div style="text-align:right;"><button class="btn" id="btn-prop-ipv4" disabled onclick="openIPv4()">Properties</button></div>
+                                </div>
+                                <div style="padding:10px; background:#f0f0f0; text-align:right; border-top:1px solid #ddd;">
+                                    <button class="btn btn-primary" onclick="closeOSWin('adapter-props-win')">OK</button>
+                                    <button class="btn" onclick="closeOSWin('adapter-props-win')">Cancel</button>
+                                </div>
+                            </div>
+
+                            <!-- IPv4 Properties -->
+                            <div class="os-win" id="ipv4-win">
+                                <div class="os-win-header"><div>Internet Protocol Version 4 (TCP/IPv4) Properties</div><div class="win-close" onclick="closeOSWin('ipv4-win')">✖</div></div>
+                                <div class="ipv4-body">
+                                    <label style="display:flex; gap:10px; margin-bottom:10px;"><input type="radio" name="iptype" disabled> Obtain an IP address automatically</label>
+                                    <label style="display:flex; gap:10px; margin-bottom:10px;"><input type="radio" name="iptype" checked> Use the following IP address:</label>
+                                    <div class="ip-row"><label>IP address:</label><input type="text" id="ip-addr" placeholder="192.168.10.1"></div>
+                                    <div class="ip-row"><label>Subnet mask:</label><input type="text" id="ip-sub" placeholder="255.255.255.0"></div>
+                                    <div class="ip-row"><label>Default gateway:</label><input type="text" disabled></div>
+                                    
+                                    <label style="display:flex; gap:10px; margin:15px 0 10px 0;"><input type="radio" name="dnstype" checked> Use the following DNS server addresses:</label>
+                                    <div class="ip-row"><label>Preferred DNS server:</label><input type="text" id="ip-dns" placeholder="192.168.10.1"></div>
+                                </div>
+                                <div style="padding:10px; background:#f0f0f0; text-align:right; border-top:1px solid #ddd;">
+                                    <button class="btn btn-primary" onclick="saveIP()">OK</button>
+                                    <button class="btn" onclick="closeOSWin('ipv4-win')">Cancel</button>
+                                </div>
+                            </div>
+
+                            <!-- Server Manager -->
+                            <div class="os-win" id="sm-win">
+                                <div class="os-win-header"><div>Server Manager</div><div class="win-close" onclick="closeOSWin('sm-win')">✖</div></div>
+                                <div class="sm-top">
+                                    <div style="font-weight:bold; font-size:16px;">Server Manager</div>
+                                    <div style="flex-grow:1;"></div>
+                                    <div style="cursor:pointer; position:relative;" onclick="toggleMenu(event, 'flag-menu')">
+                                        <svg viewBox="0 0 24 24" fill="#fff" width="16" height="16"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg>
+                                        <span id="flag-badge" style="position:absolute; top:-6px; right:-10px; font-size:16px; display:none; filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));">⚠️</span>
+                                    </div>
+                                    <div style="cursor:pointer;" onclick="toggleMenu(event, 'manage-menu')">Manage ▼</div>
+                                    <div style="cursor:pointer;">Tools ▼</div>
+                                    <div style="cursor:pointer;">View ▼</div>
+                                    <div style="cursor:pointer;">Help ▼</div>
+                                </div>
+                                
+                                <div class="ctx-menu" id="manage-menu" style="top:40px; right:150px;">
+                                    <div class="ctx-item" onclick="openRolesWiz()">Add Roles and Features</div>
+                                    <div class="ctx-item disabled">Remove Roles and Features</div>
+                                    <div class="ctx-item disabled">Add Servers</div>
+                                </div>
+                                
+                                <div class="ctx-menu" id="flag-menu" style="top:40px; right:280px; width:320px; padding:10px; cursor:default;">
+                                    <div style="font-weight:bold; border-bottom:1px solid #eee; padding-bottom:5px; margin-bottom:5px;">Post-deployment Configuration</div>
+                                    <div style="color:#003399; cursor:pointer; display:flex; gap:10px; padding:5px 0;" onclick="openPromoWiz()">
+                                        <span style="font-size:16px;">⚠️</span> <span style="text-decoration:underline;">Promote this server to a domain controller</span>
+                                    </div>
+                                </div>
+
+                                <div class="sm-body">
+                                    <div class="sm-left">
+                                        <div class="sm-nav active">Dashboard</div>
+                                        <div class="sm-nav">Local Server</div>
+                                        <div class="sm-nav">All Servers</div>
+                                        <div class="sm-nav">File and Storage Services</div>
+                                    </div>
+                                    <div class="sm-right">
+                                        <h2 style="font-weight:normal; margin-top:0;">Welcome to Server Manager</h2>
+                                        <h3 style="color:#666; font-size:14px; margin-bottom:5px;">Quick Start</h3>
+                                        <div class="sm-grid">
+                                            <div class="sm-tile">
+                                                <div class="sm-tile-num">1</div>
+                                                <b>Configure this local server</b>
+                                            </div>
+                                            <div class="sm-tile" onclick="openRolesWiz()">
+                                                <div class="sm-tile-num">2</div>
+                                                <b>Add roles and features</b>
+                                            </div>
+                                            <div class="sm-tile">
+                                                <div class="sm-tile-num">3</div>
+                                                <b>Add other servers to manage</b>
+                                            </div>
+                                            <div class="sm-tile">
+                                                <div class="sm-tile-num">4</div>
+                                                <b>Create a server group</b>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 8-Step Add Roles Wizard -->
+                            <div class="wiz-win" id="roles-wiz">
+                                <div class="os-win-header"><div>Add Roles and Features Wizard</div><div class="win-close" onclick="closeOSWin('roles-wiz')">✖</div></div>
+                                <div class="wiz-layout">
+                                    <div class="wiz-left">
+                                        <div class="wiz-nav active" id="rn-1">Before you begin</div>
+                                        <div class="wiz-nav" id="rn-2">Installation Type</div>
+                                        <div class="wiz-nav" id="rn-3">Server Selection</div>
+                                        <div class="wiz-nav" id="rn-4">Server Roles</div>
+                                        <div class="wiz-nav" id="rn-5">Features</div>
+                                        <div class="wiz-nav" id="rn-6">AD DS</div>
+                                        <div class="wiz-nav" id="rn-7">Confirmation</div>
+                                        <div class="wiz-nav" id="rn-8">Results</div>
+                                    </div>
+                                    <div class="wiz-right">
+                                        <div class="w-step active" id="rw-1">
+                                            <h3 style="margin-top:0;">Before you begin</h3>
+                                            <p>This wizard helps you install roles, role services, or features. You determine which roles, role services, or features to install based on your organization's needs.</p>
+                                        </div>
+                                        <div class="w-step" id="rw-2">
+                                            <h3 style="margin-top:0;">Select installation type</h3>
+                                            <label style="display:flex; gap:10px; margin-bottom:10px;"><input type="radio" checked> <div><b>Role-based or feature-based installation</b><br><span style="color:#666;">Configure a single server by adding roles, role services, and features.</span></div></label>
+                                            <label style="display:flex; gap:10px;"><input type="radio" disabled> <div><b>Remote Desktop Services installation</b></div></label>
+                                        </div>
+                                        <div class="w-step" id="rw-3">
+                                            <h3 style="margin-top:0;">Select destination server</h3>
+                                            <label style="display:block; margin-bottom:10px;"><input type="radio" checked> Select a server from the server pool</label>
+                                            <div style="border:1px solid #ccc; padding:10px; background:#fff; height:100px; overflow-y:auto;">
+                                                <table style="width:100%; border-collapse:collapse; text-align:left;">
+                                                    <tr style="background:#f0f0f0; border-bottom:1px solid #ccc;"><th>Name</th><th>IP Address</th><th>OS</th></tr>
+                                                    <tr><td>SERVER-2025</td><td>192.168.10.1</td><td>Microsoft Windows Server 2025 Standard</td></tr>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div class="w-step" id="rw-4">
+                                            <h3 style="margin-top:0;">Select server roles</h3>
+                                            <div style="border:1px solid #ccc; height:220px; overflow-y:auto; padding:10px; background:#fff;">
+                                                <div class="role-item"><input type="checkbox" disabled> Active Directory Certificate Services</div>
+                                                <div class="role-item"><input type="checkbox" id="cb-adds" onchange="showAddFeatures()"> <b>Active Directory Domain Services</b></div>
+                                                <div class="role-item"><input type="checkbox" disabled> Active Directory Federation Services</div>
+                                                <div class="role-item"><input type="checkbox" disabled> DHCP Server</div>
+                                                <div class="role-item"><input type="checkbox" disabled> DNS Server</div>
+                                            </div>
+                                            <!-- Popup for Add Features -->
+                                            <div id="add-feat-popup" style="display:none; position:absolute; top:20px; left:20px; right:20px; background:#f0f0f0; border:1px solid #0078D7; box-shadow:0 5px 15px rgba(0,0,0,0.3); z-index:10; flex-direction:column;">
+                                                <div style="padding:15px; background:#fff;">
+                                                    <b>Add features that are required for Active Directory Domain Services?</b>
+                                                    <p style="font-size:11px; margin-top:10px;">[Tools] Active Directory module for Windows PowerShell<br>[Tools] AD DS Tools<br>[Tools] AD DS Snap-Ins and Command-Line Tools</p>
+                                                    <label><input type="checkbox" checked disabled> Include management tools (if applicable)</label>
+                                                </div>
+                                                <div style="padding:10px; text-align:right; border-top:1px solid #ddd;">
+                                                    <button class="btn btn-primary" onclick="confirmAddFeat()">Add Features</button>
+                                                    <button class="btn" onclick="document.getElementById('cb-adds').checked=false; document.getElementById('add-feat-popup').style.display='none';">Cancel</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="w-step" id="rw-5"><h3 style="margin-top:0;">Select features</h3><p>Features required for AD DS have been automatically selected.</p></div>
+                                        <div class="w-step" id="rw-6">
+                                            <h3 style="margin-top:0;">Active Directory Domain Services</h3>
+                                            <p>Active Directory Domain Services (AD DS) stores information about users, computers, and other devices on the network. AD DS helps administrators securely manage this information and facilitates resource sharing and collaboration between users.</p>
+                                        </div>
+                                        <div class="w-step" id="rw-7">
+                                            <h3 style="margin-top:0;">Confirm installation selections</h3>
+                                            <p>To install the following roles, role services, or features on selected server, click Install.</p>
+                                            <div style="border:1px solid #ccc; padding:10px; background:#f9f9f9; height:100px; font-family:monospace;">Active Directory Domain Services<br>Group Policy Management<br>Remote Server Administration Tools</div>
+                                        </div>
+                                        <div class="w-step" id="rw-8">
+                                            <h3 style="margin-top:0;">Installation progress</h3>
+                                            <div id="role-prog-bar" style="height:15px; background:#eee; border:1px solid #ccc; width:100%; margin-bottom:10px;"><div id="role-bar-fill" style="width:0%; height:100%; background:#0078D7; transition:0.2s;"></div></div>
+                                            <p id="role-status">Starting installation...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="wiz-footer">
+                                    <button class="btn" id="btn-role-prev" onclick="prevRole()">Previous</button>
+                                    <button class="btn btn-primary" id="btn-role-next" onclick="nextRole()">Next ></button>
+                                    <button class="btn" onclick="closeOSWin('roles-wiz')">Cancel</button>
+                                </div>
+                            </div>
+
+                            <!-- 8-Step AD Promotion Wizard -->
+                            <div class="wiz-win" id="promo-wiz">
+                                <div class="os-win-header"><div>Active Directory Domain Services Configuration Wizard</div><div class="win-close" onclick="closeOSWin('promo-wiz')">✖</div></div>
+                                <div class="wiz-layout">
+                                    <div class="wiz-left">
+                                        <div class="wiz-nav active" id="pn-1">Deployment Configuration</div>
+                                        <div class="wiz-nav" id="pn-2">Domain Controller Options</div>
+                                        <div class="wiz-nav" id="pn-3">DNS Options</div>
+                                        <div class="wiz-nav" id="pn-4">Additional Options</div>
+                                        <div class="wiz-nav" id="pn-5">Paths</div>
+                                        <div class="wiz-nav" id="pn-6">Review Options</div>
+                                        <div class="wiz-nav" id="pn-7">Prerequisites Check</div>
+                                        <div class="wiz-nav" id="pn-8">Installation</div>
+                                    </div>
+                                    <div class="wiz-right">
+                                        <div class="w-step active" id="pw-1">
+                                            <h3 style="margin-top:0;">Deployment Configuration</h3>
+                                            <p>Select the deployment operation</p>
+                                            <label style="display:block; margin-bottom:5px;"><input type="radio" name="dep" disabled> Add a domain controller to an existing domain</label>
+                                            <label style="display:block; margin-bottom:5px;"><input type="radio" name="dep" disabled> Add a new domain to an existing forest</label>
+                                            <label style="display:block; margin-bottom:15px;"><input type="radio" name="dep" id="rb-forest" checked> <b>Add a new forest</b></label>
+                                            <div class="sub-input"><label>Root domain name:</label><input type="text" id="root-dom" placeholder="smec.com" oninput="checkPromo1()"></div>
+                                        </div>
+                                        <div class="w-step" id="pw-2">
+                                            <h3 style="margin-top:0;">Domain Controller Options</h3>
+                                            <div class="sub-input"><label>Forest functional level:</label><select disabled><option>Windows Server 2025</option></select></div>
+                                            <div class="sub-input"><label>Domain functional level:</label><select disabled><option>Windows Server 2025</option></select></div>
+                                            <p style="margin-top:15px;">Type the Directory Services Restore Mode (DSRM) password.</p>
+                                            <div class="sub-input"><label>Password:</label><input type="password" id="dsrm-1" oninput="checkPromo2()"></div>
+                                            <div class="sub-input"><label>Confirm password:</label><input type="password" id="dsrm-2" oninput="checkPromo2()"></div>
+                                        </div>
+                                        <div class="w-step" id="pw-3">
+                                            <h3 style="margin-top:0;">DNS Options</h3>
+                                            <div style="padding:10px; background:#ffffe0; border:1px solid #e5e5c0;">⚠️ A delegation for this DNS server cannot be created because the authoritative parent zone cannot be found or it does not run Windows DNS server.</div>
+                                        </div>
+                                        <div class="w-step" id="pw-4">
+                                            <h3 style="margin-top:0;">Additional Options</h3>
+                                            <p>Verify the NetBIOS name assigned to the domain and change it if necessary.</p>
+                                            <div class="sub-input"><label>The NetBIOS domain name:</label><input type="text" value="SMEC" disabled></div>
+                                        </div>
+                                        <div class="w-step" id="pw-5">
+                                            <h3 style="margin-top:0;">Paths</h3>
+                                            <p>Specify the location of the AD DS database, log files, and SYSVOL.</p>
+                                            <div class="sub-input"><label>Database folder:</label><input type="text" value="C:\Windows\NTDS" disabled></div>
+                                            <div class="sub-input"><label>Log files folder:</label><input type="text" value="C:\Windows\NTDS" disabled></div>
+                                            <div class="sub-input"><label>SYSVOL folder:</label><input type="text" value="C:\Windows\SYSVOL" disabled></div>
+                                        </div>
+                                        <div class="w-step" id="pw-6">
+                                            <h3 style="margin-top:0;">Review Options</h3>
+                                            <p>Review your selections before continuing.</p>
+                                            <div style="border:1px solid #ccc; padding:10px; background:#f9f9f9; height:120px; font-family:monospace; overflow-y:auto;">Configure this server as the first Active Directory domain controller in a new forest.<br><br>The new domain name is smec.com.<br><br>NetBIOS name: SMEC<br>Forest Functional Level: Windows Server 2025</div>
+                                        </div>
+                                        <div class="w-step" id="pw-7">
+                                            <h3 style="margin-top:0;">Prerequisites Check</h3>
+                                            <div id="prereq-load">Checking prerequisites for domain controller operation... Please wait.</div>
+                                            <div id="prereq-done" style="display:none;">
+                                                <div style="color:green; font-weight:bold; margin-bottom:10px;">✅ All prerequisite checks passed successfully. Click 'Install' to begin installation.</div>
+                                            </div>
+                                        </div>
+                                        <div class="w-step" id="pw-8">
+                                            <h3 style="margin-top:0;">Installation</h3>
+                                            <div id="promo-prog-bar" style="height:15px; background:#eee; border:1px solid #ccc; width:100%; margin-bottom:10px;"><div id="promo-bar-fill" style="width:0%; height:100%; background:#0078D7; transition:0.2s;"></div></div>
+                                            <p id="promo-status">Starting installation...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="wiz-footer">
+                                    <button class="btn" id="btn-promo-prev" onclick="prevPromo()">Previous</button>
+                                    <button class="btn btn-primary" id="btn-promo-next" onclick="nextPromo()">Next ></button>
+                                    <button class="btn" onclick="closeOSWin('promo-wiz')">Cancel</button>
+                                </div>
+                            </div>
+
+                        </div> <!-- /server-desktop -->
+                    </div> <!-- /server-os -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Fullscreen Toolbar -->
+    <div id="fs-toolbar">
+        <div class="menu-bar-item" onclick="toggleMenu(event, 'fs-vm-menu')">VM
+            <div class="dropdown-menu" id="fs-vm-menu" style="top:100%; left:0;">
+                <div class="dropdown-item" id="btn-cad2" onclick="sendCAD()" style="color:#888;">Send Ctrl+Alt+Delete</div>
+            </div>
+        </div>
+        <div style="border-left:1px solid #555; height:15px; margin:0 10px;"></div>
+        <div class="menu-bar-item" onclick="exitFullScreen()" style="color:#ff8a80;">Exit Full Screen</div>
+    </div>
+
+    <!-- Final Success Overlay -->
+    <div id="success-overlay">
+        <h1 style="margin:0 0 10px 0; font-size:40px;">LAB COMPLETED!</h1>
+        <p style="font-size:18px; margin-top:10px; color:#e0e0e0; text-align:center; max-width:600px; line-height:1.5;">
+            You have successfully configured the Static IP and promoted the server to a Domain Controller for <b>smec.com</b>. The server is now automatically restarting to apply changes.
+        </p>
+        <button class="btn btn-primary" style="margin-top:30px; font-size:16px; padding: 10px 30px;" onclick="location.reload()">Restart Lab</button>
+    </div>
+
+<script>
+    // --- Draggable Windows Logic ---
+    let highestZ = 100;
+    document.addEventListener('mousedown', function(e) {
+        const header = e.target.closest('.os-win-header') || e.target.closest('.vm-header') || e.target.closest('#exam-header');
+        if (!header) return;
+        if (e.target.tagName === 'BUTTON' || e.target.className.includes('win-close')) return;
+        
+        e.preventDefault(); const win = header.parentElement;
+        highestZ++; win.style.zIndex = highestZ;
+        
+        let rect = win.getBoundingClientRect(); win.style.right = 'auto'; win.style.bottom = 'auto';
+        if (window.getComputedStyle(win).transform !== 'none') { win.style.transform = 'none'; win.style.left = rect.left + 'px'; win.style.top = rect.top + 'px'; }
+        
+        let shiftX = e.clientX - rect.left; let shiftY = e.clientY - rect.top;
+        function moveAt(pageX, pageY) { win.style.left = pageX - shiftX + 'px'; win.style.top = pageY - shiftY + 'px'; }
+        function onMouseMove(event) { moveAt(event.pageX, event.pageY); }
+        document.addEventListener('mousemove', onMouseMove);
+        document.onmouseup = function() { document.removeEventListener('mousemove', onMouseMove); document.onmouseup = null; };
+    });
+
+    // --- Dropdowns & Start Menu ---
+    function toggleStartMenu(e) {
+        e.stopPropagation(); closeAllMenus();
+        const sm = document.getElementById('start-menu');
+        sm.style.display = (sm.style.display === 'flex') ? 'none' : 'flex';
+        
+        if(sm.style.display === 'flex' && currentStep === 6) { currentStep = 7; updateGuide(); }
+    }
+    
+    function toggleMenu(e, id) {
+        e.stopPropagation(); closeAllMenus();
+        document.getElementById(id).style.display = 'flex';
+    }
+    
+    function closeAllMenus() {
+        ['view-menu', 'vm-menu', 'fs-vm-menu', 'manage-menu', 'flag-menu', 'adapter-menu', 'start-menu'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.style.display = 'none';
+        });
+    }
+
+    // --- Lab State & Guide ---
+    let currentStep = 1;
+    let isPoweredOn = false;
+    let isFullScreen = false;
+
+    const instructions = {
+        1: "<b>Step 1:</b> Double-click the <b>VMware Workstation 26</b> icon on the host desktop.",
+        2: "<b>Step 2:</b> Click <b>Power on this virtual machine</b>.",
+        3: "<b>Step 3:</b> The VM is booted. Click the <b>VM</b> menu at the top and select <b>Send Ctrl+Alt+Delete</b>.",
+        4: "<b>Step 4:</b> Enter the password <code>Admin@123</code> to log in.",
+        5: "<b>Step 5:</b> You are logged in! Now go to the <b>View</b> menu at the top and select <b>Full Screen</b>.",
+        6: "<b>Step 6:</b> To configure the Static IP, first click the <b>Start Button</b> (🪟) on the taskbar.",
+        7: "<b>Step 7:</b> From the Start Menu, click on <b>Run</b>.",
+        8: "<b>Step 8:</b> In the Run dialog, type <code>ncpa.cpl</code> and click <b>OK</b> to open Network Connections.",
+        9: "<b>Step 9:</b> Right-click on <b>Ethernet0</b> and select <b>Properties</b> from the context menu.",
+        10: "<b>Step 10:</b> Click on <b>Internet Protocol Version 4 (TCP/IPv4)</b> to highlight it, then click the <b>Properties</b> button.",
+        11: "<b>Step 11:</b> Enter IP: <code>192.168.10.1</code>, Subnet: <code>255.255.255.0</code>, and DNS: <code>192.168.10.1</code>. Click <b>OK</b>.",
+        12: "<b>Step 12:</b> Close the Network windows. Open <b>Server Manager</b> from the Start Menu or Taskbar.",
+        13: "<b>Step 13:</b> In Server Manager Dashboard, click <b>Add roles and features</b> (Tile #2).",
+        14: "<b>Step 14:</b> Click <b>Next</b> on Before You Begin, Installation Type, and Server Selection.",
+        15: "<b>Step 15:</b> In Server Roles, check <b>Active Directory Domain Services</b>. A popup will appear—click <b>Add Features</b>. Then click <b>Next</b> until the Confirmation screen, and click <b>Install</b>.",
+        16: "<b>Step 16:</b> Installation is running. Wait for it to succeed, then click <b>Close</b>.",
+        17: "<b>Step 17:</b> Notice the Warning Flag (⚠️) at the top of Server Manager. Click it and select <b>Promote this server to a domain controller</b>.",
+        18: "<b>Step 18:</b> Select <b>Add a new forest</b>. Type the Root domain name: <code>smec.com</code> and click <b>Next</b>.",
+        19: "<b>Step 19:</b> Type the DSRM Password: <code>Admin@123</code> in both fields and click <b>Next</b>.",
+        20: "<b>Step 20:</b> On the DNS Options page, ignore the warning and simply click <b>Next</b>.",
+        21: "<b>Step 21:</b> On the Additional Options page, verify that the NetBIOS domain name correctly appears as <code>SMEC</code> (ensure it is not SMEC0 or anything else), then click <b>Next</b>.",
+        22: "<b>Step 22:</b> On the Paths page, verify the default locations for the <b>NTDS</b> database, log files, and <b>SYSVOL</b> folder, then click <b>Next</b>.",
+        23: "<b>Step 23:</b> On the Review Options page, verify your configuration and click <b>Next</b>.",
+        24: "<b>Step 24:</b> Wait for the Prerequisites Check to pass, then click <b>Install</b>.",
+        25: "✅ <b>Lab Complete!</b> The server is promoting to a Domain Controller and will restart automatically."
+    };
+
+    function updateGuide() { document.getElementById('instruction-text').innerHTML = instructions[currentStep]; }
+    function toggleExam(btn) {
+        const text = document.getElementById('instruction-text');
+        if(text.style.display === 'none') { text.style.display = 'block'; btn.innerText = 'Minimize'; } 
+        else { text.style.display = 'none'; btn.innerText = 'Expand'; }
+    }
+    function openVMware() { document.getElementById('vmware-win').style.display='flex'; if(currentStep===1) { currentStep=2; updateGuide(); } }
+    function closeOSWin(id) { document.getElementById(id).style.display='none'; }
+
+    // --- VMware Actions ---
+    function powerOnVM() {
+        isPoweredOn = true;
+        document.getElementById('power-bar').style.display = 'none';
+        document.getElementById('vm-off-text').style.display = 'none';
+        document.getElementById('server-os').style.display = 'block';
+        
+        document.getElementById('btn-cad1').style.color = '#000';
+        document.getElementById('btn-cad2').style.color = '#000';
+        
+        setInterval(() => {
+            const now = new Date(); document.getElementById('clock-time').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }, 1000);
+
+        if(currentStep===2) { currentStep=3; updateGuide(); }
+    }
+
+    function sendCAD() {
+        if(!isPoweredOn) return;
+        document.getElementById('lock-screen').style.display = 'none';
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('login-pwd').focus();
+        if(currentStep===3) { currentStep=4; updateGuide(); }
+    }
+
+    function doLogin() {
+        if(document.getElementById('login-pwd').value === 'Admin@123') {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('server-desktop').style.display = 'block';
+            if(currentStep===4) { currentStep=5; updateGuide(); }
+        } else { alert('Incorrect password. Use Admin@123'); }
+    }
+
+    // REAL Full Screen API for authentic experience
+    function goFullScreen() {
+        if(!isPoweredOn) return;
+        
+        let vmScreen = document.getElementById('vm-screen');
+        let examPanel = document.getElementById('exam-panel');
+        
+        if (vmScreen.requestFullscreen) {
+            vmScreen.requestFullscreen().catch(err => console.log(err));
+        } else if (vmScreen.webkitRequestFullscreen) {
+            vmScreen.webkitRequestFullscreen();
+        } else if (vmScreen.msRequestFullscreen) {
+            vmScreen.msRequestFullscreen();
+        }
+        
+        isFullScreen = true;
+        vmScreen.classList.add('fullscreen');
+        document.getElementById('fs-toolbar').style.display = 'flex';
+        
+        // Move panel inside the fullscreen element so it stays visible
+        vmScreen.appendChild(examPanel);
+        
+        if(currentStep===5) { currentStep=6; updateGuide(); }
+    }
+    
+    function exitFullScreen() {
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(err => console.log(err));
+        }
+        isFullScreen = false;
+        document.getElementById('vm-screen').classList.remove('fullscreen');
+        document.getElementById('fs-toolbar').style.display = 'none';
+        
+        // Move panel back out
+        document.body.appendChild(document.getElementById('exam-panel'));
+    }
+    
+    // Listen for Escape key fullscreen exit
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+            isFullScreen = false;
+            document.getElementById('vm-screen').classList.remove('fullscreen');
+            document.getElementById('fs-toolbar').style.display = 'none';
+            document.body.appendChild(document.getElementById('exam-panel'));
+        }
+    });
+
+    // --- Network Config Logic ---
+    function openRun() { 
+        document.getElementById('start-menu').style.display='none'; 
+        highestZ++; document.getElementById('run-dialog').style.zIndex=highestZ; 
+        document.getElementById('run-dialog').style.display='flex'; 
+        if(currentStep===7) { currentStep=8; updateGuide(); } 
+    }
+    
+    function executeRun() {
+        let cmd = document.getElementById('run-cmd').value.toLowerCase();
+        if(cmd === 'ncpa.cpl') {
+            closeOSWin('run-dialog');
+            highestZ++; document.getElementById('ncpa-win').style.zIndex=highestZ;
+            document.getElementById('ncpa-win').style.display='flex';
+            if(currentStep===8) { currentStep=9; updateGuide(); }
+        } else { alert('Command not found. Use ncpa.cpl'); }
+    }
+
+    // Adapter Context Menu
+    function showAdapterMenu(e, el) {
+        e.preventDefault(); e.stopPropagation(); closeAllMenus();
+        selectAdapter(e, el);
+        const menu = document.getElementById('adapter-menu');
+        menu.style.display = 'flex';
+        menu.style.left = e.pageX + 'px';
+        menu.style.top = e.pageY + 'px';
+    }
+    function selectAdapter(e, el) {
+        e.stopPropagation(); closeAllMenus();
+        document.querySelectorAll('.net-adapter').forEach(a=>a.classList.remove('selected'));
+        el.classList.add('selected');
+    }
+    function clearAdapterSelection() { document.querySelectorAll('.net-adapter').forEach(a=>a.classList.remove('selected')); }
+
+    function openAdapterProps() {
+        closeAllMenus();
+        highestZ++; document.getElementById('adapter-props-win').style.zIndex=highestZ;
+        document.getElementById('adapter-props-win').style.display='flex';
+        if(currentStep===9) { currentStep=10; updateGuide(); }
+    }
+
+    function selectPropItem(el) {
+        document.querySelectorAll('.prop-item').forEach(i=>i.classList.remove('selected'));
+        el.classList.add('selected');
+        if(el.id === 'ipv4-item') { document.getElementById('btn-prop-ipv4').disabled = false; }
+        else { document.getElementById('btn-prop-ipv4').disabled = true; }
+    }
+
+    function openIPv4() {
+        highestZ++; document.getElementById('ipv4-win').style.zIndex=highestZ;
+        document.getElementById('ipv4-win').style.display='flex';
+        if(currentStep===10) { currentStep=11; updateGuide(); }
+    }
+
+    function saveIP() {
+        let ip = document.getElementById('ip-addr').value;
+        let sub = document.getElementById('ip-sub').value;
+        let dns = document.getElementById('ip-dns').value;
+        if(ip==='192.168.10.1' && sub==='255.255.255.0' && dns==='192.168.10.1') {
+            closeOSWin('ipv4-win'); closeOSWin('adapter-props-win');
+            if(currentStep===11) { currentStep=12; updateGuide(); }
+        } else { alert('Please enter exact IP details as per lab guide: IP 192.168.10.1, Subnet 255.255.255.0, DNS 192.168.10.1'); }
+    }
+
+    // --- Server Manager ---
+    function openSM() { 
+        document.getElementById('start-menu').style.display='none'; 
+        highestZ++; document.getElementById('sm-win').style.zIndex=highestZ; 
+        document.getElementById('sm-win').style.display='flex'; 
+        if(currentStep===12) { currentStep=13; updateGuide(); } 
+    }
+
+    // --- 8-Step Add Roles Wizard ---
+    let rwStep = 1;
+    function openRolesWiz() {
+        closeAllMenus();
+        highestZ++; document.getElementById('roles-wiz').style.zIndex=highestZ; document.getElementById('roles-wiz').style.display='flex';
+        renderRole(1);
+        if(currentStep===13) { currentStep=14; updateGuide(); }
+    }
+    
+    function renderRole(step) {
+        rwStep = step;
+        document.querySelectorAll('#roles-wiz .w-step').forEach(s=>s.classList.remove('active'));
+        document.querySelectorAll('#roles-wiz .wiz-nav').forEach(s=>s.classList.remove('active'));
+        document.getElementById('rw-'+step).classList.add('active');
+        document.getElementById('rn-'+step).classList.add('active');
+        
+        let btnNext = document.getElementById('btn-role-next');
+        document.getElementById('btn-role-prev').disabled = (step===1);
+        
+        if(step === 4) btnNext.disabled = !document.getElementById('cb-adds').checked;
+        else if(step === 7) { btnNext.innerText = "Install"; btnNext.disabled = false; }
+        else if(step === 8) { btnNext.innerText = "Close"; btnNext.disabled = true; runRoleInstall(); }
+        else { btnNext.innerText = "Next >"; btnNext.disabled = false; }
+
+        if(step===4 && currentStep===14) { currentStep=15; updateGuide(); }
+        // When user clicks Install on step 7, it renders step 8 (Installation in progress)
+        if(step===8 && currentStep===15) { currentStep=16; updateGuide(); }
+    }
+    
+    function showAddFeatures() { document.getElementById('add-feat-popup').style.display='flex'; }
+    function confirmAddFeat() { document.getElementById('add-feat-popup').style.display='none'; document.getElementById('btn-role-next').disabled = false; }
+    
+    function nextRole() { 
+        if(rwStep < 8) { 
+            renderRole(rwStep+1); 
+        } 
+        else { 
+            // This happens when the user clicks 'Close' AFTER installation succeeds
+            closeOSWin('roles-wiz'); 
+            if(currentStep===16){ 
+                currentStep=17; 
+                updateGuide(); 
+                document.getElementById('flag-badge').style.display='inline-block'; 
+            } 
+        } 
+    }
+    function prevRole() { if(rwStep > 1) renderRole(rwStep-1); }
+    
+    function runRoleInstall() {
+        let pct = 0;
+        let intv = setInterval(() => {
+            pct+=20; document.getElementById('role-bar-fill').style.width = pct+'%';
+            if(pct>=100) { 
+                clearInterval(intv); 
+                document.getElementById('role-status').innerText = "Configuration required. Installation succeeded on SERVER-2025."; 
+                document.getElementById('btn-role-next').disabled = false; 
+            }
+        }, 300);
+    }
+
+    // --- 8-Step AD Promotion Wizard ---
+    let pwStep = 1;
+    function openPromoWiz() {
+        closeAllMenus(); document.getElementById('flag-badge').style.display='none';
+        highestZ++; document.getElementById('promo-wiz').style.zIndex=highestZ; document.getElementById('promo-wiz').style.display='flex';
+        renderPromo(1);
+        if(currentStep===17) { currentStep=18; updateGuide(); }
+    }
+    
+    function renderPromo(step) {
+        pwStep = step;
+        document.querySelectorAll('#promo-wiz .w-step').forEach(s=>s.classList.remove('active'));
+        document.querySelectorAll('#promo-wiz .wiz-nav').forEach(s=>s.classList.remove('active'));
+        document.getElementById('pw-'+step).classList.add('active');
+        document.getElementById('pn-'+step).classList.add('active');
+        
+        let btnNext = document.getElementById('btn-promo-next');
+        document.getElementById('btn-promo-prev').disabled = (step===1);
+        
+        if(step===1) checkPromo1();
+        else if(step===2) checkPromo2();
+        else if(step===7) { btnNext.innerText = "Install"; btnNext.disabled = true; runPrereq(); }
+        else if(step===8) { btnNext.innerText = "Close"; btnNext.disabled = true; runPromoInstall(); }
+        else { btnNext.innerText = "Next >"; btnNext.disabled = false; }
+
+        if(step===2 && currentStep===18) { currentStep=19; updateGuide(); }
+        if(step===3 && currentStep===19) { currentStep=20; updateGuide(); }
+        if(step===4 && currentStep===20) { currentStep=21; updateGuide(); }
+        if(step===5 && currentStep===21) { currentStep=22; updateGuide(); }
+        if(step===6 && currentStep===22) { currentStep=23; updateGuide(); }
+        if(step===7 && currentStep===23) { currentStep=24; updateGuide(); }
+    }
+
+    function checkPromo1() { let dom = document.getElementById('root-dom').value; document.getElementById('btn-promo-next').disabled = (dom !== 'smec.com'); }
+    function checkPromo2() { let p1 = document.getElementById('dsrm-1').value; let p2 = document.getElementById('dsrm-2').value; document.getElementById('btn-promo-next').disabled = !(p1==='Admin@123' && p1===p2); }
+    
+    function nextPromo() {
+        if(pwStep < 8) {
+            renderPromo(pwStep+1);
+        }
+    }
+    function prevPromo() { if(pwStep > 1) renderPromo(pwStep-1); }
+    
+    function runPrereq() {
+        document.getElementById('prereq-load').style.display = 'block';
+        document.getElementById('prereq-done').style.display = 'none';
+        setTimeout(() => {
+            document.getElementById('prereq-load').style.display = 'none';
+            document.getElementById('prereq-done').style.display = 'block';
+            document.getElementById('btn-promo-next').disabled = false;
+        }, 1500);
+    }
+
+    function runPromoInstall() {
+        let pct = 0;
+        let intv = setInterval(() => {
+            pct+=15; document.getElementById('promo-bar-fill').style.width = pct+'%';
+            if(pct>=100) { 
+                clearInterval(intv); 
+                document.getElementById('promo-status').innerText = "The server was successfully configured as a domain controller.";
+                if(currentStep===24) { 
+                    currentStep=25; updateGuide(); 
+                    setTimeout(() => { document.getElementById('success-overlay').style.display = 'flex'; }, 1000);
+                }
+            }
+        }, 400);
+    }
+
+    // Init
+    updateGuide();
+</script>
+</body>
+</html>
