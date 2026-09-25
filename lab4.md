@@ -32,6 +32,6 @@ In this hands-on lab, you will perform the following real-world system administr
 ---
 
 ## 🔗 Access the Lab
-[👉 **Click Here to Start Lab 4: Active Directory User Management**](#) 
+[👉 **Click Here to Start Lab 4: Active Directory User & group Management**](https://tibinjohn193-blip.github.io/az-802/lab4.html) 
 
 *(Note: Add your actual URL link in place of `#` in the markdown code)*
