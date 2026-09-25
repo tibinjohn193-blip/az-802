@@ -22,6 +22,8 @@ This project provides **100% browser-based interactive simulations** for complex
 
 * [🖥️ Lab 3: Active Directory Forest Deployment & Static IP Configuration](lab3.md)
 
+* [🖥️ Lab 4: Active Directory User & Group Management](lab4.md)
+
 ---
 
 
