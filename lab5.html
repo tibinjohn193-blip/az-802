@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 5: Windows 11 Domain Join with Ping Test</title>
+<style>
+    :root {
+        /* Authentic Windows 11 Light/Blue Bloom Style Background */
+        --win11-bg: radial-gradient(circle at 50% 100%, #cde4ee 0%, #e2eff5 30%, #f3f6f9 70%, #f9fbfd 100%);
+        --taskbar-bg: rgba(243, 243, 243, 0.85);
+        --taskbar-hover: rgba(255, 255, 255, 0.8);
+        --accent: #0067C0;
+        --win-bg: #f3f3f3;
+        --border-radius: 8px;
+    }
+
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; overflow: hidden; user-select: none; font-size: 12px;}
+    
+    #desktop { width: 100%; height: 100%; background: var(--win11-bg); position: absolute; top:0; left:0; }
+
+    /* Lab Guide Panel */
+    #exam-panel { position: absolute; top: 20px; right: 20px; width: 360px; background: rgba(255, 255, 255, 0.95); border: 1px solid #ccc; border-radius: 8px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 200000; color: #1B1B1B; max-height: 85vh; overflow-y:auto; transition: 0.3s; backdrop-filter: blur(10px);}
+    #exam-header { cursor: move; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px; position: sticky; top:0; background: rgba(255, 255, 255, 0.95);}
+    #instruction-text { font-size: 13px; line-height: 1.5; margin: 0; }
+    #instruction-text code { background: #e0e0e0; padding: 2px 4px; border-radius: 3px; font-weight: bold; color: #d84315; }
+    .section-title { font-size: 13px; font-weight: bold; color: #fff; background: var(--accent); padding: 4px 8px; border-radius: 4px; margin-top: 20px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;}
+
+    /* Prominent Network Infrastructure Widget */
+    #network-widget { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 50; }
+    .net-node { background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 12px; border-top: 5px solid; width: 220px; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,0.1); backdrop-filter: blur(10px);}
+    .net-node-server { border-top-color: #0078D7; }
+    .net-node-client { border-top-color: #E8B04D; }
+    .net-icon { font-size: 50px; margin-bottom: 10px;}
+    .net-link { height: 4px; width: 150px; background: #ccc; position: relative; transition: 0.5s; display: flex; align-items: center; justify-content: center;}
+    .net-link.connected { background: #4CAF50; }
+    .net-link-text { position: absolute; top: -25px; font-weight: bold; color: #555; background: rgba(255,255,255,0.8); padding: 2px 8px; border-radius: 10px; font-size: 11px;}
+
+    /* Buttons & Inputs */
+    .btn { padding: 5px 20px; border: 1px solid #ccc; background: #fdfdfd; cursor: pointer; font-family: inherit; font-size: 12px; border-radius: 4px; transition: 0.1s;}
+    .btn:hover:not(:disabled) { background: #f0f4f9; border-color: var(--accent); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover:not(:disabled) { background: #005a9e; }
+    .btn:disabled { color: #aaa; cursor: not-allowed; background: #f5f5f5;}
+    input[type="text"], input[type="password"] { padding: 4px; border: 1px solid #7a7a7a; font-family: inherit; font-size: 12px; border-radius: 3px;}
+    input[type="text"]:focus, input[type="password"]:focus { border-color: var(--accent); outline: none; border-width: 2px; padding: 3px;}
+
+    /* Windows 11 Taskbar */
+    .os-taskbar { position: absolute; bottom: 0; left: 0; width: 100%; height: 48px; background: var(--taskbar-bg); display: flex; align-items: center; justify-content: center; gap: 8px; z-index: 800; border-top: 1px solid rgba(0,0,0,0.1); backdrop-filter: blur(20px);}
+    .os-tb-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+    .os-tb-icon:hover { background: var(--taskbar-hover); box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+    
+    /* Win 11 Start Menu */
+    #start-menu { display: none; position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); width: 400px; background: rgba(243, 243, 243, 0.95); border: 1px solid #ccc; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 900; overflow: hidden; flex-direction: column; border-radius: 8px; backdrop-filter: blur(20px);}
+    .sm-search { padding: 20px 20px 10px 20px; }
+    .sm-search input { width:100%; padding:8px 30px; border:1px solid #ccc; border-radius:20px; font-family:inherit; font-size: 12px; background: #fff;}
+    .sm-apps { padding: 10px 20px 20px 20px; display:flex; flex-wrap:wrap; gap:15px; }
+    .sm-app-icon { width: 65px; display:flex; flex-direction:column; align-items:center; cursor:pointer; padding:10px; border-radius:4px; font-size:11px; text-align:center;}
+    .sm-app-icon:hover { background: rgba(255,255,255,0.8); }
+
+    /* Base OS Window */
+    .os-win { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--win-bg); box-shadow: 0 8px 32px rgba(0,0,0,0.2); display: none; flex-direction: column; border: 1px solid #bbb; z-index: 100; border-radius: var(--border-radius); overflow: hidden;}
+    .os-win-header { background: #fff; height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; cursor: move; }
+    .win-close { cursor:pointer; padding:5px 15px; transition:0.2s; font-size: 14px;}
+    .win-close:hover { background:#e81123; color:white;}
+
+    /* Context Menu */
+    .ctx-menu { display: none; position: absolute; background: #f9f9f9; color: #000; border: 1px solid #ccc; box-shadow: 2px 5px 15px rgba(0,0,0,0.2); z-index: 9999; flex-direction: column; min-width: 180px; padding:4px 0; border-radius: 6px;}
+    .ctx-item { padding: 6px 25px 6px 15px; cursor: pointer; position: relative;}
+    .ctx-item:hover:not(.disabled) { background: #e5f1fb; }
+    .ctx-item.disabled { color: #888; cursor:default;}
+    .ctx-divider { border-top:1px solid #ddd; margin:4px 0;}
+
+    /* Run Dialog */
+    #run-dialog { width: 400px; }
+    .dialog-body { padding: 20px; background: #fff; flex-grow:1;}
+    .dialog-footer { padding: 12px 15px; background: #f3f3f3; border-top: 1px solid #dfdfdf; text-align: right; display:flex; justify-content:flex-end; gap:10px;}
+    
+    /* Command Prompt */
+    #cmd-win { width: 600px; height: 350px; background: #0c0c0c; color: #ccc; font-family: Consolas, monospace; font-size: 13px; border-radius: 8px; border:1px solid #333;}
+    #cmd-win .os-win-header { background: #202020; color: #fff; border-bottom: none;}
+    #cmd-win .win-close:hover { background: #e81123; }
+    .cmd-body { padding: 10px; flex-grow: 1; overflow-y: auto; }
+    .cmd-input-line { display: flex; }
+    .cmd-input-line input { background: transparent; border: none; color: #fff; font-family: Consolas, monospace; font-size: 13px; flex-grow: 1; outline: none; margin-left: 5px;}
+
+    /* Network Connections (ncpa.cpl) */
+    #ncpa-win { width: 680px; height: 420px; }
+    .ncpa-body { flex-grow: 1; background: #fff; padding: 20px; display: flex; gap: 20px; align-content: flex-start; }
+    .net-adapter { width: 140px; text-align: center; cursor: default; padding: 10px; border: 1px solid transparent; border-radius: 4px; }
+    .net-adapter:hover { background: #f0f4f9; border-color: #cce8ff; }
+    .net-adapter.selected { background: #cce8ff; border-color: #99d1ff; }
+
+    /* Adapter Properties */
+    #adapter-props-win { width: 380px; }
+    .prop-list { border:1px solid #999; height:120px; overflow-y:auto; background:#fff; margin:10px 0;}
+    .prop-item { padding:3px 5px; display:flex; align-items:center; gap:5px; cursor:default;}
+    .prop-item:hover { background: #f0f0f0; }
+    .prop-item.selected { background: #0078D7; color: white; }
+
+    /* IPv4 Properties */
+    #ipv4-win { width: 420px; }
+    .ipv4-body { padding: 15px; background:#fff;}
+    .ip-row { display: flex; align-items: center; margin-bottom: 8px; margin-left: 20px;}
+    .ip-row label { width: 140px; }
+    .ip-row input { width: 150px; padding: 3px; border: 1px solid #999; font-family: monospace;}
+
+    /* System Properties (sysdm.cpl) */
+    #sysdm-win { width: 420px; height: 480px; }
+    .tabs { display: flex; background: #fff; padding: 10px 10px 0 10px; gap: 2px; border-bottom: 1px solid #ccc;}
+    .tab { padding: 4px 10px; background: #fff; border: 1px solid transparent; cursor: pointer; margin-bottom: -1px; border-top-left-radius: 4px; border-top-right-radius: 4px;}
+    .tab.active { border: 1px solid #ccc; border-bottom: 1px solid #fff; position: relative; z-index: 2;}
+    .tab-content { padding: 15px; background: #fff; flex-grow: 1; display:flex; flex-direction:column;}
+    .sys-icon-text { display: flex; gap: 15px; margin-bottom: 15px; align-items: flex-start;}
+    .sys-info-grid { display: grid; grid-template-columns: 120px 1fr; gap: 5px; margin-bottom: 20px; margin-left: 10px;}
+    
+    /* Domain Join Window */
+    #domain-join-win { width: 400px; }
+    .dj-group { border: 1px solid #ccc; padding: 15px; margin-top: 15px; position: relative; border-radius: 4px; }
+    .dj-title { position: absolute; top: -8px; left: 10px; background: #fff; padding: 0 5px; }
+
+    /* Windows Security Credential Prompt */
+    #cred-win { width: 350px; border-radius: 8px; overflow:hidden;}
+    .cred-header { background: #005a9e; color: white; padding: 15px; font-size: 16px; font-weight: bold;}
+    .cred-body { background: #fff; padding: 20px; }
+    .cred-input-wrap { display: flex; align-items: center; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 4px; overflow: hidden; background:#f9f9f9;}
+    .cred-input-wrap input { border: none; padding: 8px; flex-grow: 1; outline: none; background: transparent;}
+    
+    /* MsgBox */
+    #msg-box { width: 380px; z-index: 10000; }
+
+    #success-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,30,80,0.95); display: none; justify-content: center; align-items: center; z-index: 300000; flex-direction: column; color: white; backdrop-filter: blur(10px); }
+</style>
+</head>
+<body onclick="closeAllMenus()">
+
+    <!-- Lab Guide -->
+    <div id="exam-panel">
+        <div id="exam-header">
+            <b style="color: #0067C0; font-size:16px; margin:0;">📋 Lab Guide</b>
+            <span style="cursor:pointer; font-size:12px; background:#eee; padding:4px 8px; border-radius:4px; border:1px solid #ccc;" onclick="toggleExam(this)">Minimize</span>
+        </div>
+        <div id="instruction-text"></div>
+    </div>
+
+    <!-- Desktop -->
+    <div id="desktop">
+        <!-- Visual Network Topology Widget -->
+        <div id="network-widget">
+            <!-- Server -->
+            <div class="net-node net-node-server">
+                <div class="net-icon">🗄️</div>
+                <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #333;">Windows Server (DC)</div>
+                <div style="font-family: monospace; color: #0078D7; font-weight: bold;">IP: 192.168.10.1</div>
+                <div style="font-size: 12px; color: #555; margin-top: 5px; font-weight: bold;">smec.com</div>
+                <div style="font-size: 10px; color: #888; margin-top: 2px;">Active Directory / DNS</div>
+            </div>
+            
+            <!-- Connection Line -->
+            <div class="net-link" id="topo-link">
+                <span class="net-link-text" id="topo-link-text">Disconnected</span>
+            </div>
+            
+            <!-- Client -->
+            <div class="net-node net-node-client">
+                <div class="net-icon">💻</div>
+                <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #333;">Windows 11 (Client)</div>
+                <div id="topo-client-ip" style="font-family: monospace; color: #E8B04D; font-weight: bold;">IP: Unconfigured</div>
+                <div id="topo-client-dom" style="font-size: 12px; color: #555; margin-top: 5px; font-weight: bold;">WORKGROUP</div>
+                <div style="font-size: 10px; color: #888; margin-top: 2px;">Target Machine</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Windows 11 Taskbar -->
+    <div class="os-taskbar">
+        <!-- Start Button -->
+        <div class="os-tb-icon" onclick="toggleStartMenu(event)" title="Start">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+                <rect x="3" y="3" width="8" height="8" fill="#0078D7" rx="1"/>
+                <rect x="13" y="3" width="8" height="8" fill="#0078D7" rx="1"/>
+                <rect x="3" y="13" width="8" height="8" fill="#0078D7" rx="1"/>
+                <rect x="13" y="13" width="8" height="8" fill="#0078D7" rx="1"/>
+            </svg>
+        </div>
+        <!-- Search -->
+        <div class="os-tb-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="#333"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 14z"/></svg>
+        </div>
+        <!-- File Explorer -->
+        <div class="os-tb-icon">
+            <svg viewBox="0 0 24 24" fill="#E8B04D" width="24" height="24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+        </div>
+    </div>
+    
+    <!-- Start Menu -->
+    <div id="start-menu" onclick="event.stopPropagation()">
+        <div class="sm-search">
+            <div style="position:relative;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="#666" style="position:absolute; left:10px; top:8px;"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 14z"/></svg>
+                <input type="text" placeholder="Type here to search">
+            </div>
+        </div>
+        <div style="padding: 0 20px; font-weight: 600; font-size: 13px;">Pinned</div>
+        <div class="sm-apps">
+            <div class="sm-app-icon" onclick="openRun()">
+                <svg viewBox="0 0 32 32" width="30" height="30"><rect x="2" y="6" width="28" height="20" rx="2" fill="#fff" stroke="#444" stroke-width="2"/><path d="M2 8 C2 6.895 2.895 6 4 6 L28 6 C29.105 6 30 6.895 30 8 L30 12 L2 12 Z" fill="#0078D7"/><rect x="6" y="15" width="10" height="2" fill="#444"/><rect x="6" y="19" width="6" height="2" fill="#444"/><polygon points="18,14 24,18 18,22" fill="#0078D7"/></svg>
+                Run
+            </div>
+            <div class="sm-app-icon">
+                <svg viewBox="0 0 24 24" fill="#0078D7" width="30" height="30"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                Settings
+            </div>
+        </div>
+        <div style="background:rgba(0,0,0,0.03); padding: 15px 20px; display:flex; justify-content:space-between; align-items:center; border-top: 1px solid #ddd;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:30px; height:30px; background:#0078D7; border-radius:50%; display:flex; justify-content:center; align-items:center; color:white; font-size:16px;">👤</div>
+                <span>Local Admin</span>
+            </div>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="#333"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+        </div>
+    </div>
+
+    <!-- Run Dialog -->
+    <div class="os-win" id="run-dialog">
+        <div class="os-win-header"><div>Run</div><div class="win-close" onclick="closeOSWin('run-dialog')">✖</div></div>
+        <div class="dialog-body" style="display: flex; gap: 15px;">
+            <div><svg viewBox="0 0 32 32" width="35" height="35"><rect x="2" y="6" width="28" height="20" rx="2" fill="#fff" stroke="#444" stroke-width="2"/><path d="M2 8 C2 6.895 2.895 6 4 6 L28 6 C29.105 6 30 6.895 30 8 L30 12 L2 12 Z" fill="#0078D7"/><rect x="6" y="15" width="10" height="2" fill="#444"/><rect x="6" y="19" width="6" height="2" fill="#444"/><polygon points="18,14 24,18 18,22" fill="#0078D7"/></svg></div>
+            <div style="flex-grow: 1;">
+                <div style="margin-bottom:15px;">Type the name of a program, folder, document, or Internet resource, and Windows will open it for you.</div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    Open: <input type="text" id="run-cmd" style="flex-grow:1;" onkeypress="if(event.key==='Enter') executeRun()">
+                </div>
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button class="btn btn-primary" onclick="executeRun()">OK</button>
+            <button class="btn" onclick="closeOSWin('run-dialog')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Network Connections (ncpa.cpl) -->
+    <div class="os-win" id="ncpa-win">
+        <div class="os-win-header"><div>Network Connections</div><div class="win-close" onclick="closeOSWin('ncpa-win')">✖</div></div>
+        <div style="background:#f9f9f9; padding:8px 10px; border-bottom:1px solid #ddd; display:flex; gap:15px; color:#555;">
+            <span>Organize ▼</span> <span>Disable this network device</span>
+        </div>
+        <div class="ncpa-body" onclick="clearAdapterSelection()">
+            <div class="net-adapter" id="eth0" onclick="selectAdapter(event, this)" oncontextmenu="showAdapterMenu(event, this)">
+                <div><svg viewBox="0 0 24 24" fill="#0078D7" width="45" height="45"><path d="M20 3H4C2.9 3 2 3.9 2 5v10c0 1.1.9 2 2 2h6v2H8v2h8v-2h-2v-2h6c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 12H4V5h16v10z"/></svg></div>
+                <div style="font-weight:bold; margin-top:5px;">Ethernet0</div>
+                <div style="color:#666; font-size:11px;">Network<br>Intel(R) PRO/1000 MT</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Context Menu for Adapter -->
+    <div class="ctx-menu" id="adapter-menu">
+        <div class="ctx-item disabled">Disable</div>
+        <div class="ctx-item disabled">Status</div>
+        <div class="ctx-item disabled">Diagnose</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item disabled">Rename</div>
+        <div class="ctx-item" onclick="openAdapterProps()">Properties</div>
+    </div>
+
+    <!-- Ethernet Properties Window -->
+    <div class="os-win" id="adapter-props-win">
+        <div class="os-win-header"><div>Ethernet0 Properties</div><div class="win-close" onclick="closeOSWin('adapter-props-win')">✖</div></div>
+        <div class="dialog-body">
+            Connect using:<br>
+            <b style="color:#333;">Intel(R) PRO/1000 MT Network Connection</b>
+            <p style="margin:15px 0 5px 0;">This connection uses the following items:</p>
+            <div class="prop-list">
+                <div class="prop-item"><input type="checkbox" checked disabled> Client for Microsoft Networks</div>
+                <div class="prop-item"><input type="checkbox" checked disabled> File and Printer Sharing...</div>
+                <div class="prop-item" id="ipv4-item" onclick="selectPropItem(this)"><input type="checkbox" checked disabled> Internet Protocol Version 4 (TCP/IPv4)</div>
+                <div class="prop-item"><input type="checkbox" checked disabled> Internet Protocol Version 6 (TCP/IPv6)</div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                <button class="btn" disabled>Install...</button>
+                <button class="btn" id="btn-prop-ipv4" disabled onclick="openIPv4()">Properties</button>
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button class="btn btn-primary" onclick="closeAdapterProps()">OK</button>
+            <button class="btn" onclick="closeOSWin('adapter-props-win')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- IPv4 Properties -->
+    <div class="os-win" id="ipv4-win">
+        <div class="os-win-header"><div>Internet Protocol Version 4 (TCP/IPv4) Properties</div><div class="win-close" onclick="closeOSWin('ipv4-win')">✖</div></div>
+        <div class="ipv4-body">
+            <label style="display:flex; gap:10px; margin-bottom:10px;"><input type="radio" name="iptype" disabled> Obtain an IP address automatically</label>
+            <label style="display:flex; gap:10px; margin-bottom:10px;"><input type="radio" name="iptype" checked> Use the following IP address:</label>
+            <div class="ip-row"><label>IP address:</label><input type="text" id="ip-addr" placeholder="192.168.10.2"></div>
+            <div class="ip-row"><label>Subnet mask:</label><input type="text" id="ip-sub" placeholder="255.255.255.0"></div>
+            <div class="ip-row"><label>Default gateway:</label><input type="text" disabled></div>
+            
+            <label style="display:flex; gap:10px; margin:15px 0 10px 0;"><input type="radio" name="dnstype" checked> Use the following DNS server addresses:</label>
+            <div class="ip-row"><label>Preferred DNS server:</label><input type="text" id="ip-dns" placeholder="192.168.10.1"></div>
+        </div>
+        <div class="dialog-footer">
+            <button class="btn btn-primary" onclick="saveIP()">OK</button>
+            <button class="btn" onclick="closeOSWin('ipv4-win')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Command Prompt -->
+    <div class="os-win" id="cmd-win">
+        <div class="os-win-header"><div>Command Prompt</div><div class="win-close" onclick="closeCmd()">✖</div></div>
+        <div class="cmd-body" id="cmd-body" onclick="document.getElementById('cmd-input').focus()">
+            Microsoft Windows [Version 10.0.22631.3447]<br>
+            (c) Microsoft Corporation. All rights reserved.<br><br>
+            <div id="cmd-history"></div>
+            <div class="cmd-input-line" id="cmd-active-line">
+                C:\Users\LocalAdmin&gt; <input type="text" id="cmd-input" autocomplete="off" spellcheck="false" onkeypress="handleCmd(event)">
+            </div>
+        </div>
+    </div>
+
+    <!-- System Properties (sysdm.cpl) -->
+    <div class="os-win" id="sysdm-win">
+        <div class="os-win-header"><div>System Properties</div><div class="win-close" onclick="closeOSWin('sysdm-win')">✖</div></div>
+        <div class="tabs">
+            <div class="tab active">Computer Name</div>
+            <div class="tab">Hardware</div>
+            <div class="tab">Advanced</div>
+            <div class="tab">Remote</div>
+        </div>
+        <div class="tab-content">
+            <div class="sys-icon-text">
+                <svg viewBox="0 0 24 24" fill="#0078D7" width="40" height="40"><path d="M20 3H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h6v2h-2v2h8v-2h-2v-2h6c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 12H4V5h16v10z"/></svg>
+                <p style="margin:0; color:#333;">Windows uses the following information to identify your computer on the network.</p>
+            </div>
+            <div class="sys-info-grid">
+                <div>Computer description:</div><div><input type="text" style="width:100%;"></div>
+                <div style="grid-column: 2; color:#666; font-size:11px;">For example: "Kitchen Computer" or "Mary's Computer".</div>
+                <div style="margin-top:10px;">Full computer name:</div><div style="margin-top:10px;" id="disp-pc-name">PC-01.workgroup</div>
+                <div>Workgroup:</div><div id="disp-domain">WORKGROUP</div>
+            </div>
+            <div style="border-top:1px solid #eee; padding-top:15px; margin-top:auto;">
+                <p style="margin:0 0 10px 0;">To use a wizard to join a domain or workgroup, click Network ID.</p>
+                <div style="text-align:right;"><button class="btn" disabled>Network ID...</button></div>
+                <p style="margin:10px 0;">To rename this computer or change its domain or workgroup, click Change.</p>
+                <div style="text-align:right;"><button class="btn" onclick="openDomainJoin()">Change...</button></div>
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button class="btn" onclick="closeSysdmOK()">OK</button>
+            <button class="btn" onclick="closeOSWin('sysdm-win')">Cancel</button>
+            <button class="btn" disabled>Apply</button>
+        </div>
+    </div>
+
+    <!-- Domain/Computer Name Changes -->
+    <div class="os-win" id="domain-join-win">
+        <div class="os-win-header"><div>Computer Name/Domain Changes</div><div class="win-close" onclick="closeOSWin('domain-join-win')">✖</div></div>
+        <div class="dialog-body">
+            <p style="margin-top:0;">You can change the name and the membership of this computer. Changes might affect access to network resources.</p>
+            <div style="display:flex; align-items:center; margin-bottom:15px;">
+                <label style="width:120px;">Computer name:</label>
+                <input type="text" value="PC-01" disabled style="flex-grow:1;">
+            </div>
+            
+            <div class="dj-group">
+                <span class="dj-title">Member of</span>
+                <label style="display:flex; gap:5px; margin-bottom:10px; align-items:center;">
+                    <input type="radio" name="memberof" id="rb-domain" onchange="toggleJoinType()"> Domain:
+                </label>
+                <input type="text" id="domain-input" style="width:100%; margin-bottom:15px; margin-left:20px; width:calc(100% - 20px);" disabled>
+                
+                <label style="display:flex; gap:5px; align-items:center;">
+                    <input type="radio" name="memberof" id="rb-workgroup" checked onchange="toggleJoinType()"> Workgroup:
+                </label>
+                <input type="text" value="WORKGROUP" disabled style="width:100%; margin-top:5px; margin-left:20px; width:calc(100% - 20px);">
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button class="btn btn-primary" onclick="submitDomain()">OK</button>
+            <button class="btn" onclick="closeOSWin('domain-join-win')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Windows Security Credentials -->
+    <div class="os-win" id="cred-win">
+        <div class="cred-header">Windows Security</div>
+        <div class="cred-body">
+            <p style="margin-top:0; font-weight:bold; font-size:14px;">Computer Name/Domain Changes</p>
+            <p style="margin-bottom:20px;">Enter the name and password of an account with permission to join the domain.</p>
+            
+            <div class="cred-input-wrap">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="#666" style="margin-left:10px;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                <input type="text" id="cred-user" placeholder="User name">
+            </div>
+            <div class="cred-input-wrap">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="#666" style="margin-left:10px;"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                <input type="password" id="cred-pwd" placeholder="Password" onkeypress="if(event.key==='Enter') verifyCreds()">
+            </div>
+            <div style="font-size:11px; color:#666; margin-top:5px;">Domain: smec.com</div>
+        </div>
+        <div class="dialog-footer">
+            <button class="btn btn-primary" onclick="verifyCreds()">OK</button>
+            <button class="btn" onclick="closeOSWin('cred-win')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Generic Msg Box -->
+    <div class="os-win" id="msg-box" style="background:#fff;">
+        <div class="os-win-header"><div>Computer Name/Domain Changes</div><div class="win-close" onclick="closeMsgBox()">✖</div></div>
+        <div class="dialog-body" style="display:flex; gap:15px; align-items:center;">
+            <div style="font-size:30px; color:#0078D7;" id="msg-icon">ℹ️</div>
+            <div id="msg-text">Welcome to the smec.com domain.</div>
+        </div>
+        <div class="dialog-footer" style="text-align:center;">
+            <button class="btn btn-primary" onclick="closeMsgBox()">OK</button>
+        </div>
+    </div>
+
+    <!-- Final Restart Success Overlay -->
+    <div id="success-overlay">
+        <h1 style="margin:0 0 10px 0; font-size:40px;">LAB COMPLETED!</h1>
+        <p style="font-size:18px; margin-top:10px; color:#e0e0e0; text-align:center; max-width:600px; line-height:1.5;">
+            You have successfully tested connectivity and joined the Windows 11 Client PC to the <b>smec.com</b> Active Directory Domain! The PC is now restarting to apply changes.
+        </p>
+        <button class="btn btn-primary" style="margin-top:30px; font-size:16px; padding: 10px 30px;" onclick="location.reload()">Restart Lab</button>
+    </div>
+
+<script>
+    // --- Window Drag Logic ---
+    let highestZ = 100;
+    document.addEventListener('mousedown', function(e) {
+        const header = e.target.closest('.os-win-header') || e.target.closest('#exam-header') || e.target.closest('.cred-header');
+        if (!header) return;
+        if (e.target.tagName === 'BUTTON' || e.target.className.includes('win-close')) return;
+        e.preventDefault(); const win = header.parentElement;
+        highestZ++; win.style.zIndex = highestZ;
+        let rect = win.getBoundingClientRect(); win.style.right = 'auto'; win.style.bottom = 'auto';
+        if (window.getComputedStyle(win).transform !== 'none') { win.style.transform = 'none'; win.style.left = rect.left + 'px'; win.style.top = rect.top + 'px'; }
+        let shiftX = e.clientX - rect.left; let shiftY = e.clientY - rect.top;
+        function moveAt(pageX, pageY) { win.style.left = pageX - shiftX + 'px'; win.style.top = pageY - shiftY + 'px'; }
+        function onMouseMove(event) { moveAt(event.pageX, event.pageY); }
+        document.addEventListener('mousemove', onMouseMove);
+        document.onmouseup = function() { document.removeEventListener('mousemove', onMouseMove); document.onmouseup = null; };
+    });
+
+    // --- Start Menu & Menus ---
+    function toggleStartMenu(e) {
+        e.stopPropagation(); closeAllMenus();
+        const sm = document.getElementById('start-menu');
+        sm.style.display = (sm.style.display === 'flex') ? 'none' : 'flex';
+    }
+    function closeAllMenus() {
+        document.getElementById('start-menu').style.display = 'none';
+        document.getElementById('adapter-menu').style.display = 'none';
+    }
+    function closeOSWin(id) { document.getElementById(id).style.display='none'; }
+
+    // --- Lab State & Guidelines ---
+    let currentStep = 1;
+    let isIPSet = false;
+    let isPinged = false;
+    let msgType = ''; // tracks which msgbox is open
+
+    const instructions = {
+        1: "<div class='section-title'>Client IP Configuration</div><b>Step 1:</b> Click the <b>Start Button</b> (🪟) on the taskbar and open <b>Run</b>.",
+        2: "<b>Step 2:</b> Type <code>ncpa.cpl</code> and click <b>OK</b> to open Network Connections.",
+        3: "<b>Step 3:</b> <b>Right-click</b> on <code>Ethernet0</code> and select <b>Properties</b>.",
+        4: "<b>Step 4:</b> Click on <b>Internet Protocol Version 4 (TCP/IPv4)</b> to highlight it, then click the <b>Properties</b> button.",
+        5: "<b>Step 5:</b> Enter IP: <code>192.168.10.2</code>, Subnet: <code>255.255.255.0</code>, and DNS: <code>192.168.10.1</code>. Click <b>OK</b>.",
+        6: "<b>Step 6:</b> Click <b>OK</b> on the Ethernet Properties window to save and close it.",
+        
+        7: "<div class='section-title'>Test Connectivity (Ping)</div><b>Step 7:</b> Open <b>Run</b> again from the Start Menu.",
+        8: "<b>Step 8:</b> Type <code>cmd</code> and click <b>OK</b> to open Command Prompt.",
+        9: "<b>Step 9:</b> Type <code>ping 192.168.10.1</code> and press <b>Enter</b> to verify connectivity to the server.",
+        10: "<b>Step 10:</b> Once the reply is successful, close (✖) the Command Prompt.",
+        
+        11: "<div class='section-title'>Join Domain</div><b>Step 11:</b> Open <b>Run</b> again from the Start Menu.",
+        12: "<b>Step 12:</b> Type <code>sysdm.cpl</code> and click <b>OK</b> to open System Properties.",
+        13: "<b>Step 13:</b> In System Properties, click the <b>Change...</b> button to change the domain.",
+        14: "<b>Step 14:</b> Select the <b>Domain:</b> radio button, type <code>smec.com</code>, and click <b>OK</b>.",
+        15: "<b>Step 15:</b> A Windows Security prompt appears. Enter the Server Administrator credentials. <br>User name: <code>Administrator</code><br>Password: <code>Admin@123</code><br>Then click <b>OK</b>.",
+        16: "<b>Step 16:</b> Welcome to the smec.com domain! Click <b>OK</b>.",
+        17: "<b>Step 17:</b> A restart warning appears. Click <b>OK</b>.",
+        18: "<b>Step 18:</b> Finally, click <b>OK</b> on the System Properties window to trigger the restart.",
+        19: "🎉 <b>Lab Complete!</b> The PC will now restart to apply the domain changes."
+    };
+
+    function updateGuide() { 
+        document.getElementById('instruction-text').innerHTML = instructions[currentStep]; 
+        const panel = document.getElementById('exam-panel');
+        panel.scrollTop = panel.scrollHeight;
+    }
+    function toggleExam(btn) {
+        const text = document.getElementById('instruction-text');
+        if(text.style.display === 'none') { text.style.display = 'block'; btn.innerText = 'Minimize'; } 
+        else { text.style.display = 'none'; btn.innerText = 'Expand'; }
+    }
+
+    // --- Actions ---
+    function openRun() { 
+        closeAllMenus();
+        highestZ++; document.getElementById('run-dialog').style.zIndex=highestZ; 
+        document.getElementById('run-dialog').style.display='flex'; 
+        document.getElementById('run-cmd').value = '';
+        document.getElementById('run-cmd').focus();
+        
+        if(currentStep===1) { currentStep=2; updateGuide(); } 
+        else if(currentStep===7) { currentStep=8; updateGuide(); }
+        else if(currentStep===11) { currentStep=12; updateGuide(); }
+    }
+    
+    function executeRun() {
+        let cmd = document.getElementById('run-cmd').value.trim().toLowerCase();
+        
+        if(cmd === 'ncpa.cpl') {
+            closeOSWin('run-dialog');
+            highestZ++; document.getElementById('ncpa-win').style.zIndex=highestZ;
+            document.getElementById('ncpa-win').style.display='flex';
+            if(currentStep===2) { currentStep=3; updateGuide(); }
+            
+        } else if (cmd === 'cmd') {
+            if(!isIPSet) { alert("Please configure the Static IP first."); return; }
+            closeOSWin('run-dialog');
+            highestZ++; document.getElementById('cmd-win').style.zIndex=highestZ;
+            document.getElementById('cmd-win').style.display='flex';
+            document.getElementById('cmd-input').focus();
+            if(currentStep===8) { currentStep=9; updateGuide(); }
+            
+        } else if(cmd === 'sysdm.cpl') {
+            if(!isIPSet) { alert("Please configure the Static IP first."); return; }
+            if(!isPinged) { alert("Please test connectivity by pinging the server first (cmd -> ping 192.168.10.1)."); return; }
+            closeOSWin('run-dialog');
+            highestZ++; document.getElementById('sysdm-win').style.zIndex=highestZ;
+            document.getElementById('sysdm-win').style.display='flex';
+            if(currentStep===12) { currentStep=13; updateGuide(); }
+            
+        } else { 
+            alert('Command not found. Use ncpa.cpl, cmd, or sysdm.cpl depending on the step.'); 
+        }
+    }
+
+    // --- CMD Logic ---
+    function handleCmd(e) {
+        if(e.key === 'Enter') {
+            let val = document.getElementById('cmd-input').value.trim().toLowerCase();
+            let hist = document.getElementById('cmd-history');
+            
+            // Print what user typed
+            hist.innerHTML += `C:\\Users\\LocalAdmin&gt; ${val}<br>`;
+            
+            if(val === 'ping 192.168.10.1') {
+                document.getElementById('cmd-input').style.display = 'none'; // hide while "pinging"
+                setTimeout(() => {
+                    hist.innerHTML += `<br>Pinging 192.168.10.1 with 32 bytes of data:<br>
+                    Reply from 192.168.10.1: bytes=32 time&lt;1ms TTL=128<br>
+                    Reply from 192.168.10.1: bytes=32 time&lt;1ms TTL=128<br>
+                    Reply from 192.168.10.1: bytes=32 time&lt;1ms TTL=128<br>
+                    Reply from 192.168.10.1: bytes=32 time&lt;1ms TTL=128<br><br>
+                    Ping statistics for 192.168.10.1:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),<br><br>`;
+                    
+                    document.getElementById('cmd-input').value = '';
+                    document.getElementById('cmd-input').style.display = 'block';
+                    document.getElementById('cmd-input').focus();
+                    
+                    isPinged = true;
+                    // Update visual network widget
+                    document.getElementById('topo-link').classList.add('connected');
+                    document.getElementById('topo-link-text').innerText = 'Connected via Ping';
+                    document.getElementById('topo-link-text').style.color = '#4CAF50';
+                    
+                    if(currentStep===9) { currentStep=10; updateGuide(); }
+                }, 1000);
+            } else if (val !== '') {
+                hist.innerHTML += `'${val}' is not recognized as an internal or external command.<br><br>`;
+                document.getElementById('cmd-input').value = '';
+            }
+        }
+    }
+    
+    function closeCmd() {
+        closeOSWin('cmd-win');
+        if(currentStep===10 && isPinged) { currentStep=11; updateGuide(); }
+    }
+
+    // --- Network Adapter Config ---
+    function showAdapterMenu(e, el) {
+        e.preventDefault(); e.stopPropagation(); closeAllMenus();
+        selectAdapter(e, el);
+        const menu = document.getElementById('adapter-menu');
+        menu.style.display = 'flex';
+        menu.style.left = e.pageX + 'px';
+        menu.style.top = e.pageY + 'px';
+    }
+    function selectAdapter(e, el) {
+        e.stopPropagation(); closeAllMenus();
+        document.querySelectorAll('.net-adapter').forEach(a=>a.classList.remove('selected'));
+        el.classList.add('selected');
+    }
+    function clearAdapterSelection() { document.querySelectorAll('.net-adapter').forEach(a=>a.classList.remove('selected')); }
+
+    function openAdapterProps() {
+        closeAllMenus();
+        highestZ++; document.getElementById('adapter-props-win').style.zIndex=highestZ;
+        document.getElementById('adapter-props-win').style.display='flex';
+        if(currentStep===3) { currentStep=4; updateGuide(); }
+    }
+
+    function selectPropItem(el) {
+        document.querySelectorAll('.prop-item').forEach(i=>i.classList.remove('selected'));
+        el.classList.add('selected');
+        if(el.id === 'ipv4-item') { document.getElementById('btn-prop-ipv4').disabled = false; }
+        else { document.getElementById('btn-prop-ipv4').disabled = true; }
+    }
+
+    function openIPv4() {
+        highestZ++; document.getElementById('ipv4-win').style.zIndex=highestZ;
+        document.getElementById('ipv4-win').style.display='flex';
+        if(currentStep===4) { currentStep=5; updateGuide(); }
+    }
+
+    function saveIP() {
+        let ip = document.getElementById('ip-addr').value.trim();
+        let sub = document.getElementById('ip-sub').value.trim();
+        let dns = document.getElementById('ip-dns').value.trim();
+        if(ip==='192.168.10.2' && sub==='255.255.255.0' && dns==='192.168.10.1') {
+            isIPSet = true;
+            document.getElementById('topo-client-ip').innerText = "IP: 192.168.10.2"; // update visual widget
+            closeOSWin('ipv4-win');
+            if(currentStep===5) { currentStep=6; updateGuide(); }
+        } else { alert('Please enter exact IP details as per lab guide: IP 192.168.10.2, Subnet 255.255.255.0, DNS 192.168.10.1'); }
+    }
+    
+    function closeAdapterProps() {
+        closeOSWin('adapter-props-win');
+        closeOSWin('ncpa-win'); // Clean up screen
+        if(currentStep===6 && isIPSet) { currentStep=7; updateGuide(); }
+    }
+
+    // --- Domain Join Logic ---
+    function openDomainJoin() {
+        highestZ++; document.getElementById('domain-join-win').style.zIndex=highestZ;
+        document.getElementById('domain-join-win').style.display='flex';
+        if(currentStep===13) { currentStep=14; updateGuide(); }
+    }
+    
+    function toggleJoinType() {
+        let isDomain = document.getElementById('rb-domain').checked;
+        document.getElementById('domain-input').disabled = !isDomain;
+        if(isDomain) document.getElementById('domain-input').focus();
+    }
+    
+    function submitDomain() {
+        if(!document.getElementById('rb-domain').checked) { alert("Please select Domain."); return; }
+        
+        let dom = document.getElementById('domain-input').value.trim().toLowerCase();
+        if(dom === 'smec.com') {
+            highestZ++; document.getElementById('cred-win').style.zIndex=highestZ;
+            document.getElementById('cred-win').style.display='flex';
+            document.getElementById('cred-user').focus();
+            if(currentStep===14) { currentStep=15; updateGuide(); }
+        } else {
+            alert("Active Directory Domain Controller for the domain could not be contacted. Ensure you typed 'smec.com'.");
+        }
+    }
+    
+    function verifyCreds() {
+        let usr = document.getElementById('cred-user').value.trim().toLowerCase();
+        let pwd = document.getElementById('cred-pwd').value.trim();
+        
+        if(usr === 'administrator' && pwd === 'Admin@123') {
+            closeOSWin('cred-win');
+            closeOSWin('domain-join-win');
+            
+            msgType = 'welcome';
+            document.getElementById('msg-text').innerText = "Welcome to the smec.com domain.";
+            document.getElementById('msg-icon').innerText = "ℹ️";
+            highestZ++; document.getElementById('msg-box').style.zIndex=highestZ;
+            document.getElementById('msg-box').style.display='flex';
+            
+            // update visual widget
+            document.getElementById('topo-client-dom').innerText = "smec.com";
+            
+            if(currentStep===15) { currentStep=16; updateGuide(); }
+            
+        } else {
+            alert("Logon failure: unknown user name or bad password.");
+        }
+    }
+    
+    function closeMsgBox() {
+        closeOSWin('msg-box');
+        if(msgType === 'welcome') {
+            msgType = 'restart';
+            document.getElementById('msg-text').innerText = "You must restart your computer to apply these changes.";
+            document.getElementById('msg-icon').innerText = "⚠️";
+            highestZ++; document.getElementById('msg-box').style.zIndex=highestZ;
+            document.getElementById('msg-box').style.display='flex';
+            
+            document.getElementById('disp-pc-name').innerText = "PC-01.smec.com";
+            document.getElementById('disp-domain').innerText = "smec.com";
+            
+            if(currentStep===16) { currentStep=17; updateGuide(); }
+        } else if (msgType === 'restart') {
+            if(currentStep===17) { currentStep=18; updateGuide(); }
+        }
+    }
+    
+    function closeSysdmOK() {
+        closeOSWin('sysdm-win');
+        if(currentStep===18) { 
+            currentStep=19; updateGuide(); 
+            setTimeout(() => { document.getElementById('success-overlay').style.display = 'flex'; }, 500);
+        }
+    }
+
+    // Init
+    updateGuide();
+</script>
+</body>
+</html>
