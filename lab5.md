@@ -1,4 +1,4 @@
-# 🖥️ Lab 5: Windows 11 Active Directory Domain Join Simulator
+# 🖥️ Lab 5: Windows 11 Active Directory Domain Join ,add pc to domain
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Version](https://img.shields.io/badge/Version-1.0-green.svg)
@@ -58,12 +58,5 @@ Always verify network connectivity before attempting a domain join.
 - **Command Prompt Simulation:** A case-insensitive CMD engine built to execute the required `ping` command and simulate real network latency.
 - **Strict Execution Logic:** The built-in Lab Guide enforces correct order. You cannot join the domain without setting the IP and testing the ping first.
 
-## 🛠️ How to Run
-No backend, databases, or virtual machines are required.
-1. Download or clone this repository.
-2. Double-click the `lab5.html` file.
-3. It will open in your default web browser (Chrome, Edge, Safari, Firefox).
-4. Follow the on-screen Lab Guide!
-
----
-*Developed for educational purposes to simulate Microsoft Windows environments safely in the browser.*
+## 🔗 Access the Lab
+[👉 **Click Here to Run Lab 5: Windows 11 Domain Join**](https://tibinjohn193-blip.github.io/az-802/lab5.html)
