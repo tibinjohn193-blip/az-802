@@ -24,6 +24,8 @@ This project provides **100% browser-based interactive simulations** for complex
 
 * [🖥️ Lab 4: Active Directory User & Group Management](lab4.md)
 
+* [🖥️ Lab 5: Windows 11 Active Directory Domain Joining,add pc to doamin](lab5.md)
+
 ---
 
 
