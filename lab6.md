@@ -23,7 +23,7 @@ In this scenario, you will act as a System Administrator for the `smec.com` doma
 ## 🚀 Access the Interactive Lab
 You can run this simulation directly in your web browser without downloading any files:
 
-**[▶ Start Lab 6 Simulation](https://tibinjohn193-blip.github.io/az-802/lab6.html)**
+**[▶ Start Lab 6: Active Directory Group Policy - Blocking Control Panel](https://tibinjohn193-blip.github.io/az-802/lab6.html)**
 
 ### How to use:
 1. Click the link above to open the lab.
