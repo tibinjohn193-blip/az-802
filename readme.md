@@ -26,6 +26,8 @@ This project provides **100% browser-based interactive simulations** for complex
 
 * [🖥️ Lab 5: Windows 11 Active Directory Domain Joining,add pc to doamin](lab5.md)
 
+* [🖥️ Lab 6: Active Directory Group Policy - Blocking Control Panel](lab6.md)
+
 ---
 
 
