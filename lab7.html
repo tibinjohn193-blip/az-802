@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: GPO Block Command Prompt</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-dark: #202020;
+            --win-bg-server: #012a4a; 
+            --win-bg-client: #005a9e;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, sans-serif; 
+            overflow: hidden; 
+            margin: 0; 
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #000;
+        }
+
+        /* Dual PC Layout */
+        .pc-container {
+            flex: 1;
+            position: relative;
+            height: 100%;
+            overflow: hidden;
+            border-right: 2px solid #111;
+        }
+        
+        #server-pc { background: var(--win-bg-server); }
+        #client-pc { background: var(--win-bg-client); border-right: none; }
+
+        .pc-label {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            z-index: 100;
+            border: 1px solid rgba(255,255,255,0.2);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #a9d6ff; font-size: 11px; margin-top: 2px; }
+
+        /* Lab Guide Banner (Bottom Center) */
+        #lab-guide { 
+            position: absolute; 
+            bottom: 65px; /* Safely above taskbar */
+            left: 50%; 
+            transform: translateX(-50%);
+            width: 85%; 
+            max-width: 900px;
+            background: rgba(255,255,255,0.98); 
+            padding: 12px 25px; 
+            border-radius: 8px; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); 
+            z-index: 100000;
+            border-left: 5px solid var(--win-blue);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        #lab-guide h3 { margin: 0; color: var(--win-blue); font-size: 15px; white-space: nowrap; border-right: 2px solid #ccc; padding-right: 15px; }
+        #instructions { font-size: 14px; color: #333; margin: 0; line-height: 1.4; flex-grow: 1; }
+
+        /* Windows Forms Standard */
+        .window { 
+            position: absolute; 
+            background: #fff; 
+            border: 1px solid #999; 
+            border-radius: 6px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4); 
+            display: none; 
+            flex-direction: column; 
+            font-size: 13px;
+            overflow: hidden;
+        }
+        .title-bar { 
+            background: #fff; 
+            padding: 8px 12px; 
+            font-size: 12px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            user-select: none;
+            border-bottom: 1px solid #eee;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-family: sans-serif; border-radius: 4px; }
+        .close-btn:hover { background: #e81123; color: white; }
+        .menu-bar {
+            border-bottom: 1px solid #ccc;
+            background: #fbfbfb;
+            padding: 4px 8px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+        }
+        .menu-bar span { cursor: pointer; padding: 4px 6px; border-radius: 3px; border: 1px solid transparent; }
+        .menu-bar span:hover { background: #e5f1fb; border: 1px solid #99d1ff; }
+        .content { padding: 10px; flex-grow: 1; overflow: auto; background: #f0f0f0; }
+
+        /* Taskbar */
+        .taskbar { 
+            position: absolute; 
+            bottom: 0; 
+            width: 100%; 
+            height: 48px; 
+            background: rgba(243, 243, 243, 0.95); 
+            border-top: 1px solid #ccc;
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 99990; 
+        }
+        .start-btn { 
+            width: 40px; 
+            height: 40px; 
+            border-radius: 4px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer; 
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 2px; }
+        
+        .start-menu {
+            position: absolute;
+            bottom: 55px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+            background: rgba(243, 243, 243, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding-bottom: 20px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 15px; }
+        .app { display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 10px; border-radius: 5px; }
+        .app:hover { background: rgba(255,255,255,0.8); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .app-icon { font-size: 26px; margin-bottom: 5px; }
+
+        /* Window Sizes & Positions - Kept high enough to avoid bottom lab guide */
+        #server-run-window, #client-run-window { width: 390px; height: 210px; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; }
+        #aduc-window { width: 85%; height: 60%; top: 10%; left: 7.5%; }
+        #gpm-window { width: 85%; height: 60%; top: 10%; left: 7.5%; }
+        #gpme-window { width: 90%; height: 65%; top: 8%; left: 5%; z-index: 10005; }
+        #policy-window { width: 480px; height: 500px; top: 10%; left: 15%; z-index: 10020; }
+        #create-gpo-window { width: 380px; height: 200px; top: 30%; left: 50%; transform: translateX(-50%); z-index: 10010; }
+        #server-cmd-window { width: 85%; height: 55%; top: 12%; left: 7.5%; background: #0c0c0c; color: #ccc; font-family: Consolas, monospace; }
+        #error-window { width: 420px; height: 160px; top: 35%; left: 50%; transform: translateX(-50%); z-index: 10050; }
+
+        /* Context Menus */
+        .context-menu { 
+            position: absolute; background: #fff; border: 1px solid #ccc; border-radius: 4px;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.2); display: none; z-index: 10500; flex-direction: column; padding: 4px; width: 280px;
+        }
+        .context-menu div { padding: 6px 15px; cursor: pointer; font-size: 12px; border-radius: 3px; }
+        .context-menu div:hover { background: #0078D7; color: #fff; }
+
+        /* Custom Tree View Icons */
+        .tree-view { list-style: none; padding-left: 20px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 0; display: block; white-space: nowrap; }
+        
+        .icon-domain::before { content: '🏢 '; font-size: 14px; }
+        .icon-ou::before { content: '🗂️ '; font-size: 14px; }
+        .icon-user::before { content: '👤 '; font-size: 14px; }
+        .icon-gpo::before { content: '📜 '; font-size: 14px; }
+        .icon-folder::before { content: '📁 '; font-size: 14px; }
+        .icon-folder-open::before { content: '📂 '; font-size: 14px; }
+        
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; border-radius: 2px; }
+        
+        .policy-row:hover { background: #e5f1fb; cursor: pointer; }
+        
+        button { padding: 6px 20px; background: #e1e1e1; border: 1px solid #adadad; cursor: pointer; font-size: 12px; border-radius: 3px; }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button:active { background: #cce4f7; }
+
+        input[type="text"] { padding: 5px; border: 1px solid #ccc; font-size: 12px; border-radius: 3px; }
+        input[type="text"]:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Client Login Screen Overlay */
+        #client-login-screen {
+            position: absolute; top:0; left:0; width:100%; height:100%; 
+            background: rgba(0, 90, 158, 0.98); z-index: 99900; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff;
+        }
+        .login-domain-info {
+            position: absolute; top: 30px; text-align: center; color: rgba(255,255,255,0.9); 
+            font-size: 15px; font-weight: bold; background: rgba(0,0,0,0.3); 
+            padding: 8px 20px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);
+        }
+        .login-domain-info span { font-size: 12px; font-weight: normal; color: #a9d6ff; display: block; margin-top: 3px; }
+        .login-avatar { font-size: 50px; background: rgba(255,255,255,0.2); border-radius: 50%; width: 90px; height: 90px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;}
+        .login-btn { padding: 8px 35px; background: rgba(255,255,255,0.2); border: 2px solid #fff; color: white; cursor: pointer; border-radius: 4px; font-size: 14px; transition: 0.2s; margin-top: 15px;}
+        .login-btn:hover { background: rgba(255,255,255,0.4); }
+    </style>
+</head>
+<body>
+
+    <!-- Central Lab Guide (Bottom) -->
+    <div id="lab-guide">
+        <h3>📋 Lab Guide</h3>
+        <div id="instructions"></div>
+    </div>
+
+    <!-- ==================== SERVER PC (LEFT) ==================== -->
+    <div class="pc-container" id="server-pc">
+        <div class="pc-label">
+            SMEC-DC1 (Server)
+            <span>IP: 192.168.1.100 | Domain: smec.com</span>
+        </div>
+        
+        <!-- Server Taskbar -->
+        <div class="taskbar">
+            <div class="start-btn" onclick="toggleMenu('server-start-menu', event)">
+                <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+            </div>
+        </div>
+
+        <!-- Server Start Menu -->
+        <div id="server-start-menu" class="start-menu">
+            <div style="padding: 25px;">
+                <h4 style="margin-top:0; color:#333;">Pinned Apps</h4>
+                <div class="app-grid">
+                    <div class="app" onclick="openServerRun(event)">
+                        <div class="app-icon">🪟</div>
+                        <span style="font-size:11px; font-weight:600; text-align:center;">Run</span>
+                    </div>
+                    <div class="app">
+                        <div class="app-icon">🗄️</div>
+                        <span style="font-size:11px; font-weight:600; text-align:center;">Server<br>Manager</span>
+                    </div>
+                    <div class="app">
+                        <div class="app-icon">⚙️</div>
+                        <span style="font-size:11px; font-weight:600; text-align:center;">Settings</span>
+                    </div>
+                    <div class="app">
+                        <div class="app-icon">📁</div>
+                        <span style="font-size:11px; font-weight:600; text-align:center;">Explorer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Server Run Window -->
+        <div id="server-run-window" class="window">
+            <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('server-run-window')">X</span></div>
+            <div class="content" style="display:flex; gap:15px; background:#fff;">
+                <div style="font-size:35px; color:var(--win-blue);">🪟</div>
+                <div style="flex-grow:1;">
+                    <p style="margin-top:0; margin-bottom:15px; font-size:12px;">Type the name of a program, folder, document, or Internet resource.</p>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-weight:600;">Open:</label>
+                        <input type="text" id="server-run-input" style="flex-grow:1;" onkeypress="if(event.key==='Enter') executeServerRun()">
+                    </div>
+                </div>
+            </div>
+            <div style="background:#f0f0f0; padding:10px; text-align:right; border-top:1px solid #ddd;">
+                <button onclick="executeServerRun()" style="margin-right:5px;">OK</button>
+                <button onclick="closeWindow('server-run-window')">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Server CMD Window -->
+        <div id="server-cmd-window" class="window">
+            <div class="title-bar" style="background:#fff; color:#000;">
+                <span style="display:flex; align-items:center; gap:5px;"><span style="background:#000; color:#fff; font-size:10px; padding:1px 3px;">C:\_</span> Command Prompt</span>
+                <span class="close-btn" onclick="closeWindow('server-cmd-window')">X</span>
+            </div>
+            <div class="content" id="server-cmd-content" style="background:#0c0c0c; cursor:text;" onclick="document.getElementById('server-cmd-input').focus()">
+                Microsoft Windows [Version 10.0.20348.1]<br>
+                (c) Microsoft Corporation. All rights reserved.<br><br>
+                <div id="server-cmd-output" style="white-space:pre-wrap;"></div>
+                <div id="server-cmd-container">
+                    <span>C:\Users\Administrator&gt;</span> <input type="text" id="server-cmd-input" style="background:transparent; border:none; color:#fff; font-family:Consolas, monospace; outline:none; width:70%;" onkeypress="handleServerCmd(event)" autocomplete="off">
+                </div>
+            </div>
+        </div>
+
+        <!-- ADUC Window -->
+        <div id="aduc-window" class="window">
+            <div class="title-bar"><span>Active Directory Users and Computers</span><span class="close-btn" onclick="handleADUCClose()">X</span></div>
+            <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+            <div class="content" style="display:flex; padding:0; background:#fff;">
+                <div style="width: 45%; border-right: 1px solid #ccc; padding: 10px; overflow-y: auto;">
+                    <ul class="tree-view">
+                        <li class="icon-folder" onclick="toggleTree(this, event)">Active Directory Users and Computers [SMEC-DC1.smec.com]
+                            <ul>
+                                <li class="icon-domain" onclick="toggleTree(this, event)">smec.com
+                                    <ul>
+                                        <li class="icon-folder">Builtin</li>
+                                        <li class="icon-folder">Computers</li>
+                                        <li class="icon-ou">Domain Controllers</li>
+                                        <li class="icon-ou" onclick="showUsers(this, event)">Sales</li>
+                                        <li class="icon-folder">Users</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                <div style="width: 55%; padding: 10px;">
+                    <div id="ou-contents" style="display:none;">
+                        <table style="width:100%; border-collapse: collapse; font-size:12px;">
+                            <tr style="border-bottom:1px solid #ccc; text-align:left; background:#f9f9f9;">
+                                <th style="padding:6px;">Name</th>
+                                <th style="padding:6px;">Type</th>
+                                <th style="padding:6px;">Description</th>
+                            </tr>
+                            <tr>
+                                <td style="padding:6px;"><span class="icon-user"></span> Arun</td>
+                                <td style="padding:6px;">User</td>
+                                <td style="padding:6px;">Sales Executive</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Group Policy Management -->
+        <div id="gpm-window" class="window">
+            <div class="title-bar"><span>Group Policy Management</span><span class="close-btn" onclick="closeWindow('gpm-window')">X</span></div>
+            <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+            <div class="content" style="display:flex; padding:0; background:#fff;">
+                <div style="width: 45%; border-right: 1px solid #ccc; padding: 10px; overflow-y: auto;">
+                    <ul class="tree-view">
+                        <li class="icon-folder" onclick="toggleTree(this, event)">Forest: smec.com
+                            <ul>
+                                <li class="icon-folder" onclick="toggleTree(this, event)">Domains
+                                    <ul>
+                                        <li class="icon-domain" onclick="toggleTree(this, event)">smec.com
+                                            <ul>
+                                                <li class="icon-ou">Domain Controllers</li>
+                                                <li class="icon-ou" oncontextmenu="showGPMContext(event)">Sales
+                                                    <ul id="sales-gpo-list"></ul>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                <div style="padding: 15px; width: 55%; background:#f9f9f9;">
+                    <p style="color:#666; margin-top:0;">Select an item to view detailed information.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create GPO Modal -->
+        <div id="create-gpo-window" class="window">
+            <div class="title-bar"><span>New GPO</span><span class="close-btn" onclick="closeWindow('create-gpo-window')">X</span></div>
+            <div class="content" style="background:#fff;">
+                <p style="margin-top:0;">Name:</p>
+                <input type="text" id="gpo-name" style="width:100%; margin-bottom:15px; box-sizing:border-box;" placeholder="Block_CMD">
+                <div style="text-align:right;">
+                    <button onclick="createGPO()" style="margin-right:5px;">OK</button>
+                    <button onclick="closeWindow('create-gpo-window')">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- GPME Window -->
+        <div id="gpme-window" class="window">
+            <div class="title-bar"><span>Group Policy Management Editor - [Block_CMD]</span><span class="close-btn" onclick="closeWindow('gpme-window')">X</span></div>
+            <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+            <div class="content" style="display:flex; padding:0; background:#fff;">
+                <div style="width: 45%; border-right: 1px solid #ccc; padding: 10px; overflow-y: auto;">
+                    <ul class="tree-view">
+                        <li class="icon-folder" onclick="toggleTree(this, event)">Computer Configuration</li>
+                        <li class="icon-folder" onclick="toggleTree(this, event)">User Configuration
+                            <ul>
+                                <li class="icon-folder" onclick="toggleTree(this, event)">Policies
+                                    <ul>
+                                        <li class="icon-folder" onclick="toggleTree(this, event)">Administrative Templates
+                                            <ul>
+                                                <li class="icon-folder selectable" onclick="selectPolicyFolder('system', this, event)">System</li>
+                                                <li class="icon-folder selectable">Control Panel</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                <div style="width: 55%; padding: 10px;">
+                    <table id="policy-list" style="width:100%; border-collapse: collapse; display:none;">
+                        <tr style="border-bottom:1px solid #ccc; text-align:left; background:#f9f9f9;">
+                            <th style="padding:6px;">Setting</th>
+                            <th style="padding:6px;">State</th>
+                        </tr>
+                        <tr class="policy-row" ondblclick="openPolicySetting()">
+                            <td style="padding:6px;">⚙️ Prevent access to the command prompt</td>
+                            <td style="padding:6px;" id="policy-state-text">Not configured</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Policy Setting Window -->
+        <div id="policy-window" class="window">
+            <div class="title-bar"><span>Prevent access to the command prompt</span><span class="close-btn" onclick="closeWindow('policy-window')">X</span></div>
+            <div class="content" style="display:flex; flex-direction:column;">
+                <div style="background:#fff; border:1px solid #ccc; padding:15px; margin-bottom:10px;">
+                    <label style="display:block; margin-bottom:5px;"><input type="radio" name="p-state" value="not" checked> Not Configured</label>
+                    <label style="display:block; margin-bottom:5px;"><input type="radio" name="p-state" value="enabled" id="p-enabled"> Enabled</label>
+                    <label style="display:block; margin-bottom:5px;"><input type="radio" name="p-state" value="disabled"> Disabled</label>
+                </div>
+                <div style="border:1px solid #ccc; padding:10px; flex-grow:1; background:#fff;">
+                    <strong>Description:</strong><br><br>Prevents users from running the interactive command prompt (cmd.exe). Also determines whether batch files (.cmd and .bat) can run on the computer.
+                </div>
+                <div style="text-align:right; margin-top:10px;">
+                    <button onclick="applyPolicy()" style="margin-right:5px;">Apply</button>
+                    <button onclick="okPolicy()">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ==================== CLIENT PC (RIGHT) ==================== -->
+    <div class="pc-container" id="client-pc">
+        
+        <!-- Client Login Overlay (Default State) -->
+        <div id="client-login-screen">
+            <div class="login-domain-info">
+                💻 Client PC (PC-ARUN)
+                <span>Domain Joined: smec.com</span>
+            </div>
+            <div class="login-avatar">👤</div>
+            <h2 style="margin:10px 0;">Arun</h2>
+            <p style="margin:0 0 20px 0; opacity:0.8; font-size:12px;">Sales Department</p>
+            <button class="login-btn" onclick="clientSignIn()">Sign In</button>
+        </div>
+
+        <div class="pc-label">
+            PC-ARUN (Client)
+            <span>IP: 192.168.1.101 | User: Arun</span>
+        </div>
+        
+        <!-- Client Taskbar -->
+        <div class="taskbar">
+            <div class="start-btn" onclick="toggleMenu('client-start-menu', event)">
+                <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+            </div>
+        </div>
+
+        <!-- Client Start Menu -->
+        <div id="client-start-menu" class="start-menu">
+            <div style="padding: 25px;">
+                <h4 style="margin-top:0; color:#333;">Pinned Apps</h4>
+                <div class="app-grid">
+                    <div class="app" onclick="openClientRun(event)">
+                        <div class="app-icon">🪟</div>
+                        <span style="font-size:11px; font-weight:600; text-align:center;">Run</span>
+                    </div>
+                    <div class="app">
+                        <div class="app-icon">⚙️</div>
+                        <span style="font-size:11px; font-weight:600; text-align:center;">Settings</span>
+                    </div>
+                    <div class="app">
+                        <div class="app-icon">🌐</div>
+                        <span style="font-size:11px; font-weight:600; text-align:center;">Edge</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Client Run Window -->
+        <div id="client-run-window" class="window">
+            <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('client-run-window')">X</span></div>
+            <div class="content" style="display:flex; gap:15px; background:#fff;">
+                <div style="font-size:35px; color:var(--win-blue);">🪟</div>
+                <div style="flex-grow:1;">
+                    <p style="margin-top:0; margin-bottom:15px; font-size:12px;">Type the name of a program to open it.</p>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-weight:600;">Open:</label>
+                        <input type="text" id="client-run-input" style="flex-grow:1;" onkeypress="if(event.key==='Enter') executeClientRun()">
+                    </div>
+                </div>
+            </div>
+            <div style="background:#f0f0f0; padding:10px; text-align:right; border-top:1px solid #ddd;">
+                <button onclick="executeClientRun()" style="margin-right:5px;">OK</button>
+                <button onclick="closeWindow('client-run-window')">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Error Window -->
+        <div id="error-window" class="window">
+            <div class="title-bar"><span>Command Prompt</span><span class="close-btn" onclick="closeWindow('error-window')">X</span></div>
+            <div class="content" style="display:flex; align-items:center; gap:15px; background:#fff;">
+                <div style="background:#e81123; color:#fff; border-radius:50%; width:35px; height:35px; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:bold; flex-shrink:0;">!</div>
+                <div style="font-size:12px; line-height:1.5;">The command prompt has been disabled by your administrator.<br><br>Press any key to continue . . .</div>
+            </div>
+            <div style="background:#f0f0f0; padding:10px; text-align:center; border-top:1px solid #ddd;">
+                <button onclick="finishLab()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menus (Global) -->
+    <div id="gpm-context" class="context-menu">
+        <div onclick="openCreateGPO(event)">Create a GPO in this domain, and Link it here...</div>
+    </div>
+    <div id="gpo-context" class="context-menu">
+        <div onclick="openGPME(event)">Edit...</div>
+        <div>Delete</div>
+    </div>
+
+    <script>
+        let step = 1;
+        let policyEnabled = false;
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => el.style.display = 'none');
+        });
+
+        function toggleMenu(id, event) {
+            event.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => {
+                if(el.id !== id) el.style.display = 'none';
+            });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+        
+        function toggleTree(element, event) { 
+            event.stopPropagation(); 
+            element.classList.toggle('expanded');
+            if(element.classList.contains('icon-folder')) {
+                element.classList.remove('icon-folder');
+                element.classList.add('icon-folder-open');
+            } else if(element.classList.contains('icon-folder-open')) {
+                element.classList.remove('icon-folder-open');
+                element.classList.add('icon-folder');
+            }
+        }
+
+        // --- LAB STEPS LOGIC ---
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            let text = "";
+            switch(step) {
+                case 1: text = "<strong>SERVER (Left):</strong> Click Start and open <b>Run</b>."; break;
+                case 2: text = "<strong>SERVER:</strong> Type <code>dsa.msc</code> and click OK to open Active Directory (ADUC)."; break;
+                case 3: text = "<strong>SERVER:</strong> Expand 'Active Directory...' &gt; <b>smec.com</b>. Click <b>Sales</b> OU. Verify user Arun exists, then close the window."; break;
+                case 4: text = "<strong>SERVER:</strong> Open <b>Run</b> again from Start."; break;
+                case 5: text = "<strong>SERVER:</strong> Type <code>gpmc.msc</code> and click OK to open Group Policy Management."; break;
+                case 6: text = "<strong>SERVER:</strong> Expand Forest &gt; Domains &gt; smec.com. Right-click <b>Sales</b> OU and select <b>Create a GPO...</b>"; break;
+                case 7: text = "<strong>SERVER:</strong> Name it <code>Block_CMD</code> and click OK."; break;
+                case 8: text = "<strong>SERVER:</strong> Right-click the new GPO and select <b>Edit...</b>"; break;
+                case 9: text = "<strong>SERVER:</strong> Expand User Configuration &gt; Policies &gt; Admin Templates &gt; click <b>System</b>."; break;
+                case 10: text = "<strong>SERVER:</strong> Double-click <b>Prevent access to the command prompt</b>, select <b>Enabled</b>, and click OK."; break;
+                case 11: text = "<strong>SERVER:</strong> Open <b>Run</b>, type <code>cmd</code>, and click OK."; break;
+                case 12: text = "<strong>SERVER:</strong> In CMD, type <code>gpupdate /force</code> and press Enter to apply the policy on the server."; break;
+                case 13: text = "<strong>CLIENT (Right):</strong> The PC is on the Lock Screen. Click <b>Sign In</b> to log in as Arun and pull the new policy."; break;
+                case 14: text = "<strong>CLIENT:</strong> Open <b>Run</b>, type <code>cmd</code>, and press Enter to test the restriction."; break;
+                case 15: text = "<strong>🎉 Lab Complete!</strong> The policy successfully blocked Arun from accessing the Command Prompt."; break;
+            }
+            guide.innerHTML = text;
+        }
+
+        // --- SERVER FUNCTIONS ---
+        function openServerRun(e) {
+            e.stopPropagation();
+            document.getElementById('server-start-menu').style.display = 'none';
+            document.getElementById('server-run-window').style.display = 'flex';
+            document.getElementById('server-run-input').value = '';
+            document.getElementById('server-run-input').focus();
+            if(step === 1) { step = 2; updateGuide(); }
+            if(step === 4) { step = 5; updateGuide(); }
+            if(step === 11) { step = 12; updateGuide(); }
+        }
+
+        function executeServerRun() {
+            const cmd = document.getElementById('server-run-input').value.toLowerCase().trim();
+            closeWindow('server-run-window');
+            if (cmd === 'dsa.msc') {
+                document.getElementById('aduc-window').style.display = 'flex';
+                if(step === 2) { step = 3; updateGuide(); }
+            } else if (cmd === 'gpmc.msc') {
+                if(step < 4) { alert("Please complete the ADUC verification first!"); return; }
+                document.getElementById('gpm-window').style.display = 'flex';
+                if(step === 5) { step = 6; updateGuide(); }
+            } else if (cmd === 'cmd') {
+                if(step < 11) { alert("Please complete the Group Policy setup first!"); return; }
+                document.getElementById('server-cmd-window').style.display = 'flex';
+                document.getElementById('server-cmd-input').focus();
+                if(step === 12) { step = 12; updateGuide(); }
+            } else if (cmd !== "") {
+                alert(`Windows cannot find '${cmd}'.`);
+            }
+        }
+
+        function handleServerCmd(e) {
+            if(e.key === 'Enter') {
+                const input = document.getElementById('server-cmd-input');
+                const val = input.value.trim();
+                const out = document.getElementById('server-cmd-output');
+                
+                let response = `C:\\Users\\Administrator> ${val}\n`;
+                if(val.toLowerCase() === 'gpupdate /force') {
+                    response += "Updating policy...\n\nComputer Policy update has completed successfully.\nUser Policy update has completed successfully.\n\n";
+                    if(step === 12) { step = 13; updateGuide(); }
+                } else if(val !== '') {
+                    response += `'${val}' is not recognized as an internal or external command.\n\n`;
+                }
+                
+                out.innerHTML += response;
+                input.value = '';
+                document.getElementById('server-cmd-content').scrollTop = document.getElementById('server-cmd-content').scrollHeight;
+            }
+        }
+
+        function showUsers(el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.selectable, .icon-ou').forEach(el => el.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('ou-contents').style.display = 'block';
+        }
+
+        function handleADUCClose() {
+            closeWindow('aduc-window');
+            if(step === 3) { step = 4; updateGuide(); }
+        }
+
+        function showGPMContext(e) {
+            e.preventDefault(); e.stopPropagation();
+            const menu = document.getElementById('gpm-context');
+            menu.style.display = 'flex';
+            menu.style.left = e.pageX + 'px'; menu.style.top = e.pageY + 'px';
+        }
+
+        function openCreateGPO(e) {
+            e.stopPropagation();
+            document.getElementById('gpm-context').style.display = 'none';
+            document.getElementById('create-gpo-window').style.display = 'flex';
+            document.getElementById('gpo-name').focus();
+            if(step === 6) { step = 7; updateGuide(); }
+        }
+
+        function createGPO() {
+            const name = document.getElementById('gpo-name').value.trim();
+            if(name.toLowerCase() === 'block_cmd') {
+                closeWindow('create-gpo-window');
+                const ul = document.getElementById('sales-gpo-list');
+                ul.innerHTML = `<li class="icon-gpo" oncontextmenu="showGPOContext(event)">${name}</li>`;
+                ul.parentElement.classList.add('expanded');
+                if(step === 7) { step = 8; updateGuide(); }
+            } else {
+                alert("Please name the GPO 'Block_CMD' (Not case-sensitive).");
+            }
+        }
+
+        function showGPOContext(e) {
+            e.preventDefault(); e.stopPropagation();
+            const menu = document.getElementById('gpo-context');
+            menu.style.display = 'flex';
+            menu.style.left = e.pageX + 'px'; menu.style.top = e.pageY + 'px';
+        }
+
+        function openGPME(e) {
+            e.stopPropagation();
+            document.getElementById('gpo-context').style.display = 'none';
+            document.getElementById('gpme-window').style.display = 'flex';
+            if(step === 8) { step = 9; updateGuide(); }
+        }
+
+        function selectPolicyFolder(folder, element, event) {
+            e = event || window.event;
+            e.stopPropagation();
+            document.querySelectorAll('.selectable').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            if(folder === 'system') {
+                document.getElementById('policy-list').style.display = 'table';
+                if(step === 9) { step = 10; updateGuide(); }
+            }
+        }
+
+        function openPolicySetting() {
+            document.getElementById('policy-window').style.display = 'flex';
+        }
+
+        function applyPolicy() {
+            if(document.getElementById('p-enabled').checked) {
+                policyEnabled = true;
+                document.getElementById('policy-state-text').innerText = 'Enabled';
+            }
+        }
+
+        function okPolicy() {
+            applyPolicy();
+            closeWindow('policy-window');
+            if(step === 10 && policyEnabled) { step = 11; updateGuide(); }
+        }
+
+
+        // --- CLIENT FUNCTIONS ---
+        function clientSignIn() {
+            if (step < 13) { alert("Please complete the Server side configurations and GPUpdate first!"); return; }
+            document.getElementById('client-login-screen').style.display = 'none';
+            if(step === 13) { step = 14; updateGuide(); }
+        }
+
+        function openClientRun(e) {
+            e.stopPropagation();
+            if(step < 14) { alert("Please Sign In properly to apply the policy first!"); return; }
+            document.getElementById('client-start-menu').style.display = 'none';
+            document.getElementById('client-run-window').style.display = 'flex';
+            document.getElementById('client-run-input').value = '';
+            document.getElementById('client-run-input').focus();
+        }
+
+        function executeClientRun() {
+            const cmd = document.getElementById('client-run-input').value.toLowerCase().trim();
+            closeWindow('client-run-window');
+            if (cmd === 'cmd') {
+                if (policyEnabled && step >= 14) {
+                    setTimeout(() => { document.getElementById('error-window').style.display = 'flex'; }, 400);
+                    if(step === 14) { step = 15; updateGuide(); }
+                } else {
+                    alert("Command Prompt opened successfully. (Policy not applied properly!)");
+                }
+            } else if (cmd !== "") {
+                alert(`Windows cannot find '${cmd}'.`);
+            }
+        }
+
+        function finishLab() { closeWindow('error-window'); }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
