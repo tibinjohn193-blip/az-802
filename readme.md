@@ -28,6 +28,8 @@ This project provides **100% browser-based interactive simulations** for complex
 
 * [🖥️ Lab 6: Active Directory Group Policy - Blocking Control Panel](lab6.md)
 
+* [🖥️ Lab 7: Active Directory Group Policy - Blocking Command Prompt](lab7.md)
+
 ---
 
 
