@@ -20,11 +20,15 @@ In this scenario, you will act as a System Administrator for the `smec.com` doma
 * Force a Group Policy update (`gpupdate /force`) on the server.
 * Verify the applied restrictions and error prompts on a client machine.
 
-## 🚀 How to Run the Simulation
-1. Clone or download this repository to your local machine.
-2. Open the `lab15.html` file (or the corresponding lab file) in any modern web browser.
-3. Follow the interactive **Lab Guide** overlay on the screen to complete the tasks.
-4. The simulation features a split-screen view:
+## 🚀 Access the Interactive Lab
+You can run this simulation directly in your web browser without downloading any files:
+
+**[▶ Start Lab 6 Simulation](https://tibinjohn193-blip.github.io/az-802/lab6.html)**
+
+### How to use:
+1. Click the link above to open the lab.
+2. Follow the interactive **Lab Guide** overlay on the screen to complete the tasks.
+3. The simulation features a split-screen view:
    * **Left Side:** The Server interface where you configure the policies.
    * **Right Side:** The Client interface where you log in as the user and verify the policy enforcement.
 
