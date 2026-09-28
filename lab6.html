@@ -155,11 +155,11 @@
         /* Window Sizes & Positions - Adjusted so they don't overlap Lab Guide */
         #server-run-window, #client-run-window { width: 390px; height: 210px; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; }
         #aduc-window { width: 85%; height: 65%; top: 10%; left: 7.5%; }
-        #gpm-window { width: 85%; height: 65%; top: 10%; left: 7.5%; }
+        #gpm-window { width: 85%; height: 65%; top: 10%; left: 7.5%; z-index: 10001; }
         #gpme-window { width: 90%; height: 70%; top: 8%; left: 5%; z-index: 10005; }
         #policy-window { width: 450px; height: 480px; top: 12%; left: 15%; z-index: 10020; }
         #create-gpo-window { width: 380px; height: 200px; top: 35%; left: 50%; transform: translateX(-50%); z-index: 10010; }
-        #server-cmd-window { width: 85%; height: 60%; top: 15%; left: 7.5%; background: #0c0c0c; color: #ccc; font-family: Consolas, monospace; }
+        #server-cmd-window { width: 85%; height: 60%; top: 15%; left: 7.5%; background: #0c0c0c; color: #ccc; font-family: Consolas, monospace; z-index: 10000;}
         #error-window { width: 420px; height: 160px; top: 35%; left: 50%; transform: translateX(-50%); z-index: 10050; }
 
         /* Context Menus */
@@ -336,7 +336,7 @@
 
         <!-- Group Policy Management -->
         <div id="gpm-window" class="window">
-            <div class="title-bar"><span>Group Policy Management</span><span class="close-btn" onclick="closeWindow('gpm-window')">X</span></div>
+            <div class="title-bar"><span>Group Policy Management</span><span class="close-btn" onclick="handleGPMClose()">X</span></div>
             <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
             <div class="content" style="display:flex; padding:0; background:#fff;">
                 <div style="width: 45%; border-right: 1px solid #ccc; padding: 10px; overflow-y: auto;">
@@ -380,7 +380,7 @@
 
         <!-- GPME Window -->
         <div id="gpme-window" class="window">
-            <div class="title-bar"><span>Group Policy Management Editor - [Block_Control_Panel]</span><span class="close-btn" onclick="closeWindow('gpme-window')">X</span></div>
+            <div class="title-bar"><span>Group Policy Management Editor - [Block_Control_Panel]</span><span class="close-btn" onclick="handleGPMEclose()">X</span></div>
             <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
             <div class="content" style="display:flex; padding:0; background:#fff;">
                 <div style="width: 45%; border-right: 1px solid #ccc; padding: 10px; overflow-y: auto;">
@@ -486,7 +486,7 @@
             </div>
         </div>
 
-        <!-- Client Run Window (Centered to avoid overlap) -->
+        <!-- Client Run Window -->
         <div id="client-run-window" class="window">
             <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('client-run-window')">X</span></div>
             <div class="content" style="display:flex; gap:15px; background:#fff;">
@@ -573,11 +573,12 @@
                 case 8: text = "<strong>SERVER:</strong> Right-click the new GPO and select <b>Edit...</b>"; break;
                 case 9: text = "<strong>SERVER:</strong> Expand User Configuration &gt; Policies &gt; Admin Templates &gt; click <b>Control Panel</b>."; break;
                 case 10: text = "<strong>SERVER:</strong> Double-click <b>Prohibit access to Control Panel</b>, select <b>Enabled</b>, and click OK."; break;
-                case 11: text = "<strong>SERVER:</strong> Open <b>Run</b>, type <code>cmd</code>, and click OK."; break;
-                case 12: text = "<strong>SERVER:</strong> In CMD, type <code>gpupdate /force</code> and press Enter to apply the policy on the server."; break;
-                case 13: text = "<strong>CLIENT (Right):</strong> The PC is on the Lock Screen. Click <b>Sign In</b> to log in as Arun and pull the new policy."; break;
-                case 14: text = "<strong>CLIENT:</strong> Open <b>Run</b>, type <code>control</code>, and press Enter to test the restriction."; break;
-                case 15: text = "<strong>🎉 Lab Complete!</strong> The policy successfully blocked Arun from accessing the Control Panel."; break;
+                case 11: text = "<strong>SERVER:</strong> ⚠️ Close the <b>Group Policy Management Editor</b> and <b>Group Policy Management</b> windows to proceed."; break;
+                case 12: text = "<strong>SERVER:</strong> Open <b>Run</b>, type <code>cmd</code>, and click OK."; break;
+                case 13: text = "<strong>SERVER:</strong> In CMD, type <code>gpupdate /force</code> and press Enter to apply the policy on the server."; break;
+                case 14: text = "<strong>CLIENT (Right):</strong> The PC is on the Lock Screen. Click <b>Sign In</b> to log in as Arun and pull the new policy."; break;
+                case 15: text = "<strong>CLIENT:</strong> Open <b>Run</b>, type <code>control</code>, and press Enter to test the restriction."; break;
+                case 16: text = "<strong>🎉 Lab Complete!</strong> The policy successfully blocked Arun from accessing the Control Panel."; break;
             }
             guide.innerHTML = text;
         }
@@ -586,12 +587,19 @@
         function openServerRun(e) {
             e.stopPropagation();
             document.getElementById('server-start-menu').style.display = 'none';
+            
+            if(step === 11) {
+                alert("Please close the Group Policy windows first!");
+                return;
+            }
+
             document.getElementById('server-run-window').style.display = 'flex';
             document.getElementById('server-run-input').value = '';
             document.getElementById('server-run-input').focus();
+            
             if(step === 1) { step = 2; updateGuide(); }
             if(step === 4) { step = 5; updateGuide(); }
-            if(step === 11) { step = 12; updateGuide(); }
+            if(step === 12) { step = 13; updateGuide(); } // wait for cmd
         }
 
         function executeServerRun() {
@@ -605,10 +613,9 @@
                 document.getElementById('gpm-window').style.display = 'flex';
                 if(step === 5) { step = 6; updateGuide(); }
             } else if (cmd === 'cmd') {
-                if(step < 11) { alert("Please complete the Group Policy setup first!"); return; }
+                if(step < 12) { alert("Please complete the Group Policy setup and close windows first!"); return; }
                 document.getElementById('server-cmd-window').style.display = 'flex';
                 document.getElementById('server-cmd-input').focus();
-                if(step === 12) { step = 12; updateGuide(); } // wait for command
             } else if (cmd !== "") {
                 alert(`Windows cannot find '${cmd}'.`);
             }
@@ -623,7 +630,7 @@
                 let response = `C:\\Users\\Administrator> ${val}\n`;
                 if(val.toLowerCase() === 'gpupdate /force') {
                     response += "Updating policy...\n\nComputer Policy update has completed successfully.\nUser Policy update has completed successfully.\n\n";
-                    if(step === 12) { step = 13; updateGuide(); }
+                    if(step === 13) { step = 14; updateGuide(); }
                 } else if(val !== '') {
                     response += `'${val}' is not recognized as an internal or external command.\n\n`;
                 }
@@ -716,17 +723,37 @@
             if(step === 10 && policyEnabled) { step = 11; updateGuide(); }
         }
 
+        // Logic to check if both windows are closed before gpupdate
+        function handleGPMEclose() {
+            closeWindow('gpme-window');
+            checkWindowsClosed();
+        }
+        function handleGPMClose() {
+            closeWindow('gpm-window');
+            checkWindowsClosed();
+        }
+        function checkWindowsClosed() {
+            if(step === 11) {
+                const gpme = document.getElementById('gpme-window').style.display;
+                const gpm = document.getElementById('gpm-window').style.display;
+                if(gpme === 'none' && gpm === 'none') {
+                    step = 12;
+                    updateGuide();
+                }
+            }
+        }
+
 
         // --- CLIENT FUNCTIONS ---
         function clientSignIn() {
-            if (step < 13) { alert("Please complete the Server side configurations and GPUpdate first!"); return; }
+            if (step < 14) { alert("Please complete the Server side configurations and GPUpdate first!"); return; }
             document.getElementById('client-login-screen').style.display = 'none';
-            if(step === 13) { step = 14; updateGuide(); }
+            if(step === 14) { step = 15; updateGuide(); }
         }
 
         function openClientRun(e) {
             e.stopPropagation();
-            if(step < 14) { alert("Please Sign In properly to apply the policy first!"); return; }
+            if(step < 15) { alert("Please Sign In properly to apply the policy first!"); return; }
             document.getElementById('client-start-menu').style.display = 'none';
             document.getElementById('client-run-window').style.display = 'flex';
             document.getElementById('client-run-input').value = '';
@@ -737,9 +764,9 @@
             const cmd = document.getElementById('client-run-input').value.toLowerCase().trim();
             closeWindow('client-run-window');
             if (cmd === 'control') {
-                if (policyEnabled && step >= 14) {
+                if (policyEnabled && step >= 15) {
                     setTimeout(() => { document.getElementById('error-window').style.display = 'flex'; }, 400);
-                    if(step === 14) { step = 15; updateGuide(); }
+                    if(step === 15) { step = 16; updateGuide(); }
                 } else {
                     alert("Control Panel opened successfully. (Policy not applied properly!)");
                 }
