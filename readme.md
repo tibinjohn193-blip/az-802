@@ -30,6 +30,8 @@ This project provides **100% browser-based interactive simulations** for complex
 
 * [🖥️ Lab 7: Active Directory Group Policy - Blocking Command Prompt](lab7.md)
 
+*  [🖥️ Lab 8: Active Directory Group Policy - Blocking USB Drives](lab8.md)
+
 ---
 
 
