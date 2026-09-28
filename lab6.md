@@ -1,14 +1,24 @@
 # Lab 6: Active Directory Group Policy - Blocking Control Panel
 
 ## 📖 Overview
-This interactive simulation lab is part of the Windows Server (AZ-800/AZ-802) study series. It demonstrates how to restrict user access by blocking the Control Panel using Group Policy Objects (GPO) in an Active Directory environment. 
+This interactive simulation lab is part of the Windows Server (AZ-800/AZ-802) study series. It demonstrates how to restrict user access by blocking the Control Panel using Group Policy Objects (GPO) in an Active Directory environment.
 
 In this scenario, you will act as a System Administrator for the `smec.com` domain and prevent the Sales Department from modifying system settings. You will configure the policy on the Domain Controller and verify the restriction on a domain-joined client PC.
+
+## 🧠 Key Concepts
+Before starting the lab, it is important to understand the hierarchy and function of Group Policies in Active Directory:
+
+* **What is Group Policy?** 
+  Group Policy is a hierarchical infrastructure that allows network administrators to centrally manage, configure, and secure user and computer settings across an Active Directory environment. Administrators use Group Policy Objects (GPOs) to enforce security rules, deploy software, and restrict access to system features without needing to configure each PC manually.
+* **What is a Domain Level Group Policy?**
+  A GPO linked at the domain level applies its settings universally to *all* users and computers within the entire Active Directory domain. This level is typically reserved for sweeping, organization-wide rules, such as default password complexity requirements or universal firewall settings.
+* **What is an OU Level Group Policy?**
+  A GPO linked at the Organizational Unit (OU) level applies settings only to the specific users or computers contained within that OU. This provides granular control, allowing administrators to apply targeted rules—such as blocking the Control Panel for the *Sales Department* OU—without affecting users in the IT or HR departments.
 
 ## 🖥️ Lab Environment
 * **Server PC:** SMEC-DC1 (IP: 192.168.1.100 | Domain: smec.com)
 * **Client PC:** PC-ARUN (IP: 192.168.1.101)
-* **Target User:** Arun 
+* **Target User:** Arun
 * **Target OU:** Sales Department
 
 ## 🎯 Learning Objectives
