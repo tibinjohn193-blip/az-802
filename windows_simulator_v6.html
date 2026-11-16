@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows Server 2025 & Windows 11 Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Base OS Aesthetics */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; user-select: none; }
+        
+        .bg-server { background: radial-gradient(circle at 70% 30%,#1d5fae,#08193a 75%); }
+        .bg-client { background: radial-gradient(circle at 30% 30%,#b9d3ff,#3b6fd6 45%,#1a2466 95%); }
+        
+        /* Draggable Window Styling */
+        .os-window {
+            position: absolute; background: #f3f3f3; border: 1px solid #777; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; min-width: 300px; min-height: 200px;
+            overflow: hidden; border-radius: 4px; z-index: 100;
+        }
+        .os-window.win11 { border-radius: 8px; border: 1px solid #c0c0c0; box-shadow: 0 8px 24px rgba(0,0,0,0.15); background: #ffffff; }
+        
+        .window-titlebar {
+            background: #ffffff; border-bottom: 1px solid #ccc; padding: 6px 12px;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: grab; user-select: none;
+        }
+        .window-titlebar:active { cursor: grabbing; }
+        .window-title { font-size: 13px; font-weight: 600; color: #000; }
+        .window-btn-close { width: 32px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: transparent; border: none; font-size: 14px;}
+        .window-btn-close:hover { background: #e81123; color: white; }
+        .window-btn-min { width: 32px; height: 24px; cursor: pointer; background: transparent; border: none; font-size: 14px; }
+        .window-btn-min:hover { background: #ddd; }
+        .tb-win { background: rgba(255,255,255,.12); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 4px; cursor: pointer; border-bottom: 2px solid #4cc2ff; max-width: 170px; white-space: nowrap; }
+        .tb-win:hover { background: rgba(255,255,255,.25); }
+        
+        .window-content { flex: 1; overflow: auto; background: #ffffff; display: flex; flex-direction: column; font-size: 13px; color: #000; position: relative;}
+        
+        /* UI Elements */
+        .os-input { border: 1px solid #888; padding: 4px 8px; font-size: 13px; width: 100%; outline: none; color: #000; }
+        .os-input:focus { border-color: #0078d7; outline: 1px solid #0078d7; }
+        .os-input:disabled { background-color: #e9e9ed; color: #666; cursor: not-allowed; }
+        
+        .os-btn { background: #e1e1e1; border: 1px solid #adadad; color: #000; padding: 4px 16px; cursor: pointer; font-size: 13px; min-width: 75px; transition: 0.1s; }
+        .os-btn:hover:not(:disabled) { background: #e5f1fb; border-color: #0078d7; }
+        .os-btn:disabled { background: #f0f0f0; border-color: #ccc; color: #999; cursor: not-allowed; }
+        
+        .list-item { padding: 4px 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .list-item:hover { background: #cce8ff; }
+        .list-item.selected { background: #cce8ff; border: 1px dotted #99d1ff; }
+
+        /* Taskbar & Start Menu */
+        .taskbar { height: 48px; background: rgba(15,15,15,0.95); display: flex; align-items: center; padding: 0 10px; position: absolute; bottom: 0; width: 100%; z-index: 5000; backdrop-filter: blur(10px); border-top: 1px solid #333; gap: 8px;}
+        .start-btn { width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; transition: 0.2s; border-radius: 4px; }
+        .start-btn:hover { background: rgba(255,255,255,0.15); }
+        
+        .start-menu {
+            position: absolute; bottom: 60px; left: 10px; width: 280px; background: #fafafa;
+            border: 1px solid #999; box-shadow: 2px 2px 15px rgba(0,0,0,0.4); border-radius: 6px;
+            display: none; flex-direction: column; z-index: 5001; padding: 8px 0;
+        }
+        .start-item { padding: 10px 20px; cursor: pointer; font-size: 14px; color: #111; display: flex; gap: 12px; align-items: center; transition: 0.1s; }
+        .start-item:hover { background: #0078d7; color: white; }
+
+        /* Context Menu & Dialogs */
+        .context-menu {
+            position: absolute; background: white; border: 1px solid #ccc; box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+            z-index: 9999; display: none; flex-direction: column; min-width: 150px; padding: 2px 0; font-size: 13px; color: #000;
+        }
+        .context-item { padding: 6px 16px; cursor: pointer; color: #000; }
+        .context-item:hover { background: #e5f1fb; }
+        
+        .dialog-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.3); z-index: 9998; display: none; align-items: center; justify-content: center; }
+        .dialog-box { background: white; border: 1px solid #999; box-shadow: 0 4px 15px rgba(0,0,0,0.4); min-width: 320px; display: flex; flex-direction: column; }
+
+        /* Restart Screen */
+        .restart-overlay {
+            position: absolute; inset: 0; background: #0078d7; color: white;
+            z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; width: 48px; height: 48px; animation: spin 1s linear infinite; margin-bottom: 16px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex h-screen w-full bg-gray-900 text-white overflow-hidden">
+
+    <!-- Left Panel: Machine Selector -->
+    <div class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col z-20 shadow-xl">
+        <div class="p-5 font-bold text-sm uppercase tracking-widest text-gray-400 border-b border-gray-700">Virtual Lab</div>
+        <div class="flex-1 p-3 space-y-3">
+            <button id="btn-server" onclick="switchOS('server')" class="w-full text-left p-4 rounded-md bg-blue-600 hover:bg-blue-500 transition shadow-lg border border-blue-400">
+                <div class="font-bold text-lg text-white">Server OS</div>
+                <div class="text-xs text-blue-100 mt-1">Windows Server 2025</div>
+            </button>
+            <button id="btn-client" onclick="switchOS('client')" class="w-full text-left p-4 rounded-md bg-gray-700 hover:bg-gray-600 transition border border-gray-600">
+                <div class="font-bold text-lg text-white">Client OS</div>
+                <div class="text-xs text-gray-300 mt-1">Windows 11</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Center: Interactive Desktop -->
+    <div class="flex-1 relative overflow-hidden bg-server" id="desktop">
+        <div id="window-container" class="absolute inset-0 pointer-events-none"></div>
+
+        <!-- System Message Box -->
+        <div class="dialog-overlay" id="dialog-overlay" style="pointer-events: auto;">
+            <div class="dialog-box rounded">
+                <div class="bg-gray-100 border-b border-gray-300 px-4 py-2 font-bold text-gray-800 text-sm flex justify-between" id="dialog-title">System Alert</div>
+                <div class="p-5 text-gray-800 text-sm" id="dialog-message"></div>
+                <div class="p-3 bg-gray-50 border-t border-gray-300 flex justify-end gap-2" id="dialog-buttons">
+                    <button class="os-btn" onclick="closeDialog()">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Context Menu -->
+        <div id="ctx-menu" class="context-menu pointer-events-auto"></div>
+
+        <!-- Restarting Overlay (Hidden by default) -->
+        <div id="restart-screen" class="restart-overlay" style="display:none;">
+            <div class="spinner"></div>
+            <div class="text-2xl font-light">Restarting...</div>
+        </div>
+
+        <!-- Taskbar -->
+        <div class="taskbar">
+            <div class="start-btn" onclick="toggleStartMenu(event)">
+                <svg viewBox="0 0 88 88" width="22" height="22"><path fill="currentColor" d="M0 12.402l35.687-4.86.016 34.423-35.67.203zm35.67 33.529l.016 34.453L0 76.105V45.714zm4.326-39.02L87.314 0v41.527l-47.318.376zm47.318 39.345L87.314 88l-47.318-6.938v-35.15z"/></svg>
+            </div>
+            <!-- File Explorer icon only for client -->
+            <div class="start-btn text-2xl" id="tb-explorer" onclick="openApp('explorer')" style="display:none;" title="File Explorer">📁</div>
+
+            <div id="tb-windows" class="flex gap-1 ml-2"></div>
+            <div class="ml-auto mr-4 flex items-center text-sm font-semibold text-white" id="os-indicator">Windows Server 2025</div>
+        </div>
+
+        <!-- Start Menu -->
+        <div class="start-menu pointer-events-auto" id="start-menu">
+            <div class="px-4 py-2 font-bold text-gray-500 text-xs border-b border-gray-200 mb-2 uppercase" id="sm-title">Server Admin</div>
+            
+            <div class="start-item" onclick="openApp('run')">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="#0078d7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                    <polyline points="9 21 9 15 15 15 15 21"></polyline>
+                </svg>
+                <span class="ml-1 text-black">Run</span>
+            </div>
+
+            <div class="start-item" onclick="openApp('servermanager')" id="sm-smgr">⚙️ <span class="text-black ml-1">Server Manager</span></div>
+            <div class="start-item" onclick="openApp('explorer')" id="sm-explorer" style="display:none;">📁 <span class="text-black ml-1">File Explorer</span></div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Tasks -->
+    <div class="w-80 bg-white text-black border-l border-gray-300 flex flex-col z-20 shadow-[-4px_0_20px_rgba(0,0,0,0.15)]">
+        <div class="p-5 bg-gray-100 border-b border-gray-300">
+            <h2 class="font-bold text-lg text-blue-900">Exam Checklist</h2>
+            <div class="text-sm font-semibold text-gray-600 mt-1">Completed: <span id="task-progress" class="text-blue-600">0/10</span></div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 text-sm space-y-3" id="task-list"></div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        const state = {
+            os: 'server',
+            serverIp: '', serverDns: '', clientIp: '', clientDns: '',
+            addsInstalled: false, domainPromoted: false, domainName: '',
+            clientJoined: false,
+            aduc: { techOU: false, user1: false, user2: false },
+            gpo: { cp: false, cmd: false },
+            roles: { iis: false, httpRedir: false, ftp: false },
+            dns: { zone: false, aRecord: false },
+            iis: { webSite: false, ftpSite: false },
+            tasks: [
+                { id: 1, text: "Set Server IP: 192.168.1.1, DNS: 192.168.1.1 via ncpa.cpl GUI", done: false },
+                { id: 2, text: "Install AD DS Role (via Server Manager Wizard)", done: false },
+                { id: 3, text: "Promote Server to DC (smec.com, DSRM: password123) & Restart", done: false },
+                { id: 4, text: "Set Client IP: 192.168.1.2, DNS: 192.168.1.1 via ncpa.cpl GUI", done: false },
+                { id: 5, text: "Join Client to 'smec.com' domain via File Explorer -> This PC", done: false },
+                { id: 6, text: "ADUC: Create OU 'Tech', Users 'User1' & 'User2' (password123)", done: false },
+                { id: 7, text: "GPMC: Create and link GPOs 'Block Control Panel' and 'Block Command Prompt', then right-click each > Edit and set its policy to Enabled", done: false },
+                { id: 8, text: "Install IIS and HTTP Redirection Roles", done: false },
+                { id: 9, text: "DNS: Create Zone 'tech.com', Host (A) 'www' -> 192.168.1.1", done: false },
+                { id: 10, text: "IIS & Explorer: Create C:\\inetpub\\tech.com, add index.html, host TechWeb and set Default Document to index.html", done: false }
+            ]
+        };
+
+        let activeAducNode = 'smec.com';
+        const inetFolders = ['custerr','history','logs','temp','wwwroot'], inetNew = [];
+        let expPath = 'c:\\\\inetpub', filesInTechCom = [];
+        function pathNorm(p) { return p.trim().toLowerCase().replace(/\\\\+$/,''); }
+        function renderSrvExplorer() {
+            if (expPath === 'c:\\\\inetpub') {
+                const all = [...inetFolders, ...inetNew];
+                const itemsHtml = all.map(f => `<div class="text-center w-24 p-2 hover:bg-blue-50 rounded cursor-default" ondblclick="if('${f}'==='tech.com'){expPath='c:\\\\\\\\inetpub\\\\\\\\tech.com';renderSrvExplorer();}"><div class="text-4xl">📁</div><div class="text-xs">${f}</div></div>`).join('');
+                
+                openWindow('explorer', 'File Explorer - C:\\\\inetpub', `
+                    <div class="flex flex-col h-full bg-white text-sm text-black" oncontextmenu="showCtxMenu(event, [{label:'New > Folder', action:showNewFolder}])">
+                        <div class="bg-gray-100 border-b p-2 flex gap-2 items-center"><button class="os-btn" onclick="showNewFolder()">New folder</button><div class="flex-1 border bg-white px-2 py-1">This PC › Local Disk (C:) › inetpub</div></div>
+                        <div class="p-4 flex flex-wrap gap-4 content-start flex-1">${itemsHtml}</div>
+                    </div>`, 620, 380);
+            } else if (expPath === 'c:\\\\inetpub\\\\tech.com') {
+                const itemsHtml = filesInTechCom.map(f => `<div class="text-center w-24 p-2 hover:bg-blue-50 rounded cursor-default"><div class="text-4xl">📄</div><div class="text-xs">${f}</div></div>`).join('');
+                openWindow('explorer', 'File Explorer - C:\\\\inetpub\\\\tech.com', `
+                    <div class="flex flex-col h-full bg-white text-sm text-black" oncontextmenu="showCtxMenu(event, [{label:'New > Text Document', action:showNewFile}])">
+                        <div class="bg-gray-100 border-b p-2 flex gap-2 items-center"><button class="os-btn" onclick="expPath='c:\\\\\\\\inetpub';renderSrvExplorer()">⬆ Up</button><div class="flex-1 border bg-white px-2 py-1">This PC › Local Disk (C:) › inetpub › tech.com</div></div>
+                        <div class="p-4 flex flex-wrap gap-4 content-start flex-1">${itemsHtml.length ? itemsHtml : '<div class="text-gray-400 italic">This folder is empty. Right-click to add files.</div>'}</div>
+                    </div>`, 620, 380);
+            }
+        }
+        function showNewFolder() {
+            showMsg('New folder', '<label class="text-black">Name:</label><input type="text" id="nf-name" class="os-input mt-1" value="tech.com">', [{text:'OK', action:() => {
+                const n = document.getElementById('nf-name').value.trim();
+                if(!n || [...inetFolders, ...inetNew].some(f => f.toLowerCase() === n.toLowerCase())) { showMsg('Error', 'Enter a unique folder name.'); return; }
+                inetNew.push(n); renderSrvExplorer();
+            }}, {text:'Cancel'}]);
+        }
+        function showNewFile() {
+            showMsg('New Text Document', '<label class="text-black">File Name (including extension):</label><input type="text" id="nfile-name" class="os-input mt-1" value="index.html">', [{text:'OK', action:() => {
+                const n = document.getElementById('nfile-name').value.trim();
+                if(n) { filesInTechCom.push(n); renderSrvExplorer(); }
+            }}, {text:'Cancel'}]);
+        }
+
+        // --- Core UI & Window Management ---
+        let zIndexCounter = 100;
+        
+        function switchOS(os) {
+            state.os = os;
+            document.getElementById('desktop').className = `flex-1 relative overflow-hidden bg-${os}`;
+            document.getElementById('os-indicator').innerText = os === 'server' ? 'Windows Server 2025' : 'Windows 11 Client';
+            document.getElementById('sm-title').innerText = os === 'server' ? 'Server Admin' : 'Windows User';
+            
+            document.getElementById('btn-server').className = `w-full text-left p-4 rounded-md transition ${os==='server'?'bg-blue-600 text-white shadow-lg border border-blue-400':'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600'}`;
+            document.getElementById('btn-client').className = `w-full text-left p-4 rounded-md transition ${os==='client'?'bg-blue-600 text-white shadow-lg border border-blue-400':'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600'}`;
+            
+            document.getElementById('sm-smgr').style.display = os === 'server' ? 'flex' : 'none';
+            document.getElementById('sm-explorer').style.display = 'flex';
+            document.getElementById('tb-explorer').style.display = 'flex';
+            
+            document.getElementById('window-container').innerHTML = ''; document.getElementById('tb-windows').innerHTML = ''; 
+            closeStartMenu(); closeCtxMenu(); closeSmgrNotif();
+        }
+
+        function toggleStartMenu(e) { e.stopPropagation(); const sm = document.getElementById('start-menu'); sm.style.display = sm.style.display === 'flex' ? 'none' : 'flex'; closeSmgrNotif(); }
+        function closeStartMenu() { document.getElementById('start-menu').style.display = 'none'; }
+        
+        document.addEventListener('click', () => { closeStartMenu(); closeCtxMenu(); closeSmgrNotif(); });
+
+        function showMsg(title, msg, customButtons = null) {
+            document.getElementById('dialog-title').innerText = title;
+            document.getElementById('dialog-message').innerHTML = msg;
+            const btnContainer = document.getElementById('dialog-buttons');
+            btnContainer.innerHTML = '';
+            if (customButtons) {
+                customButtons.forEach(b => {
+                    const btn = document.createElement('button');
+                    btn.className = 'os-btn';
+                    btn.innerText = b.text;
+                    btn.onclick = () => { closeDialog(); if(b.action) b.action(); };
+                    btnContainer.appendChild(btn);
+                });
+            } else {
+                btnContainer.innerHTML = `<button class="os-btn" onclick="closeDialog()">OK</button>`;
+            }
+            document.getElementById('dialog-overlay').style.display = 'flex';
+        }
+        function closeDialog() { document.getElementById('dialog-overlay').style.display = 'none'; }
+
+        function simulateRestart(callback) {
+            document.getElementById('restart-screen').style.display = 'flex';
+            document.getElementById('window-container').innerHTML = ''; document.getElementById('tb-windows').innerHTML = '';
+            closeDialog(); closeStartMenu(); closeCtxMenu();
+            setTimeout(() => {
+                document.getElementById('restart-screen').style.display = 'none';
+                if(callback) callback();
+            }, 3000);
+        }
+
+        function renderTasks() {
+            const list = document.getElementById('task-list');
+            list.innerHTML = '';
+            let count = 0;
+            state.tasks.forEach(t => {
+                if(t.done) count++;
+                list.innerHTML += `
+                    <div class="flex items-start gap-3 p-3 rounded-md ${t.done ? 'bg-green-50 text-gray-400 line-through border border-green-100' : 'bg-white text-gray-800 border border-gray-200 shadow-sm'}">
+                        <div class="mt-0.5 text-lg">${t.done ? '✅' : '◻️'}</div>
+                        <div class="leading-snug">${t.text}</div>
+                    </div>`;
+            });
+            document.getElementById('task-progress').innerText = `${count}/10`;
+        }
+
+        function completeTask(id) {
+            const t = state.tasks.find(x => x.id === id);
+            if (t && !t.done) { t.done = true; renderTasks(); showMsg('Task Complete', `Successfully completed:<br><br><b>${t.text}</b>`); }
+        }
+
+        // Window Engine
+        function openWindow(id, title, contentHtml, width = 500, height = 400) {
+            if(document.getElementById(`win-${id}`)) { updateWindowContent(id, contentHtml); focusWindow(`win-${id}`); return; }
+            const win = document.createElement('div');
+            win.id = `win-${id}`;
+            win.className = `os-window pointer-events-auto ${state.os === 'client' ? 'win11' : ''}`;
+            win.style.width = `${width}px`; win.style.height = `${height}px`;
+            win.style.top = `${40 + (Math.random() * 40)}px`; win.style.left = `${100 + (Math.random() * 60)}px`;
+            win.style.zIndex = ++zIndexCounter;
+
+            win.innerHTML = `
+                <div class="window-titlebar" onmousedown="startDrag(event, '${win.id}')">
+                    <div class="window-title">${title}</div>
+                    <div class="flex"><button class="window-btn-min" onclick="minWindow('${id}')">&#8211;</button><button class="window-btn-close" onclick="closeWindow('${id}')">✕</button></div>
+                </div>
+                <div class="window-content" id="content-${id}" onmousedown="focusWindow('${win.id}')">${contentHtml}</div>
+            `;
+            document.getElementById('window-container').appendChild(win);
+            const tbb = document.createElement('div'); tbb.id = `tbw-${id}`; tbb.className = 'tb-win';
+            tbb.textContent = title.length > 22 ? title.slice(0,22) + '…' : title; tbb.onclick = () => toggleWin(id);
+            document.getElementById('tb-windows').appendChild(tbb);
+        }
+        function closeWindow(id) { const w = document.getElementById(`win-${id}`); if(w) w.remove(); const t = document.getElementById(`tbw-${id}`); if(t) t.remove(); }
+        function minWindow(id) { const w = document.getElementById(`win-${id}`); if(w) w.style.display = 'none'; }
+        function toggleWin(id) { const w = document.getElementById(`win-${id}`); if(!w) return; if(w.style.display === 'none' || w.style.zIndex != zIndexCounter) { w.style.display = 'flex'; focusWindow(w.id); } else w.style.display = 'none'; }
+        function focusWindow(id) { const w = document.getElementById(id); if(w) { w.style.display = 'flex'; w.style.zIndex = ++zIndexCounter; closeCtxMenu(); closeSmgrNotif(); } }
+        function updateWindowContent(id, newHtml) { const c = document.getElementById(`content-${id}`); if(c) c.innerHTML = newHtml; }
+
+        let dragObj = null, offsetX, offsetY;
+        function startDrag(e, id) {
+            if(e.target.closest('button')) return;
+            dragObj = document.getElementById(id); focusWindow(id);
+            const rect = dragObj.getBoundingClientRect(); const dt = document.getElementById('desktop').getBoundingClientRect();
+            offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
+            document.addEventListener('mousemove', doDrag); document.addEventListener('mouseup', stopDrag);
+        }
+        function doDrag(e) {
+            if(!dragObj) return; const dt = document.getElementById('desktop').getBoundingClientRect();
+            dragObj.style.left = `${Math.max(0, e.clientX - dt.left - offsetX)}px`;
+            dragObj.style.top = `${Math.max(0, e.clientY - dt.top - offsetY)}px`;
+        }
+        function stopDrag() { dragObj = null; document.removeEventListener('mousemove', doDrag); document.removeEventListener('mouseup', stopDrag); }
+
+        // Context Menu Engine
+        function showCtxMenu(e, items) {
+            e.preventDefault(); e.stopPropagation(); closeSmgrNotif();
+            const m = document.getElementById('ctx-menu');
+            m.innerHTML = items.map((itm, idx) => `<div class="context-item" onclick="execCtx(${idx})">${itm.label}</div>`).join('');
+            const dr = document.getElementById('desktop').getBoundingClientRect(); m.style.left = `${e.clientX - dr.left}px`; m.style.top = `${e.clientY - dr.top}px`; m.style.display = 'flex'; m.style.zIndex = ++zIndexCounter;
+            window.currentCtxItems = items;
+        }
+        function execCtx(idx) { closeCtxMenu(); if(window.currentCtxItems[idx].action) window.currentCtxItems[idx].action(); }
+        function closeCtxMenu() { document.getElementById('ctx-menu').style.display = 'none'; }
+
+        // --- App Launcher ---
+        function openApp(cmd) {
+            closeStartMenu();
+            if(cmd === 'run') { renderRun(); return; }
+            if(cmd === 'explorer') { renderExplorer(); return; }
+            
+            switch(cmd.toLowerCase()) {
+                case 'ncpa.cpl': renderNcpa(); break;
+                case 'servermanager': if(state.os==='server') renderServerManager(); else showMsg('Error', 'App not found.'); break;
+                case 'sysdm.cpl': renderSysdm(); break;
+                case 'dsa.msc': if(state.os==='server') renderADUC(); else showMsg('Error', 'App not found.'); break;
+                case 'gpmc.msc': if(state.os==='server') renderGPMC(); else showMsg('Error', 'App not found.'); break;
+                case 'dnsmgmt.msc': if(state.os==='server') renderDNS(); else showMsg('Error', 'App not found.'); break;
+                case 'inetmgr': if(state.os==='server') renderIIS(); else showMsg('Error', 'App not found.'); break;
+                default: showMsg('Run', `Cannot find '${cmd}'. Make sure you typed the name correctly.`);
+            }
+        }
+        
+        function runCmd() { const v = document.getElementById('run-cmd').value.trim(); closeWindow('run'); openApp(v); }
+        function renderRun() {
+            openWindow('run', 'Run', `
+                <div class="p-5 bg-[#f0f0f0] h-full flex flex-col">
+                    <div class="flex items-center gap-4 mb-5 text-sm">
+                        <svg class="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="#0078d7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                            <polyline points="9 21 9 15 15 15 15 21"></polyline>
+                        </svg>
+                        <div class="text-black">Type the name of a program, folder, document, or Internet resource, and Windows will open it for you.</div>
+                    </div>
+                    <div class="flex items-center gap-3 mb-5"><label class="font-bold text-black">Open:</label><input type="text" id="run-cmd" onkeydown="if(event.key==='Enter')runCmd()" class="os-input flex-1" placeholder="e.g. ncpa.cpl"></div>
+                    <div class="mt-auto flex justify-end gap-2 pt-3"><button class="os-btn" onclick="runCmd()">OK</button><button class="os-btn" onclick="closeWindow('run')">Cancel</button></div>
+                </div>
+            `, 420, 230);
+            setTimeout(() => { const i = document.getElementById('run-cmd'); if(i) i.focus(); }, 50);
+        }
+
+        // --- 1 & 4: Network Connections (ncpa.cpl) DETAILED GUI ---
+        function renderNcpa() {
+            openWindow('ncpa', 'Network Connections', `
+                <div class="h-full bg-white flex flex-col">
+                    <div class="bg-gray-100 border-b p-2 flex gap-2">
+                        <button class="os-btn bg-white" disabled>Organize</button>
+                        <button class="os-btn bg-white" disabled>Disable</button>
+                    </div>
+                    <div class="p-4 flex gap-6">
+                        <div class="flex flex-col items-center cursor-pointer w-24 text-center hover:bg-blue-50 p-2 rounded" 
+                             ondblclick="renderAdapterProperties()" 
+                             oncontextmenu="showCtxMenu(event, [{label:'Properties', action:renderAdapterProperties}])">
+                            <div class="text-4xl mb-1">🔌</div>
+                            <div class="text-sm font-semibold">Ethernet 0</div>
+                            <div class="text-xs text-gray-500">Network</div>
+                        </div>
+                    </div>
+                </div>
+            `, 500, 300);
+        }
+
+        function renderAdapterProperties() {
+            openWindow('adapter-props', 'Ethernet 0 Properties', `
+                <div class="p-4 bg-[#f0f0f0] h-full flex flex-col text-sm">
+                    <div class="mb-2 text-black">Connect using: <b>Virtual Ethernet Adapter</b></div>
+                    <div class="border bg-white h-32 overflow-auto p-1 mb-3 text-black">
+                        <div class="list-item"><input type="checkbox" checked disabled> Client for Microsoft Networks</div>
+                        <div class="list-item"><input type="checkbox" checked disabled> File and Printer Sharing</div>
+                        <div class="list-item bg-blue-100 border border-blue-300" id="ipv4-item">
+                            <input type="checkbox" checked disabled> 
+                            <b>Internet Protocol Version 4 (TCP/IPv4)</b>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mb-3 border-b pb-3">
+                        <button class="os-btn" onclick="renderIPv4Properties()">Properties</button>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-auto">
+                        <button class="os-btn" onclick="closeWindow('adapter-props')">Close</button>
+                    </div>
+                </div>
+            `, 400, 450);
+        }
+
+        function renderIPv4Properties() {
+            const ip = state.os === 'server' ? state.serverIp : state.clientIp;
+            const dns = state.os === 'server' ? state.serverDns : state.clientDns;
+            
+            openWindow('ipv4', 'Internet Protocol Version 4 (TCP/IPv4) Properties', `
+                <div class="p-4 bg-[#f0f0f0] h-full flex flex-col text-sm text-black">
+                    <div class="mb-4">
+                        <label class="block mb-1"><input type="radio" checked> Use the following IP address:</label>
+                        <div class="ml-6 grid grid-cols-[110px_1fr] gap-2 items-center">
+                            <label>IP address:</label><input type="text" id="ipv4-ip" class="os-input" value="${ip}">
+                            <label>Subnet mask:</label><input type="text" class="os-input" value="255.255.255.0">
+                        </div>
+                    </div>
+                    <div class="mb-4 border-t pt-3">
+                        <label class="block mb-1"><input type="radio" checked> Use the following DNS server addresses:</label>
+                        <div class="ml-6 grid grid-cols-[110px_1fr] gap-2 items-center">
+                            <label>Preferred DNS:</label><input type="text" id="ipv4-dns" class="os-input" value="${dns}">
+                        </div>
+                    </div>
+                    <div class="mt-auto flex justify-end gap-2 pt-3 border-t border-gray-300">
+                        <button class="os-btn" onclick="saveIPv4()">OK</button>
+                        <button class="os-btn" onclick="closeWindow('ipv4')">Cancel</button>
+                    </div>
+                </div>
+            `, 420, 400);
+        }
+
+        function saveIPv4() {
+            const ip = document.getElementById('ipv4-ip').value.trim();
+            const dns = document.getElementById('ipv4-dns').value.trim();
+            
+            if (state.os === 'server') {
+                state.serverIp = ip; state.serverDns = dns;
+                if(ip === '192.168.1.1' && dns === '192.168.1.1') completeTask(1);
+            } else {
+                state.clientIp = ip; state.clientDns = dns;
+                if(ip === '192.168.1.2' && dns === '192.168.1.1') completeTask(4);
+            }
+            closeWindow('ipv4'); closeWindow('adapter-props');
+        }
+
+        function showMgrMenu(e) { showCtxMenu(e, [{label:'Add Roles and Features', action:startRolesWizard}]); }
+        function showToolsMenu(e) {
+            const t = [];
+            if(state.domainPromoted) t.push({label:'Active Directory Users and Computers', action:renderADUC}, {label:'Group Policy Management', action:renderGPMC}, {label:'DNS', action:renderDNS});
+            if(state.roles.iis) t.push({label:'Internet Information Services (IIS) Manager', action:renderIIS});
+            if(!t.length) t.push({label:'(No tools installed yet)'});
+            showCtxMenu(e, t);
+        }
+        // --- Server Manager & AD Promotion Notification Feature ---
+        function toggleSmgrNotif(e) {
+            if(e && e.stopPropagation) e.stopPropagation();
+            const menu = document.getElementById('smgr-notif-menu');
+            if(menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+        function closeSmgrNotif() {
+            const menu = document.getElementById('smgr-notif-menu');
+            if(menu) menu.style.display = 'none';
+        }
+
+        function renderServerManager() {
+            const hasNotification = state.addsInstalled && !state.domainPromoted;
+            
+            openWindow('smgr', 'Server Manager', `
+                <div class="flex flex-col h-full bg-white">
+                    <!-- Header with Flag -->
+                    <div class="bg-[#f0f0f0] border-b px-4 py-2 flex justify-between items-center text-sm">
+                        <div class="font-bold text-gray-700">Server Manager</div>
+                        <div class="flex gap-4 text-xs mr-auto ml-6"><span class="cursor-pointer hover:underline" onclick="showMgrMenu(event)">Manage</span><span class="cursor-pointer hover:underline" onclick="showToolsMenu(event)">Tools</span></div>
+                        <div class="relative cursor-pointer p-1 hover:bg-gray-300 rounded" onclick="toggleSmgrNotif(event)">
+                            <div class="text-xl">🚩</div>
+                            ${hasNotification ? '<div class="absolute top-0 right-0 w-3 h-3 bg-yellow-400 rounded-full border border-yellow-600"></div>' : ''}
+                            
+                            <!-- Notification Dropdown with Manage/Task Details -->
+                            <div id="smgr-notif-menu" onmousedown="event.stopPropagation()" class="hidden absolute right-0 top-8 bg-white border border-gray-400 shadow-xl w-80 z-50 text-left p-3 cursor-default" onclick="if(typeof event !== 'undefined' && event.stopPropagation) event.stopPropagation();">
+                                <div class="font-bold border-b pb-2 mb-2 text-gray-800 text-sm">Notifications</div>
+                                ${hasNotification ? `
+                                    <div class="text-xs font-bold text-gray-700 mb-2 flex items-center justify-between">
+                                        <span><span class="text-yellow-500 text-lg mr-1">⚠️</span> Post-deployment Configuration</span>
+                                        <button class="border px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-800 font-normal">Task Details</button>
+                                    </div>
+                                    <div class="text-blue-700 hover:text-blue-900 hover:underline cursor-pointer text-sm ml-6 mb-2" onclick="closeSmgrNotif(); startPromoteWizard();">Promote this server to a domain controller</div>
+                                    <div class="text-xs text-gray-500 ml-6">Active Directory Domain Services</div>
+                                ` : '<div class="text-xs text-gray-500 italic">No new notifications</div>'}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-1 overflow-hidden text-black">
+                        <div class="w-1/4 bg-[#fcfcfc] border-r p-2 flex flex-col gap-1 overflow-y-auto text-sm">
+                            <div class="font-bold text-gray-700 p-2 border-b">Dashboard</div>
+                            <div class="p-2 hover:bg-gray-200 cursor-pointer">Local Server</div>
+                            ${state.addsInstalled ? '<div class="p-2 text-blue-700 font-bold">AD DS</div>' : ''}
+                            ${state.roles.iis ? '<div class="p-2 text-blue-700 font-bold">IIS</div>' : ''}
+                        </div>
+                        <div class="w-3/4 p-6 overflow-auto bg-white">
+                            <h2 class="text-2xl text-gray-800 mb-6 font-light">Welcome to Server Manager</h2>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="border p-4 bg-gray-50 hover:bg-gray-100 cursor-pointer flex gap-4 items-center" onclick="startRolesWizard()">
+                                    <div class="text-3xl text-blue-600">➕</div>
+                                    <div><div class="font-bold text-blue-700">Add roles and features</div><div class="text-xs text-gray-600">Install roles, role services, and features.</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `, 800, 550);
+        }
+
+        // --- 2 & 8: ROBUST Roles Wizard ---
+        let rwStep = 1;
+        let rwData = { adds: false, iis: false, httpRedir: false, ftp: false };
+
+        function startRolesWizard() {
+            if (document.getElementById('win-roles-wiz')) { focusWindow('win-roles-wiz'); return; }
+            rwStep = 1;
+            rwData = { adds: state.addsInstalled, iis: state.roles.iis, httpRedir: state.roles.httpRedir, ftp: state.roles.ftp };
+            
+            const contentHtml = `
+                <div class="flex h-full bg-[#f0f0f0] text-black">
+                    <div class="w-1/3 bg-white border-r p-4 text-sm font-bold text-gray-600 hidden md:block">
+                        <div id="rw-nav-1">Before You Begin</div>
+                        <div id="rw-nav-2">Installation Type</div>
+                        <div id="rw-nav-3">Server Selection</div>
+                        <div id="rw-nav-4">Server Roles</div>
+                        <div id="rw-nav-5">Role Services</div>
+                        <div id="rw-nav-6">Confirmation</div>
+                        <div id="rw-nav-7" class="mt-2">Results</div>
+                    </div>
+                    <div class="flex-1 flex flex-col">
+                        <div class="p-4 flex-1 overflow-auto relative">
+                            
+                            <!-- Step 1 -->
+                            <div id="rw-step-1" class="wizard-step">
+                                <h3 class="font-bold text-lg mb-3">Before You Begin</h3>
+                                <p class="mb-4">This wizard helps you install roles, role services, or features. You determine which roles to install based on the computing needs of your organization.</p>
+                                <p>Verify that the administrator account has a strong password, and network settings are configured.</p>
+                            </div>
+
+                            <!-- Step 2 -->
+                            <div id="rw-step-2" class="wizard-step hidden">
+                                <h3 class="font-bold text-lg mb-3">Select Installation Type</h3>
+                                <label class="block mb-2"><input type="radio" checked> <b>Role-based or feature-based installation</b><br><span class="text-gray-600 ml-5 font-normal">Configure a single server by adding roles, role services, and features.</span></label>
+                            </div>
+
+                            <!-- Step 3 -->
+                            <div id="rw-step-3" class="wizard-step hidden">
+                                <h3 class="font-bold text-lg mb-3">Select Destination Server</h3>
+                                <p class="mb-2">Select a server from the server pool on which to install roles and features.</p>
+                                <div class="border bg-white p-2 h-32"><div class="list-item selected">SERVER-2025 (192.168.1.1)</div></div>
+                            </div>
+
+                            <!-- Step 4 -->
+                            <div id="rw-step-4" class="wizard-step hidden">
+                                <h3 class="font-bold text-lg mb-3">Select Server Roles</h3>
+                                <p class="mb-2">Select one or more roles to install on the selected server.</p>
+                                <div class="h-48 border bg-white overflow-auto p-1 text-sm">
+                                    <label class="list-item"><input type="checkbox" id="rw-adds" ${rwData.adds ? 'checked disabled' : ''}> Active Directory Domain Services</label>
+                                    <label class="list-item"><input type="checkbox" id="rw-iis" ${rwData.iis ? 'checked disabled' : ''}> Web Server (IIS)</label>
+                                </div>
+                            </div>
+
+                            <!-- Step 5 -->
+                            <div id="rw-step-5" class="wizard-step hidden">
+                                <h3 class="font-bold text-lg mb-3">Select Role Services</h3>
+                                <p class="mb-2">Select the role services to install for Web Server (IIS):</p>
+                                <div class="h-48 border bg-white overflow-auto p-1 text-sm ml-4">
+                                    <label class="list-item"><input type="checkbox" checked disabled> Web Server</label>
+                                    <label class="list-item ml-4"><input type="checkbox" checked disabled> Common HTTP Features</label>
+                                    <label class="list-item ml-8"><input type="checkbox" id="rw-http" ${rwData.httpRedir ? 'checked disabled' : ''}> HTTP Redirection</label>
+                                    <label class="list-item"><input type="checkbox" id="rw-ftp" ${rwData.ftp ? 'checked disabled' : ''}> FTP Server</label>
+                                </div>
+                            </div>
+
+                            <!-- Step 6 -->
+                            <div id="rw-step-6" class="wizard-step hidden">
+                                <h3 class="font-bold text-lg mb-3">Confirm Installation Selections</h3>
+                                <p class="mb-2">To install the following roles, role services, or features on selected server, click Install.</p>
+                                <div class="border bg-white h-40 p-2 overflow-auto text-sm" id="rw-confirm-list">
+                                    <!-- Populated via JS -->
+                                </div>
+                            </div>
+                            
+                            <!-- Step 7 -->
+                            <div id="rw-step-7" class="wizard-step hidden">
+                                <h3 class="font-bold text-lg mb-3">Installation Progress</h3>
+                                <div class="mb-4">
+                                    <div class="w-full bg-gray-200 h-4 rounded overflow-hidden">
+                                        <div class="bg-blue-600 h-full w-full"></div>
+                                    </div>
+                                </div>
+                                <div class="text-green-700 font-bold mb-2">✅ Installation succeeded on SERVER-2025.</div>
+                                <div id="rw-promote-link" class="hidden mt-4 pt-4 border-t border-gray-300">
+                                    <span class="text-blue-700 hover:text-blue-900 hover:underline cursor-pointer" onclick="closeWindow('roles-wiz'); startPromoteWizard();">Promote this server to a domain controller</span>
+                                </div>
+                            </div>
+
+                        </div>
+                        <div class="p-3 border-t flex justify-end gap-2 bg-gray-100">
+                            <button class="os-btn" id="rw-btn-prev" onclick="navRolesWizard(-1)" disabled>< Previous</button>
+                            <button class="os-btn" id="rw-btn-next" onclick="navRolesWizard(1)">Next ></button>
+                            <button class="os-btn" id="rw-btn-close" onclick="closeWindow('roles-wiz')" style="display:none;">Close</button>
+                            <button class="os-btn" id="rw-btn-cancel" onclick="closeWindow('roles-wiz')">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            openWindow('roles-wiz', 'Add Roles and Features Wizard', contentHtml, 700, 480);
+            updateRolesWizardUI();
+        }
+
+        function navRolesWizard(dir) {
+            if (dir === 1 && rwStep === 4) {
+                if(!state.addsInstalled) rwData.adds = document.getElementById('rw-adds').checked;
+                if(!state.roles.iis) rwData.iis = document.getElementById('rw-iis').checked;
+            }
+            if (dir === 1 && rwStep === 5) {
+                rwData.httpRedir = document.getElementById('rw-http').checked;
+                rwData.ftp = document.getElementById('rw-ftp').checked;
+            }
+
+            if (dir === 1 && rwStep === 6) {
+                finishRolesWizard(); 
+                return;
+            }
+
+            rwStep += dir;
+
+            if (rwStep === 5 && !rwData.iis) {
+                rwStep += dir; // Skip Step 5
+            }
+
+            if (rwStep === 6) {
+                let confHtml = '';
+                if(rwData.adds && !state.addsInstalled) confHtml += '<div>- Active Directory Domain Services</div>';
+                if(rwData.iis && !state.roles.iis) confHtml += '<div>- Web Server (IIS)</div>';
+                if(rwData.httpRedir) confHtml += '<div class="ml-4">- HTTP Redirection</div>';
+                if(rwData.ftp) confHtml += '<div>- FTP Server</div>';
+                if(!confHtml) confHtml = '<div class="text-gray-500 italic">No new roles selected for installation.</div>';
+                document.getElementById('rw-confirm-list').innerHTML = confHtml;
+            }
+
+            updateRolesWizardUI();
+        }
+
+        function updateRolesWizardUI() {
+            document.querySelectorAll('#win-roles-wiz .wizard-step').forEach(el => el.classList.add('hidden'));
+            const currentStepEl = document.getElementById(`rw-step-${rwStep}`);
+            if(currentStepEl) currentStepEl.classList.remove('hidden');
+
+            for(let i=1; i<=7; i++) {
+                const nav = document.getElementById(`rw-nav-${i}`);
+                if(nav) nav.className = (i === rwStep) ? 'text-blue-600' : 'text-gray-600 font-normal';
+            }
+            
+            if (rwStep === 7) {
+                document.getElementById('rw-btn-prev').style.display = 'none';
+                document.getElementById('rw-btn-next').style.display = 'none';
+                document.getElementById('rw-btn-cancel').style.display = 'none';
+                document.getElementById('rw-btn-close').style.display = 'block';
+            } else {
+                document.getElementById('rw-btn-prev').style.display = 'inline-block';
+                document.getElementById('rw-btn-next').style.display = 'inline-block';
+                document.getElementById('rw-btn-cancel').style.display = 'inline-block';
+                document.getElementById('rw-btn-close').style.display = 'none';
+                
+                document.getElementById('rw-btn-prev').disabled = (rwStep === 1);
+                document.getElementById('rw-btn-next').innerText = (rwStep === 6) ? 'Install' : 'Next >';
+            }
+        }
+
+        function finishRolesWizard() {
+            rwStep = 7;
+            updateRolesWizardUI();
+            
+            if (rwData.adds && !state.addsInstalled) {
+                state.addsInstalled = true;
+                document.getElementById('rw-promote-link').classList.remove('hidden');
+                completeTask(2);
+                
+                // Refresh server manager in background to update notification flag
+                if(document.getElementById('win-smgr')) {
+                    closeWindow('smgr');
+                    renderServerManager();
+                }
+            }
+            if (rwData.iis) {
+                state.roles.iis = true; state.roles.httpRedir = state.roles.httpRedir || rwData.httpRedir;
+                if (state.roles.httpRedir) {
+                    completeTask(8);
+                } else {
+                    if(!document.getElementById('iis-warn-msg')) {
+                        document.getElementById('rw-promote-link').insertAdjacentHTML('beforebegin', '<div id="iis-warn-msg" class="text-red-600 font-bold mt-2 mb-4">Warning: You did not select HTTP Redirection! Exam task incomplete.</div>');
+                    }
+                }
+            }
+        }
+
+        // --- 3: AD Promotion ROBUST Wizard ---
+        let pwStep = 1;
+        let pwData = { domain: '', pass: '' };
+
+        function toggleDomainInput() {
+            const isNewForest = document.getElementById('dep-3').checked;
+            const input = document.getElementById('pw-domain');
+            if (isNewForest) {
+                input.disabled = false;
+                input.classList.remove('bg-gray-200');
+            } else {
+                input.disabled = true;
+                input.classList.add('bg-gray-200');
+                input.value = '';
+            }
+        }
+
+        function startPromoteWizard() {
+            if (document.getElementById('win-promote-wiz')) { focusWindow('win-promote-wiz'); return; }
+            pwStep = 1;
+            pwData = { domain: '', pass: '' };
+
+            const contentHtml = `
+                <div class="flex h-full bg-[#f0f0f0] text-black">
+                    <div class="w-1/3 bg-white border-r p-4 text-sm font-bold text-gray-600 hidden md:block">
+                        <div id="pw-nav-1">Deployment Configuration</div>
+                        <div id="pw-nav-2">Domain Controller Options</div>
+                        <div id="pw-nav-3">Prerequisites Check</div>
+                    </div>
+                    <div class="flex-1 flex flex-col">
+                        <div class="p-4 flex-1 overflow-auto relative">
+                            
+                            <!-- Step 1 -->
+                            <div id="pw-step-1" class="wizard-step">
+                                <h3 class="font-bold text-lg mb-3 border-b pb-1">Deployment Configuration</h3>
+                                <div class="mb-4">Select the deployment operation:</div>
+                                <label class="block ml-4 mb-1"><input type="radio" name="dep" id="dep-1" onclick="toggleDomainInput()"> Add a domain controller to an existing domain</label>
+                                <label class="block ml-4 mb-1"><input type="radio" name="dep" id="dep-2" onclick="toggleDomainInput()"> Add a new domain to an existing forest</label>
+                                <label class="block ml-4 mb-4"><input type="radio" name="dep" id="dep-3" onclick="toggleDomainInput()"> Add a new forest</label>
+                                <div class="ml-4">
+                                    <label class="font-bold">Root domain name:</label>
+                                    <input type="text" id="pw-domain" class="os-input mt-1 bg-gray-200" placeholder="e.g. smec.com" disabled>
+                                </div>
+                            </div>
+
+                            <!-- Step 2 -->
+                            <div id="pw-step-2" class="wizard-step hidden">
+                                <h3 class="font-bold text-lg mb-3 border-b pb-1">Domain Controller Options</h3>
+                                <div class="mb-4 font-bold text-red-600 border-b pb-2">Type the Directory Services Restore Mode (DSRM) password</div>
+                                <div class="grid grid-cols-[120px_1fr] gap-3 items-center w-3/4">
+                                    <label>Password:</label><input type="password" id="pw-pass1" class="os-input">
+                                    <label>Confirm password:</label><input type="password" id="pw-pass2" class="os-input">
+                                </div>
+                            </div>
+
+                            <!-- Step 3 -->
+                            <div id="pw-step-3" class="wizard-step hidden">
+                                <h3 class="font-bold text-lg mb-3 border-b pb-1">Prerequisites Check</h3>
+                                <div class="bg-green-100 border border-green-400 text-green-800 p-3 mb-4 flex gap-3 font-bold items-center">
+                                    <div class="text-2xl">✅</div> All prerequisite checks passed successfully. Click 'Install' to begin installation.
+                                </div>
+                                <div class="h-24 border bg-white p-2 overflow-auto text-xs font-mono" id="pw-prereq-log">
+                                    Configuring local computer to host Active Directory Domain Services...
+                                </div>
+                            </div>
+
+                        </div>
+                        <div class="p-3 border-t flex justify-end gap-2 bg-gray-100">
+                            <button class="os-btn" id="pw-btn-prev" onclick="navPromoteWizard(-1)" disabled>< Previous</button>
+                            <button class="os-btn" id="pw-btn-next" onclick="navPromoteWizard(1)">Next ></button>
+                            <button class="os-btn" onclick="closeWindow('promote-wiz')">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            openWindow('promote-wiz', 'Active Directory Domain Services Configuration Wizard', contentHtml, 750, 480);
+            updatePromoteWizardUI();
+        }
+
+        function navPromoteWizard(dir) {
+            if (dir === 1) {
+                if (pwStep === 1) {
+                    if (!document.getElementById('dep-3').checked) {
+                        showMsg('Validation Error', 'For this exam task, you must select "Add a new forest".');
+                        return;
+                    }
+                    const dom = document.getElementById('pw-domain').value.trim();
+                    if (!dom) { showMsg('Validation Error', 'Please specify a valid root domain name.'); return; }
+                    if (dom.toLowerCase() !== 'smec.com') { showMsg('Validation Error', 'Root domain name must be smec.com for this exam.'); return; }
+                    pwData.domain = dom;
+                }
+                if (pwStep === 2) {
+                    const p1 = document.getElementById('pw-pass1').value;
+                    const p2 = document.getElementById('pw-pass2').value;
+                    if (!p1 || p1 !== p2) { showMsg('Validation Error', 'Passwords cannot be empty and must match.'); return; }
+                    if (p1 !== 'password123') { showMsg('Validation Error', 'The DSRM password must be password123.'); return; }
+                    pwData.pass = p1;
+                    document.getElementById('pw-prereq-log').innerHTML += `<br>Target Domain: <b>${pwData.domain}</b>`;
+                }
+            }
+
+            pwStep += dir;
+
+            if (pwStep > 3) {
+                finishPromoteWizard();
+                return;
+            }
+            updatePromoteWizardUI();
+        }
+
+        function updatePromoteWizardUI() {
+            document.querySelectorAll('#win-promote-wiz .wizard-step').forEach(el => el.classList.add('hidden'));
+            const curStep = document.getElementById(`pw-step-${pwStep}`);
+            if (curStep) curStep.classList.remove('hidden');
+
+            for(let i=1; i<=3; i++) {
+                const nav = document.getElementById(`pw-nav-${i}`);
+                if(nav) nav.className = (i === pwStep) ? 'text-blue-600' : 'text-gray-600 font-normal';
+            }
+            document.getElementById('pw-btn-prev').disabled = (pwStep === 1);
+            document.getElementById('pw-btn-next').innerText = (pwStep === 3) ? 'Install' : 'Next >';
+        }
+
+        function finishPromoteWizard() {
+            if (pwData.domain.toLowerCase() === 'smec.com' && pwData.pass === 'password123') {
+                state.domainPromoted = true; state.domainName = 'smec.com';
+                
+                showMsg('Success', 'The server was successfully configured as a domain controller.<br>Restarting automatically...', [{text: 'Close', action: () => { 
+                    closeWindow('promote-wiz'); 
+                    simulateRestart(() => {
+                        completeTask(3);
+                    });
+                }}]);
+            } else {
+                showMsg('Configuration Error', 'Domain must be exactly "smec.com" and password must be "password123". Please check your exam instructions and try again.');
+                pwStep = 1; updatePromoteWizardUI();
+            }
+        }
+
+        // --- 5: Client File Explorer & Domain Join ---
+        function renderExplorer() {
+            if(state.os === 'server') { renderSrvExplorer(); return; }
+            openWindow('explorer', 'File Explorer', `
+                <div class="flex h-full bg-white text-sm">
+                    <div class="w-1/3 border-r bg-[#fcfcfc] p-2 overflow-auto text-gray-700">
+                        <div class="font-bold mb-2 pl-2">Quick access</div>
+                        <div class="list-item cursor-pointer font-semibold text-blue-800" 
+                             oncontextmenu="showCtxMenu(event, [{label:'Properties', action:renderWin11Settings}])">
+                             💻 This PC
+                        </div>
+                        <div class="list-item ml-4">📄 Documents</div>
+                        <div class="list-item ml-4">⬇️ Downloads</div>
+                        <div class="list-item ml-4">🖼️ Pictures</div>
+                        <div class="mt-4 text-xs italic text-gray-400 pl-2">Right-click 'This PC' to access System Properties.</div>
+                    </div>
+                    <div class="w-2/3 p-4 bg-white flex flex-wrap gap-4 items-start content-start text-black">
+                        <div class="text-center w-24 p-2 hover:bg-blue-50 rounded cursor-pointer">
+                            <div class="text-4xl mb-1">💿</div>
+                            <div class="text-xs font-semibold">Local Disk (C:)</div>
+                        </div>
+                    </div>
+                </div>
+            `, 650, 450);
+        }
+
+        function renderWin11Settings() {
+            openWindow('settings', 'Settings', `
+                <div class="flex h-full bg-white text-sm text-black">
+                    <div class="w-1/3 bg-gray-50 border-r p-4">
+                        <div class="font-bold mb-4">System</div>
+                        <div class="text-gray-600 list-item selected font-bold">⚙️ About</div>
+                    </div>
+                    <div class="w-2/3 p-6 overflow-auto">
+                        <h2 class="text-2xl font-light mb-4">About</h2>
+                        <div class="mb-4 bg-gray-100 p-4 rounded border">
+                            <div class="font-bold text-lg mb-1">CLIENT-PC</div>
+                            <div class="text-gray-600 text-xs">Windows 11 Pro</div>
+                        </div>
+                        <div class="border-t pt-4">
+                            <h3 class="font-bold mb-2">Related links</h3>
+                            <div class="text-blue-600 hover:underline cursor-pointer mb-2 list-item" onclick="renderSysdm()">Domain or workgroup</div>
+                            <div class="text-blue-600 hover:underline cursor-pointer list-item">Advanced system settings</div>
+                        </div>
+                    </div>
+                </div>
+            `, 600, 400);
+        }
+        function renderSysdm() {
+            openWindow('sysdm', 'System Properties', `
+                <div class="p-4 bg-[#f0f0f0] h-full flex flex-col text-sm text-black">
+                    <div class="flex gap-4 mb-4 items-center">
+                        <div class="text-4xl text-blue-600">💻</div>
+                        <div>Windows uses the following information to identify your computer on the network.</div>
+                    </div>
+                    <div class="grid grid-cols-[140px_1fr] gap-2 mb-4 ml-4">
+                        <div>Full computer name:</div><div class="font-bold">CLIENT-PC</div>
+                        <div>Domain:</div><div class="font-bold">${state.clientJoined ? state.domainName : 'WORKGROUP'}</div>
+                    </div>
+                    <div class="border-t pt-4 mb-4 flex justify-between items-center">
+                        <div>To rename this computer or change its domain or workgroup, click Change.</div>
+                        <button class="os-btn" onclick="renderChangeDomain()">Change...</button>
+                    </div>
+                    <div class="mt-auto flex justify-end gap-2 border-t pt-3">
+                        <button class="os-btn" onclick="closeWindow('sysdm')">OK</button>
+                    </div>
+                </div>
+            `, 450, 350);
+        }
+
+        function renderChangeDomain() {
+            openWindow('joindomain', 'Computer Name/Domain Changes', `
+                <div class="p-4 bg-[#f0f0f0] h-full flex flex-col text-sm text-black">
+                    <div class="mb-4">You can change the name and the membership of this computer. Changes might affect access to network resources.</div>
+                    
+                    <fieldset class="border p-3 bg-white">
+                        <legend class="px-1 font-bold">Member of</legend>
+                        <label class="block mb-2 flex items-center gap-2"><input type="radio" name="mem" disabled> Workgroup: <input type="text" class="os-input w-40" value="WORKGROUP" disabled></label>
+                        <label class="block flex items-center gap-2"><input type="radio" name="mem" checked> Domain: <input type="text" id="jd-domain" class="os-input w-40" placeholder="e.g. smec.com"></label>
+                    </fieldset>
+                    
+                    <div class="mt-auto flex justify-end gap-2 pt-3 border-t">
+                        <button class="os-btn" onclick="execJoin()">OK</button>
+                        <button class="os-btn" onclick="closeWindow('joindomain')">Cancel</button>
+                    </div>
+                </div>
+            `, 420, 320);
+        }
+
+        function execJoin() {
+            const dom = document.getElementById('jd-domain').value.trim().toLowerCase();
+            if (dom !== 'smec.com') { showMsg('Error', 'Domain not found or typed incorrectly.'); return; }
+            if (!state.domainPromoted) { showMsg('Network Error', 'Cannot contact an Active Directory Domain Controller for domain "smec.com". Server is not promoted yet.'); return; }
+            if (state.clientIp !== '192.168.1.2' || state.clientDns !== '192.168.1.1') { showMsg('DNS Error', 'DNS resolution failed. Ensure client IP (192.168.1.2) and DNS (192.168.1.1) settings are correct via ncpa.cpl.'); return; }
+
+            // Credential Prompt
+            showMsg('Windows Security', `
+                <div class="mb-2 font-bold text-blue-900">Computer Name/Domain Changes</div>
+                <div class="mb-4 text-black">Enter the name and password of an account with permission to join the domain.</div>
+                <input type="text" class="os-input mb-2" value="Administrator" disabled>
+                <input type="password" id="jd-pass" class="os-input mb-4" placeholder="Password (password123)">
+            `, [
+                { text: 'OK', action: () => {
+                    if (document.getElementById('jd-pass').value === 'password123') {
+                        state.clientJoined = true;
+                        
+                        showMsg('Welcome', 'Welcome to the smec.com domain.', [{text: 'OK', action: () => { 
+                            closeWindow('joindomain'); 
+                            closeWindow('sysdm');
+                            simulateRestart(() => {
+                                completeTask(5);
+                            });
+                        }}]);
+                    } else {
+                        showMsg('Authentication Failed', 'Incorrect password.');
+                    }
+                }},
+                { text: 'Cancel' }
+            ]);
+        }
+
+        // --- 6: ADUC (dsa.msc) ---
+        function renderADUC() {
+            if(!state.domainPromoted) { showMsg('Error', 'Active Directory Domain Services is not configured on this server.'); return; }
+            
+            // Build Left Tree
+            let tree = `
+                <div class="font-bold text-blue-800 flex items-center gap-1 cursor-pointer hover:bg-gray-200 p-1" 
+                     onclick="setActiveAduc('smec.com')" 
+                     oncontextmenu="showCtxMenu(event, [{label:'New > Organizational Unit', action:showNewOU}])">
+                     🌐 smec.com
+                </div>
+                <div class="ml-4 list-item p-1 ${activeAducNode==='Builtin'?'bg-blue-100':''}" onclick="setActiveAduc('Builtin')">📁 Builtin</div>
+                <div class="ml-4 list-item p-1 ${activeAducNode==='Computers'?'bg-blue-100':''}" onclick="setActiveAduc('Computers')">📁 Computers</div>
+                <div class="ml-4 list-item p-1 ${activeAducNode==='Domain Controllers'?'bg-blue-100':''}" onclick="setActiveAduc('Domain Controllers')">📁 Domain Controllers</div>
+                <div class="ml-4 list-item p-1 ${activeAducNode==='Users'?'bg-blue-100':''}" onclick="setActiveAduc('Users')">📁 Users</div>
+            `;
+
+            if(state.aduc.techOU) {
+                tree += `
+                <div class="ml-4 list-item p-1 ${activeAducNode==='Tech'?'bg-blue-100':''}" 
+                     onclick="setActiveAduc('Tech')" 
+                     oncontextmenu="showCtxMenu(event, [{label:'New > User', action:showNewUser}])">
+                     📁 Tech
+                </div>`;
+            }
+
+            // Build Right Contents
+            let contents = '';
+            if (activeAducNode === 'Tech') {
+                if(state.aduc.user1) contents += '<div class="list-item text-black">👤 User1</div>';
+                if(state.aduc.user2) contents += '<div class="list-item text-black">👤 User2</div>';
+                if(!state.aduc.user1 && !state.aduc.user2) contents = '<div class="text-gray-400 italic p-2 text-xs">0 items. Right-click Tech in the left pane to add a User.</div>';
+            } else if (activeAducNode === 'smec.com') {
+                contents = '<div class="text-gray-400 italic p-2 text-xs">Select a container or right-click domain to create an OU.</div>';
+            } else {
+                contents = `<div class="text-gray-400 italic p-2 text-xs">Default container items for ${activeAducNode}.</div>`;
+            }
+
+            const html = `
+                <div class="flex h-full bg-white text-sm text-black">
+                    <div class="w-1/2 border-r bg-[#fcfcfc] p-2 overflow-auto">
+                        <div class="font-bold mb-1">Active Directory Users and Computers</div>
+                        <div class="ml-2 flex flex-col">${tree}</div>
+                    </div>
+                    <div class="w-1/2 p-2 bg-white flex flex-col" oncontextmenu="${activeAducNode==='Tech' ? `showCtxMenu(event, [{label:'New > User', action:showNewUser}])` : ''}">
+                        <div class="font-bold border-b mb-2 pb-1 text-gray-500">Contents: ${activeAducNode}</div>
+                        ${contents}
+                    </div>
+                </div>
+            `;
+            
+            if(document.getElementById('win-aduc')) {
+                updateWindowContent('aduc', html);
+            } else {
+                openWindow('aduc', 'Active Directory Users and Computers', html, 650, 450);
+            }
+        }
+
+        function setActiveAduc(node) {
+            activeAducNode = node;
+            renderADUC();
+        }
+
+        function showNewOU() {
+            showMsg('New Object - Organizational Unit', `
+                <label class="text-black">Name:</label>
+                <input type="text" id="ou-name" class="os-input mt-1 mb-4" placeholder="e.g. Tech">
+            `, [
+                {text: 'OK', action: () => {
+                    if(document.getElementById('ou-name').value.trim() === 'Tech') {
+                        state.aduc.techOU = true; activeAducNode = 'Tech'; renderADUC();
+                    } else showMsg('Validation Failed', 'Exam requires OU name to be exactly "Tech"');
+                }}, {text: 'Cancel'}
+            ]);
+        }
+
+        function showNewUser() {
+            const html = `
+                <div class="flex h-full bg-[#f0f0f0] text-black">
+                    <div class="flex-1 flex flex-col">
+                        <div class="p-4 flex-1 bg-white border-b relative">
+                            <div id="uw-step-1">
+                                <h3 class="font-bold text-lg mb-4">New Object - User</h3>
+                                <div class="grid grid-cols-[120px_1fr] gap-2 items-center mb-4">
+                                    <label>First name:</label><input type="text" id="uw-first" class="os-input">
+                                    <label>Last name:</label><input type="text" id="uw-last" class="os-input">
+                                    <label>Full name:</label><input type="text" id="uw-full" class="os-input">
+                                    <label>User logon name:</label>
+                                    <div class="flex gap-2 items-center"><input type="text" id="uw-logon" class="os-input w-32"> @ smec.com</div>
+                                </div>
+                            </div>
+                            <div id="uw-step-2" class="hidden">
+                                <h3 class="font-bold text-lg mb-4">New Object - User</h3>
+                                <div class="grid grid-cols-[150px_1fr] gap-2 items-center mb-4">
+                                    <label>Password:</label><input type="password" id="uw-pass" class="os-input">
+                                    <label>Confirm password:</label><input type="password" id="uw-conf" class="os-input">
+                                </div>
+                                <div class="mt-4">
+                                    <label class="block list-item"><input type="checkbox" checked> User must change password at next logon</label>
+                                    <label class="block list-item"><input type="checkbox"> Password never expires</label>
+                                    <label class="block list-item"><input type="checkbox"> Account is disabled</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-[#f0f0f0] flex justify-end gap-2">
+                            <button class="os-btn" id="uw-prev" onclick="navUw(-1)" disabled>< Previous</button>
+                            <button class="os-btn" id="uw-next" onclick="navUw(1)">Next ></button>
+                            <button class="os-btn" onclick="closeWindow('user-wiz')">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            openWindow('user-wiz', 'New Object - User', html, 550, 400);
+        }
+        function navUw(dir) {
+            if(dir === 1) {
+                if(!document.getElementById('uw-step-2').classList.contains('hidden')) {
+                    const logon = document.getElementById('uw-logon').value.trim();
+                    const pass = document.getElementById('uw-pass').value;
+                    if((logon === 'User1' || logon === 'User2') && pass === 'password123') {
+                        if(logon==='User1') state.aduc.user1 = true;
+                        if(logon==='User2') state.aduc.user2 = true;
+                        renderADUC();
+                        if(state.aduc.user1 && state.aduc.user2) completeTask(6);
+                        closeWindow('user-wiz');
+                    } else {
+                        showMsg('Validation Failed', 'Exam requires Logon name "User1" or "User2" and password "password123".');
+                    }
+                    return;
+                }
+                const first = document.getElementById('uw-first').value;
+                if(!first) { showMsg('Error', 'First name is required'); return; }
+                document.getElementById('uw-step-1').classList.add('hidden');
+                document.getElementById('uw-step-2').classList.remove('hidden');
+                document.getElementById('uw-prev').disabled = false;
+                document.getElementById('uw-next').innerText = 'Finish';
+            } else {
+                document.getElementById('uw-step-2').classList.add('hidden');
+                document.getElementById('uw-step-1').classList.remove('hidden');
+                document.getElementById('uw-prev').disabled = true;
+                document.getElementById('uw-next').innerText = 'Next >';
+            }
+        }
+
+        // --- 7: GPMC ---
+        function renderGPMC() {
+            if(!state.domainPromoted) { showMsg('Error', 'Domain not promoted.'); return; }
+            let gpos = '';
+            if(state.gpo.cp) gpos += `<div class="ml-10 text-green-700 font-semibold cursor-pointer hover:bg-gray-200" oncontextmenu="showCtxMenu(event,[{label:'Edit...',action:()=>showEditGPO('cp')}])">📜 Block Control Panel ${state.gpo.cpOn ? '(Enabled)' : '(not configured)'}</div>`;
+            if(state.gpo.cmd) gpos += `<div class="ml-10 text-green-700 font-semibold cursor-pointer hover:bg-gray-200" oncontextmenu="showCtxMenu(event,[{label:'Edit...',action:()=>showEditGPO('cmd')}])">📜 Block Command Prompt ${state.gpo.cmdOn ? '(Enabled)' : '(not configured)'}</div>`;
+
+            let techOuHtml = state.aduc.techOU 
+                ? `<div class="ml-8 font-bold text-blue-800 cursor-pointer hover:bg-gray-200" oncontextmenu="showCtxMenu(event, [{label:'Create a GPO in this domain, and Link it here...', action:showNewGPO}])">📁 Tech</div>${gpos}` 
+                : `<div class="text-xs text-gray-400 italic ml-8 mt-2">Create 'Tech' OU in ADUC first.</div>`;
+
+            openWindow('gpmc', 'Group Policy Management', `
+                <div class="flex h-full bg-white text-sm text-black">
+                    <div class="w-full border-r bg-[#fcfcfc] p-2 overflow-auto">
+                        <div class="font-bold">Forest: smec.com</div>
+                        <div class="ml-4 font-bold">Domains</div>
+                        <div class="ml-6 font-bold">🌐 smec.com</div>
+                        ${techOuHtml}
+                    </div>
+                </div>
+            `, 500, 350);
+        }
+
+        function showNewGPO() {
+            showMsg('New GPO', `
+                <label class="text-black">Name:</label>
+                <input type="text" id="gpo-name" class="os-input mt-1" placeholder="e.g. Block Control Panel">
+            `, [
+                {text: 'OK', action: () => {
+                    const n = document.getElementById('gpo-name').value.trim();
+                    if(n.toLowerCase() === 'block control panel') state.gpo.cp = true;
+                    else if(n.toLowerCase() === 'block command prompt') state.gpo.cmd = true;
+                    else { showMsg('Validation Failed', 'Exact name required (e.g., "Block Control Panel" or "Block Command Prompt").'); return; }
+                    renderGPMC();
+                    
+                }}, {text: 'Cancel'}
+            ]);
+        }
+
+        function showEditGPO(k) {
+            const policyName = k === 'cp' ? 'Prohibit access to Control Panel and PC settings' : 'Prevent access to the command prompt';
+            const html = `
+                <div class="flex h-full bg-white text-sm text-black">
+                    <div class="w-1/2 border-r bg-[#fcfcfc] p-2 overflow-auto">
+                        <div class="font-bold mb-1">Local Computer Policy</div>
+                        <div class="ml-2 font-bold">Computer Configuration</div>
+                        <div class="ml-2 font-bold">User Configuration</div>
+                        <div class="ml-6 font-bold">Policies</div>
+                        <div class="ml-10 font-bold">Administrative Templates</div>
+                        <div class="ml-14 list-item p-1" onclick="document.getElementById('gpo-r-${k}-cp').style.display='block';document.getElementById('gpo-r-${k}-cmd').style.display='none';">📁 Control Panel</div>
+                        <div class="ml-14 list-item p-1" onclick="document.getElementById('gpo-r-${k}-cmd').style.display='block';document.getElementById('gpo-r-${k}-cp').style.display='none';">📁 System</div>
+                    </div>
+                    <div class="w-1/2 p-2 bg-white flex flex-col">
+                        <div class="font-bold border-b mb-2 pb-1 text-gray-500">Setting</div>
+                        <div id="gpo-r-${k}-cp" style="display:none;">
+                            <div class="list-item" ondblclick="openGpoDialog('${k}', 'cp')">⚙️ Prohibit access to Control Panel and PC settings</div>
+                        </div>
+                        <div id="gpo-r-${k}-cmd" style="display:none;">
+                            <div class="list-item" ondblclick="openGpoDialog('${k}', 'cmd')">⚙️ Prevent access to the command prompt</div>
+                        </div>
+                        <div class="text-gray-400 italic p-2 text-xs">Navigate the tree on the left to find settings.</div>
+                    </div>
+                </div>
+            `;
+            openWindow('gpo-edit-' + k, 'Group Policy Management Editor', html, 700, 450);
+        }
+        function openGpoDialog(k, type) {
+            if (k !== type) return; // Only allow editing the one we intended for this mock
+            const name = k === 'cp' ? 'Prohibit access to Control Panel and PC settings' : 'Prevent access to the command prompt';
+            showMsg(name, `
+                <div class="font-bold mb-3 text-black">${name}</div>
+                <label class="block text-black"><input type="radio" name="gp" value="0" checked> Not Configured</label>
+                <label class="block text-black"><input type="radio" name="gp" value="1"> Enabled</label>
+                <label class="block text-black"><input type="radio" name="gp" value="-1"> Disabled</label>`, [{text:'Apply / OK', action:() => {
+                state.gpo[k + 'On'] = document.querySelector('input[name=gp]:checked').value === '1';
+                renderGPMC();
+                if(state.gpo.cp && state.gpo.cmd && state.gpo.cpOn && state.gpo.cmdOn) completeTask(7);
+                closeWindow('gpo-edit-' + k);
+            }}, {text:'Cancel'}]);
+        }
+        // --- 9: DNS Manager ---
+        function renderDNS() {
+            if(!state.domainPromoted) { showMsg('Error', 'DNS role is configured alongside AD DS. Please promote server to Domain Controller first.'); return; }
+            openWindow('dns', 'DNS Manager', `
+                <div class="flex h-full bg-white text-sm text-black">
+                    <div class="w-1/2 border-r bg-[#fcfcfc] p-2 overflow-auto">
+                        <div class="font-bold">💻 SERVER-2025</div>
+                        <div class="ml-4 font-bold cursor-pointer hover:bg-gray-200" oncontextmenu="showCtxMenu(event, [{label:'New Zone...', action:showNewZone}])">📂 Forward Lookup Zones</div>
+                        ${state.dns.zone ? `
+                            <div class="ml-8 font-bold text-blue-800 cursor-pointer hover:bg-gray-200" oncontextmenu="showCtxMenu(event, [{label:'New Host (A or AAAA)...', action:showNewARecord}])">🌐 tech.com</div>
+                        ` : ''}
+                    </div>
+                    <div class="w-1/2 p-2">
+                        <div class="font-bold border-b mb-2 text-gray-500">Records</div>
+                        ${state.dns.aRecord ? '<div class="list-item">www &nbsp;&nbsp;&nbsp; Host (A) &nbsp;&nbsp;&nbsp; 192.168.1.1</div>' : ''}
+                    </div>
+                </div>
+            `, 600, 350);
+        }
+
+        function showNewZone() {
+            const html = `
+                <div class="flex h-full bg-[#f0f0f0] text-black">
+                    <div class="flex-1 flex flex-col">
+                        <div class="p-4 flex-1 bg-white border-b relative">
+                            <div id="dz-step-1">
+                                <h3 class="font-bold text-lg mb-4">Welcome to the New Zone Wizard</h3>
+                                <p>This wizard helps you create a new zone for your DNS server.</p>
+                            </div>
+                            <div id="dz-step-2" class="hidden">
+                                <h3 class="font-bold text-lg mb-4">Zone Type</h3>
+                                <label class="block"><input type="radio" checked name="zt"> <b>Primary zone</b></label>
+                                <p class="text-xs text-gray-500 ml-4 mb-2">Creates a copy of a zone that can be updated directly on this server.</p>
+                                <label class="block"><input type="radio" name="zt"> Secondary zone</label>
+                            </div>
+                            <div id="dz-step-3" class="hidden">
+                                <h3 class="font-bold text-lg mb-4">Active Directory Zone Replication Scope</h3>
+                                <label class="block"><input type="radio" name="zr"> To all DNS servers running on domain controllers in this forest</label>
+                                <label class="block"><input type="radio" checked name="zr"> <b>To all DNS servers running on domain controllers in this domain</b></label>
+                            </div>
+                            <div id="dz-step-4" class="hidden">
+                                <h3 class="font-bold text-lg mb-4">Forward or Reverse Lookup Zone</h3>
+                                <label class="block"><input type="radio" checked name="zfr"> <b>Forward lookup zone</b></label>
+                                <label class="block"><input type="radio" name="zfr"> Reverse lookup zone</label>
+                            </div>
+                            <div id="dz-step-5" class="hidden">
+                                <h3 class="font-bold text-lg mb-4">Zone Name</h3>
+                                <label>Zone name:</label>
+                                <input type="text" id="dz-name" class="os-input mt-1" placeholder="tech.com">
+                            </div>
+                            <div id="dz-step-6" class="hidden">
+                                <h3 class="font-bold text-lg mb-4">Dynamic Update</h3>
+                                <label class="block"><input type="radio" checked name="zdu"> <b>Allow only secure dynamic updates (recommended for AD DS)</b></label>
+                                <label class="block"><input type="radio" name="zdu"> Do not allow dynamic updates</label>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-[#f0f0f0] flex justify-end gap-2">
+                            <button class="os-btn" id="dz-prev" onclick="navDz(-1)" disabled>< Previous</button>
+                            <button class="os-btn" id="dz-next" onclick="navDz(1)">Next ></button>
+                            <button class="os-btn" onclick="closeWindow('dns-wiz')">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            openWindow('dns-wiz', 'New Zone Wizard', html, 600, 450);
+            window.dzStep = 1;
+        }
+        function navDz(dir) {
+            const maxStep = 6;
+            document.getElementById('dz-step-' + window.dzStep).classList.add('hidden');
+            window.dzStep += dir;
+            if(window.dzStep > maxStep) {
+                const zname = document.getElementById('dz-name').value.trim();
+                if(zname.toLowerCase() === 'tech.com') {
+                    state.dns.zone = true; renderDNS(); closeWindow('dns-wiz'); completeTask(9);
+                } else {
+                    showMsg('Validation Failed', 'Exam requires zone name to be "tech.com"');
+                    window.dzStep = maxStep; document.getElementById('dz-step-' + window.dzStep).classList.remove('hidden');
+                }
+                return;
+            }
+            document.getElementById('dz-step-' + window.dzStep).classList.remove('hidden');
+            document.getElementById('dz-prev').disabled = (window.dzStep === 1);
+            document.getElementById('dz-next').innerText = (window.dzStep === maxStep) ? 'Finish' : 'Next >';
+        }
+
+        function showNewARecord() {
+            showMsg('New Host', `
+                <label class="text-black">Name (uses parent domain if blank):</label><input type="text" id="a-name" class="os-input mt-1 mb-2" placeholder="www">
+                <label class="text-black">IP address:</label><input type="text" id="a-ip" class="os-input mt-1" placeholder="192.168.1.1">
+            `, [{text: 'Add Host', action: () => {
+                if(document.getElementById('a-name').value.trim() === 'www' && document.getElementById('a-ip').value.trim() === '192.168.1.1') {
+                    state.dns.aRecord = true; renderDNS(); completeTask(9);
+                } else showMsg('Validation Failed', 'Requires Name: www, and IP: 192.168.1.1');
+            }}, {text: 'Done'}]);
+        }
+
+        function browseFolder() {
+            window.tempWebName = document.getElementById('w-name') ? document.getElementById('w-name').value : '';
+            window.tempWebHost = document.getElementById('w-host') ? document.getElementById('w-host').value : '';
+            const currentPath = document.getElementById('w-path') ? document.getElementById('w-path').value : '';
+            
+            showMsg('Browse For Folder', `
+                <div class="h-40 border overflow-auto bg-white p-2 text-sm text-black text-left">
+                    <div class="font-bold">💻 This PC</div>
+                    <div class="ml-4">💿 Local Disk (C:)</div>
+                    <div class="ml-8 cursor-pointer hover:bg-blue-100 p-1" onclick="document.getElementById('b-sel').innerText='C:\\inetpub'">📁 inetpub</div>
+                    ${inetNew.map(f => `<div class="ml-12 cursor-pointer hover:bg-blue-100 p-1" onclick="document.getElementById('b-sel').innerText='C:\\inetpub\\${f}'">📁 ${f}</div>`).join('')}
+                </div>
+                <div class="mt-2 text-sm text-black text-left">Folder: <span id="b-sel" class="font-bold"></span></div>
+            `, [{text:'OK', action: () => {
+                const sel = document.getElementById('b-sel').innerText;
+                showNewWeb(sel || currentPath);
+            }}, {text:'Cancel', action: () => {
+                showNewWeb(currentPath);
+            }}]);
+        }
+    
+        // --- 10: IIS Manager ---
+
+        function renderIIS() {
+            if(!state.roles.iis) { showMsg('Error', 'IIS Role not installed. Use Server Manager to add roles.'); return; }
+            
+            let centerPane = '<div class="text-gray-400 italic p-2 text-xs flex-1">Select a site on the left to view features.</div>';
+            if (state.iis.activeNode === 'TechWeb' && state.iis.webSite) {
+                centerPane = `
+                    <div class="flex-1 bg-white p-2">
+                        <div class="font-bold border-b mb-2 pb-1 text-gray-700">TechWeb Home</div>
+                        <div class="flex flex-wrap gap-4 mt-2">
+                            <div class="text-center w-24 p-2 hover:bg-blue-50 rounded cursor-pointer border border-transparent hover:border-blue-200" ondblclick="renderDefaultDoc()">
+                                <div class="text-4xl mb-1 text-blue-600">📄</div>
+                                <div class="text-xs">Default Document</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            openWindow('iis', 'Internet Information Services (IIS) Manager', `
+                <div class="flex h-full bg-white text-sm text-black">
+                    <div class="w-1/3 border-r bg-[#fcfcfc] p-2 overflow-auto">
+                        <div class="font-bold">💻 SERVER-2025</div>
+                        <div class="ml-4 font-bold cursor-pointer hover:bg-gray-200" oncontextmenu="showCtxMenu(event, [{label:'Add Website...', action:showNewWeb}])">📂 Sites</div>
+                        ${state.iis.webSite ? `<div class="ml-8 text-blue-700 list-item font-semibold cursor-pointer ${state.iis.activeNode === 'TechWeb' ? 'bg-blue-100' : ''}" onclick="state.iis.activeNode='TechWeb'; renderIIS();">🌐 ${state.iis.webName}</div>` : ''}
+                    </div>
+                    ${centerPane}
+                </div>
+            `, 700, 450);
+        }
+        
+        function renderDefaultDoc() {
+            openWindow('defdoc', 'Default Document - TechWeb', `
+                <div class="flex h-full bg-white text-sm text-black">
+                    <div class="flex-1 border-r p-2 overflow-auto" oncontextmenu="showCtxMenu(event, [{label:'Add...', action:showAddDefDoc}])">
+                        <div class="font-bold mb-2 text-gray-700">Default Document</div>
+                        <div class="bg-gray-100 border-b px-2 py-1 flex gap-2"><div class="font-bold flex-1">Name</div></div>
+                        <div class="p-1 border-b">Default.htm</div>
+                        <div class="p-1 border-b">Default.asp</div>
+                        <div class="p-1 border-b">index.htm</div>
+                        <div class="p-1 border-b">iisstart.htm</div>
+                        ${state.iis.defaultDoc ? '<div class="p-1 font-bold text-blue-700 border-b">index.html</div>' : ''}
+                        <div class="text-xs text-gray-400 mt-4 italic">Right-click to add a new default document.</div>
+                    </div>
+                    <div class="w-1/3 p-2 bg-gray-50">
+                        <div class="font-bold border-b mb-2 pb-1 text-gray-700">Actions</div>
+                        <div class="text-blue-600 cursor-pointer hover:underline list-item" onclick="showAddDefDoc()">➕ Add...</div>
+                    </div>
+                </div>
+            `, 600, 400);
+        }
+        
+        function showAddDefDoc() {
+            showMsg('Add Default Document', `
+                <label class="text-black block mb-1">Name:</label>
+                <input type="text" id="defdoc-name" class="os-input" placeholder="e.g. index.html">
+            `, [{text: 'OK', action: () => {
+                const n = document.getElementById('defdoc-name').value.trim();
+                if(n === 'index.html') {
+                    if(!filesInTechCom.includes('index.html')) {
+                        showMsg('Error', 'index.html does not exist in the physical folder C:\\\\inetpub\\\\tech.com!');
+                        return;
+                    }
+                    state.iis.defaultDoc = true;
+                    renderDefaultDoc();
+                    checkIISDone();
+                } else {
+                    showMsg('Validation Failed', 'You must add index.html as the default document for this exam.');
+                }
+            }}, {text: 'Cancel'}]);
+        }
+        
+        function checkIISDone() {
+            if(state.iis.webSite && state.iis.defaultDoc) {
+                completeTask(10);
+            }
+        }
+
+        window.tempWebName = '';
+        window.tempWebHost = '';
+        
+        function showNewWeb(overridePath = '') {
+            showMsg('Add Website', `
+                <label class="text-black block">Site name:</label><input type="text" id="w-name" class="os-input mt-1 mb-2" placeholder="TechWeb" value="${window.tempWebName}">
+                <label class="text-black block">Physical path:</label>
+                <div class="flex gap-1 mb-2">
+                    <input type="text" id="w-path" class="os-input mt-1" placeholder="C:\\inetpub\\tech.com" value="${overridePath}">
+                    <button class="os-btn mt-1 !min-w-0 px-3" onclick="browseFolder()">...</button>
+                </div>
+                <label class="text-black block">Host name:</label><input type="text" id="w-host" class="os-input mt-1 mb-2" placeholder="www.tech.com" value="${window.tempWebHost}">
+                <div class="text-xs text-gray-500">Binding: http, port 80</div>
+            `, [{text: 'OK', action: () => {
+                const n = document.getElementById('w-name').value.trim();
+                const p = document.getElementById('w-path').value.trim();
+                const h = document.getElementById('w-host').value.trim();
+                
+                const showError = (msg) => {
+                    window.tempWebName = n; window.tempWebHost = h;
+                    showMsg('Validation Failed', msg, [{text: 'OK', action: () => showNewWeb(p)}]);
+                };
+
+                if(n !== 'TechWeb') { showError('Site name must be TechWeb.'); return; }
+                if(p.toLowerCase() !== 'c:\\inetpub\\tech.com') { showError('Physical path must be C:\\inetpub\\tech.com.'); return; }
+                if(!filesInTechCom.includes('index.html')) { showError('You must first create index.html in C:\\inetpub\\tech.com using File Explorer.'); return; }
+                if(h !== 'www.tech.com') { showError('Host name must be www.tech.com.'); return; }
+                
+                state.iis.webSite = true; state.iis.webName = n; state.iis.activeNode = 'TechWeb'; window.tempWebName = ''; window.tempWebHost = ''; renderIIS();
+            }}, {text: 'Cancel', action: () => { window.tempWebName = ''; window.tempWebHost = ''; } }]);
+        }
+
+        // --- Init ---
+        window.onload = () => { renderTasks(); switchOS('server'); };
+    </script>
+</body>
+</html>
