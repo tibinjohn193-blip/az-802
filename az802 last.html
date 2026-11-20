@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMEC Hybrid Identity Lab v5 - Authentic ADUC, IdFix Guide, Manual PowerShell &amp; Entra ID</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    
+    * { box-sizing: border-box; user-select: none; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; background-color: #0b0f19; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.08); }
+    ::-webkit-scrollbar-thumb { background: rgba(120, 120, 120, 0.35); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(120, 120, 120, 0.55); }
+
+    .desktop-bg {
+      background: radial-gradient(circle at 75% 20%, #153866 0%, #0d1e38 35%, #081122 70%, #040812 100%);
+      background-size: cover;
+      position: relative;
+    }
+    .desktop-grid {
+      background-image: radial-gradient(rgba(0, 120, 212, 0.15) 1px, transparent 1px), radial-gradient(rgba(0, 120, 212, 0.08) 1px, transparent 1px);
+      background-size: 32px 32px;
+      background-position: 0 0, 16px 16px;
+    }
+    .win-glass {
+      background: rgba(255, 255, 255, 0.97);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.2);
+    }
+    .win-header { cursor: grab; }
+    .win-header:active { cursor: grabbing; }
+
+    .mmc-table th {
+      background: #f1f3f4; border-right: 1px solid #dadce0; border-bottom: 1px solid #dadce0;
+      padding: 4px 8px; font-size: 11px; font-weight: 600; color: #3c4043; text-align: left;
+    }
+    .mmc-table td { border-bottom: 1px solid #f1f3f4; padding: 4px 8px; font-size: 11px; color: #202124; }
+    .mmc-table tr:hover td { background-color: #e8f0fe; }
+    .mmc-table tr.selected td { background-color: #cce8ff; }
+
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.02); }
+    }
+    .pulse-highlight { animation: pulse-subtle 2s infinite ease-in-out; }
+
+    .entra-sidebar-step.active { background-color: #e5f1fb; border-left: 4px solid #0078d4; font-weight: 600; color: #004578; }
+    .entra-sidebar-step.completed { color: #107c41; }
+    .entra-sidebar-step.pending { color: #71717a; }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col text-slate-800">
+
+  <!-- Top Global Header -->
+  <header class="h-10 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 text-xs text-slate-300 z-50">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 font-bold text-white tracking-wide">
+        <i class="fa-brands fa-windows text-blue-400 text-sm"></i>
+        <span>SMEC HYBRID IDENTITY LAB</span>
+      </div>
+      <span class="text-slate-600">|</span>
+      <span class="bg-blue-900/60 text-blue-300 px-2 py-0.5 rounded text-[11px] font-mono border border-blue-700/50">
+        Domain: smec.com (Full Sync)
+      </span>
+      <span class="bg-purple-900/60 text-purple-300 px-2 py-0.5 rounded text-[11px] font-mono border border-purple-700/50">
+        Pre-Checks: IdFix + TLS 1.2 / 443
+      </span>
+      <span class="bg-emerald-900/60 text-emerald-300 px-2 py-0.5 rounded text-[11px] font-mono border border-emerald-700/50 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        Microsoft Entra ID
+      </span>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 text-slate-400">
+        <span>DC Node:</span>
+        <span class="text-slate-200 font-mono font-medium">WIN-DC01</span>
+      </div>
+      <button onclick="resetLab()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded border border-slate-700 flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-rotate-right text-xs"></i>
+        <span>Reset Lab</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main 3-Column Work Area -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- LEFT PANEL: Virtual Lab Specs & Credentials -->
+    <aside class="w-60 bg-slate-900 border-r border-slate-800 flex flex-col text-slate-300 z-20 shrink-0">
+      <div class="p-3 border-b border-slate-800 bg-slate-950/40">
+        <div class="flex items-center gap-2 text-white font-semibold text-sm">
+          <i class="fa-solid fa-server text-blue-400"></i>
+          <span>Virtual Lab Controller</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-0.5">Windows Server 2025 &amp; Azure</p>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+        <div class="bg-slate-800/60 rounded-lg p-2.5 border border-slate-700/60">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+            <span>Domain Controller</span>
+            <span class="text-[10px] text-emerald-400 font-mono">ONLINE</span>
+          </div>
+          <div class="space-y-1.5 text-[11px]">
+            <div class="flex justify-between"><span class="text-slate-400">OS:</span><span class="text-slate-200">Server 2025 Std</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Forest:</span><span class="font-mono text-blue-300">smec.com</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Sync Scope:</span><span class="font-mono text-emerald-300">Full Domain</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">IP:</span><span class="font-mono text-slate-300">192.168.10.10</span></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-800/60 rounded-lg p-2.5 border border-slate-700/60 space-y-2.5">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-key text-amber-400"></i>
+            <span>Lab Credentials</span>
+          </div>
+
+          <div class="p-2 rounded bg-slate-900/80 border border-slate-700/50 space-y-1.5">
+            <div class="text-[10px] font-semibold text-blue-400 uppercase tracking-wide">Azure / Entra Global Admin</div>
+            <div class="flex items-center justify-between font-mono text-[11px] bg-slate-950 p-1.5 rounded border border-slate-800">
+              <span class="truncate text-slate-200">tibinjohn193@gmail.com</span>
+              <button onclick="copyText('tibinjohn193@gmail.com', 'Copied Cloud Username')" class="text-slate-400 hover:text-white px-1" title="Copy"><i class="fa-regular fa-copy"></i></button>
+            </div>
+            <div class="flex items-center justify-between font-mono text-[11px] bg-slate-950 p-1.5 rounded border border-slate-800">
+              <span class="text-slate-200">password123</span>
+              <button onclick="copyText('password123', 'Copied Cloud Password')" class="text-slate-400 hover:text-white px-1" title="Copy"><i class="fa-regular fa-copy"></i></button>
+            </div>
+          </div>
+
+          <div class="p-2 rounded bg-slate-900/80 border border-slate-700/50 space-y-1.5">
+            <div class="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">AD DS Enterprise Admin</div>
+            <div class="flex items-center justify-between font-mono text-[11px] bg-slate-950 p-1.5 rounded border border-slate-800">
+              <span class="truncate text-slate-200">SMEC\Administrator</span>
+              <button onclick="copyText('SMEC\\Administrator', 'Copied AD Admin Username')" class="text-slate-400 hover:text-white px-1" title="Copy"><i class="fa-regular fa-copy"></i></button>
+            </div>
+            <div class="flex items-center justify-between font-mono text-[11px] bg-slate-950 p-1.5 rounded border border-slate-800">
+              <span class="text-slate-200">password123</span>
+              <button onclick="copyText('password123', 'Copied AD Admin Password')" class="text-slate-400 hover:text-white px-1" title="Copy"><i class="fa-regular fa-copy"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Educational Note about UPN Prefix & Suffix -->
+        <div class="p-2.5 rounded bg-blue-950/40 border border-blue-700/50 text-blue-200 text-[11px]">
+          <div class="font-semibold flex items-center gap-1.5 text-blue-300 mb-1">
+            <i class="fa-solid fa-id-card"></i>
+            <span>UPN Prefix &amp; Suffix</span>
+          </div>
+          <p class="leading-relaxed text-slate-300 text-[10px]">
+            Example: <span class="font-mono text-white font-bold">user1@smec.com</span><br>
+            • <strong>UPN Prefix:</strong> <span class="font-mono text-amber-300">user1</span> (Username)<br>
+            • <strong>UPN Suffix:</strong> <span class="font-mono text-emerald-300">@smec.com</span> (Domain)<br>
+            We check this in ADUC (User Properties &rarr; Account tab) to ensure there are no spaces/errors in the username and that the suffix matches Azure.
+          </p>
+        </div>
+
+        <!-- Educational Note about IdFix -->
+        <div class="p-2.5 rounded bg-purple-950/50 border border-purple-600/60 text-purple-200 text-[11px] space-y-1.5">
+          <div class="font-bold flex items-center gap-1.5 text-purple-300">
+            <i class="fa-solid fa-wrench"></i>
+            <span>What is Microsoft IdFix used for?</span>
+          </div>
+          <p class="leading-relaxed text-slate-300 text-[10px]">
+            Before syncing local AD to Azure (Entra ID), admins run <strong>Microsoft IdFix</strong> to prevent sync errors. It automatically scans and fixes:
+          </p>
+          <ul class="list-disc pl-4 text-[10px] text-slate-300 space-y-0.5">
+            <li><strong>Invalid Characters / Spaces:</strong> e.g., <code>hr user@smec.com</code></li>
+            <li><strong>Duplicate Values:</strong> Duplicate UPNs or email addresses</li>
+            <li><strong>Format &amp; Top-Level Domain Errors:</strong> Non-routable <code>.local</code> domains</li>
+          </ul>
+          <div class="text-[9.5px] text-purple-300 pt-0.5 font-mono">Source: github.com/microsoft/idfix</div>
+        </div>
+
+        <div id="quick-toast" class="hidden p-2 rounded bg-emerald-950 border border-emerald-700 text-emerald-200 text-center font-mono text-[11px]">
+          Copied!
+        </div>
+      </div>
+
+      <div class="p-2.5 border-t border-slate-800 bg-slate-950 grid grid-cols-2 gap-1.5">
+        <button onclick="openRunDialog()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-2 rounded flex items-center justify-center gap-1.5 transition text-xs border border-slate-700">
+          <svg class="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+          <span>Run</span>
+        </button>
+        <button onclick="openPowershellWindow()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-2 rounded flex items-center justify-center gap-1.5 transition text-xs border border-slate-700">
+          <i class="fa-solid fa-terminal text-sky-400 text-[11px]"></i><span>PowerShell</span>
+        </button>
+        <button onclick="openEdgeBrowser()" class="col-span-2 bg-blue-600 hover:bg-blue-500 text-white font-medium py-1.5 px-3 rounded flex items-center justify-center gap-2 transition text-xs shadow-sm">
+          <i class="fa-brands fa-edge"></i><span>Launch Microsoft Edge</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- CENTER PANEL: Windows Server 2025 Desktop -->
+    <main class="flex-1 relative desktop-bg desktop-grid flex flex-col overflow-hidden select-none">
+      
+      <div id="desktop-canvas" class="flex-1 relative p-4 overflow-hidden" onclick="handleDesktopClick(event)">
+        
+        <!-- Desktop Shortcuts -->
+        <div class="flex flex-col gap-3.5 w-24">
+          <div onclick="openAducWindow()" class="group flex flex-col items-center justify-center p-2 rounded hover:bg-white/10 cursor-pointer border border-transparent hover:border-white/20 transition">
+            <div class="w-11 h-11 flex items-center justify-center rounded-lg bg-emerald-900/50 border border-emerald-500/40 shadow-md group-hover:scale-105 transition-transform">
+              <i class="fa-solid fa-users-gear text-xl text-emerald-400"></i>
+            </div>
+            <span class="text-white text-[11px] font-medium text-center mt-1 drop-shadow leading-tight">AD Users &amp; Computers</span>
+          </div>
+
+          <div onclick="openEdgeBrowser()" class="group flex flex-col items-center justify-center p-2 rounded hover:bg-white/10 cursor-pointer border border-transparent hover:border-white/20 transition">
+            <div class="w-11 h-11 flex items-center justify-center rounded-lg shadow-md group-hover:scale-105 transition-transform">
+              <i class="fa-brands fa-edge text-3xl text-sky-400"></i>
+            </div>
+            <span class="text-white text-xs font-medium text-center mt-1 drop-shadow">Microsoft Edge</span>
+          </div>
+
+          <div onclick="openPowershellWindow()" class="group flex flex-col items-center justify-center p-2 rounded hover:bg-white/10 cursor-pointer border border-transparent hover:border-white/20 transition">
+            <div class="w-11 h-11 flex items-center justify-center rounded-lg bg-blue-950/90 border border-sky-400/50 shadow-md group-hover:scale-105 transition-transform">
+              <i class="fa-solid fa-terminal text-xl text-sky-300"></i>
+            </div>
+            <span class="text-white text-[11px] font-medium text-center mt-1 drop-shadow leading-tight">Windows PowerShell</span>
+          </div>
+
+          <div onclick="openServerManager()" class="group flex flex-col items-center justify-center p-2 rounded hover:bg-white/10 cursor-pointer border border-transparent hover:border-white/20 transition">
+            <div class="w-11 h-11 flex items-center justify-center rounded-lg bg-slate-800/80 border border-slate-600 shadow-md group-hover:scale-105 transition-transform">
+              <i class="fa-solid fa-server text-xl text-amber-400"></i>
+            </div>
+            <span class="text-white text-[11px] font-medium text-center mt-1 drop-shadow leading-tight">Server Manager</span>
+          </div>
+
+          <!-- Revealed after downloading IdFix -->
+          <div id="desktop-idfix-icon" onclick="openIdfixWindow()" class="hidden group flex flex-col items-center justify-center p-2 rounded hover:bg-white/10 cursor-pointer border border-transparent hover:border-white/20 transition">
+            <div class="w-11 h-11 flex items-center justify-center rounded-lg bg-purple-700/70 border border-purple-400 shadow-md">
+              <i class="fa-solid fa-wrench text-xl text-white"></i>
+            </div>
+            <span class="text-white text-[11px] font-medium text-center mt-1 drop-shadow leading-tight">IdFix.exe</span>
+          </div>
+
+          <!-- Revealed after downloading Entra Connect -->
+          <div id="desktop-entra-icon" onclick="openEntraWizard()" class="hidden group flex flex-col items-center justify-center p-2 rounded hover:bg-white/10 cursor-pointer border border-transparent hover:border-white/20 transition">
+            <div class="w-11 h-11 flex items-center justify-center rounded-lg bg-blue-600/60 border border-blue-400 shadow-md">
+              <i class="fa-solid fa-arrows-split-up-and-left text-xl text-white"></i>
+            </div>
+            <span class="text-white text-[11px] font-medium text-center mt-1 drop-shadow leading-tight">Entra Connect</span>
+          </div>
+        </div>
+
+        <!-- WINDOW: Windows Run Dialog -->
+        <div id="win-run" class="hidden absolute w-[380px] bg-slate-100 rounded-lg shadow-2xl border border-slate-400 flex flex-col overflow-hidden z-40" style="bottom: 60px; left: 16px;">
+          <div class="win-header h-8 bg-slate-200 text-slate-800 flex items-center justify-between px-3 border-b border-slate-300 text-xs font-semibold" onmousedown="startDrag(event, 'win-run')">
+            <div class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+              <span>Run</span>
+            </div>
+            <button onclick="closeWindow('win-run')" class="hover:bg-red-500 hover:text-white px-2 h-full transition"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="p-4 space-y-3 text-xs bg-slate-100">
+            <p class="text-slate-600 text-[11px]">Type <span class="font-mono font-bold">dsa.msc</span> (ADUC) or <span class="font-mono font-bold">powershell</span> (Network Check).</p>
+            <div class="flex items-center gap-2">
+              <label class="font-medium text-slate-700 w-12 text-[11px]">Open:</label>
+              <input type="text" id="run-dialog-input" value="" placeholder="dsa.msc" class="flex-1 px-2 py-1 bg-white border border-slate-400 rounded text-xs font-mono outline-none" onkeydown="if(event.key==='Enter') executeRunCommand()">
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+              <button onclick="executeRunCommand()" class="px-4 py-1 bg-slate-200 hover:bg-slate-300 border border-slate-400 rounded text-xs font-medium">OK</button>
+              <button onclick="closeWindow('win-run')" class="px-4 py-1 bg-slate-200 hover:bg-slate-300 border border-slate-400 rounded text-xs font-medium">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- WINDOW: ADUC (dsa.msc) - Step 1 -->
+        <div id="win-aduc" class="hidden absolute w-[740px] h-[500px] rounded-lg win-glass flex flex-col overflow-hidden shadow-2xl z-35" style="top: 20px; left: 80px;">
+          <div class="win-header h-8 bg-slate-800 text-slate-200 flex items-center justify-between px-3 border-b border-slate-700 text-xs font-medium" onmousedown="startDrag(event, 'win-aduc')">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-users-gear text-emerald-400"></i>
+              <span>Active Directory Users and Computers [WIN-DC01.smec.com]</span>
+            </div>
+            <div class="flex items-center h-full">
+              <button onclick="minimizeWindow('win-aduc')" class="h-full px-2.5 hover:bg-slate-700"><i class="fa-solid fa-minus text-[10px]"></i></button>
+              <button onclick="maximizeWindow('win-aduc')" class="h-full px-2.5 hover:bg-slate-700"><i class="fa-regular fa-square text-[10px]"></i></button>
+              <button onclick="closeAducWindow()" class="h-full px-2.5 hover:bg-red-600 text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+            </div>
+          </div>
+
+          <div class="h-8 bg-slate-50 border-b border-slate-300 flex items-center justify-between px-3 text-slate-600 text-xs">
+            <span class="text-[11px] font-mono">Domain: smec.com (Full Directory)</span>
+            <span class="text-[11px] text-blue-700 font-semibold">Step 1: Inspect Tech OU &amp; Validate UPN Suffix (@smec.com)</span>
+          </div>
+
+          <div class="flex-1 flex overflow-hidden bg-white">
+            <div class="w-56 bg-slate-50 border-r border-slate-300 overflow-y-auto p-2 text-xs">
+              <div class="font-bold text-[11px] text-slate-500 uppercase mb-1.5 px-1">Console Root</div>
+              <div class="space-y-0.5">
+                <div onclick="toggleDomainTree()" class="flex items-center gap-1.5 p-1 font-semibold text-slate-800 cursor-pointer hover:bg-slate-200 rounded">
+                  <i id="ad-domain-caret" class="fa-solid fa-caret-down text-slate-500"></i>
+                  <i class="fa-solid fa-globe text-blue-500"></i>
+                  <span class="font-mono text-blue-900 font-bold">smec.com</span>
+                </div>
+                <div id="ad-ou-list" class="pl-5 space-y-0.5 text-[11px]">
+                  <div onclick="selectAducOu('Builtin')" class="ou-item flex items-center gap-1.5 p-1 rounded hover:bg-slate-200 cursor-pointer"><i class="fa-regular fa-folder text-amber-500"></i><span>Builtin</span></div>
+                  <div onclick="selectAducOu('Computers')" class="ou-item flex items-center gap-1.5 p-1 rounded hover:bg-slate-200 cursor-pointer"><i class="fa-regular fa-folder text-amber-500"></i><span>Computers</span></div>
+                  <div onclick="selectAducOu('DomainControllers')" class="ou-item flex items-center gap-1.5 p-1 rounded hover:bg-slate-200 cursor-pointer"><i class="fa-regular fa-folder text-amber-500"></i><span>Domain Controllers</span></div>
+                  <div onclick="selectAducOu('HR')" class="ou-item flex items-center gap-1.5 p-1 rounded hover:bg-slate-200 cursor-pointer"><i class="fa-solid fa-folder-tree text-emerald-600"></i><span>HR (OU)</span></div>
+                  <div id="ou-tech-btn" onclick="selectAducOu('Tech')" class="ou-item flex items-center gap-1.5 p-1 rounded hover:bg-blue-100 cursor-pointer bg-blue-50 border border-blue-200 font-semibold">
+                    <i class="fa-solid fa-folder-tree text-blue-600"></i><span class="text-blue-800">Tech (OU)</span>
+                    <span class="ml-auto w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+                  </div>
+                  <div onclick="selectAducOu('Users')" class="ou-item flex items-center gap-1.5 p-1 rounded hover:bg-slate-200 cursor-pointer"><i class="fa-regular fa-folder text-amber-500"></i><span>Users</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex-1 flex flex-col overflow-hidden bg-white">
+              <div class="h-6 bg-slate-50 border-b border-slate-200 px-3 flex items-center text-[11px] text-slate-500">
+                <span id="aduc-path-label">Active Directory Users and Computers &gt; smec.com (Click Tech OU on left)</span>
+              </div>
+              <div class="flex-1 overflow-auto">
+                <table class="w-full mmc-table border-collapse">
+                  <thead>
+                    <tr>
+                      <th class="w-32">Name</th>
+                      <th class="w-24">Type</th>
+                      <th class="w-44">Description</th>
+                      <th>User Logon Name (UPN Suffix)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="aduc-objects-tbody">
+                    <tr>
+                      <td colspan="4" class="text-center text-slate-500 py-8 italic">
+                        Click the <strong>Tech (OU)</strong> folder on the left tree to inspect the local users and their UPN suffixes.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="p-2.5 bg-slate-100 border-t border-slate-300 flex items-center justify-between text-[11px]">
+                <span id="aduc-status-count" class="text-slate-600">Select Tech OU, then double-click User1 to inspect Account tab</span>
+                <button onclick="closeAducWindow()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 border border-slate-400 rounded text-slate-800 font-medium">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- WINDOW: Authentic ADUC User1 Properties (Account Tab for UPN Inspection) -->
+        <div id="win-user-props" class="hidden absolute w-[430px] bg-slate-100 rounded-lg shadow-2xl border border-slate-400 flex flex-col overflow-hidden z-50" style="top: 75px; left: 230px;">
+          <div class="win-header h-8 bg-slate-200 text-slate-800 flex items-center justify-between px-3 border-b border-slate-300 text-xs font-semibold" onmousedown="startDrag(event, 'win-user-props')">
+            <div class="flex items-center gap-1.5"><i class="fa-solid fa-user text-blue-600"></i><span>User1 Properties</span></div>
+            <button onclick="closeWindow('win-user-props')" class="hover:bg-red-500 hover:text-white px-2 h-full transition"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <!-- Tabs -->
+          <div class="flex bg-slate-200 px-2 pt-2 gap-1 text-[11px] border-b border-slate-300">
+            <button onclick="switchUserPropTab('general')" id="tab-up-general" class="px-3 py-1 rounded-t bg-slate-100 text-slate-600 border border-b-0 border-slate-300">General</button>
+            <button onclick="switchUserPropTab('account')" id="tab-up-account" class="px-3 py-1 rounded-t bg-white text-blue-700 font-bold border border-b-0 border-slate-300">Account</button>
+          </div>
+          <div class="p-4 bg-white text-xs space-y-3">
+            <div id="up-pane-general" class="hidden space-y-2.5">
+              <div class="flex items-center gap-3 pb-2 border-b border-slate-200">
+                <i class="fa-solid fa-user text-2xl text-blue-600"></i>
+                <span class="font-bold text-slate-800">User1</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 items-center">
+                <span class="text-slate-600">First name:</span><input type="text" value="User1" readonly class="col-span-2 px-2 py-1 border border-slate-300 rounded bg-slate-50">
+                <span class="text-slate-600">Description:</span><input type="text" value="Infrastructure Engineer" readonly class="col-span-2 px-2 py-1 border border-slate-300 rounded bg-slate-50">
+                <span class="text-slate-600">E-mail:</span><input type="text" value="user1@smec.com" readonly class="col-span-2 px-2 py-1 border border-slate-300 rounded bg-slate-50 font-mono">
+              </div>
+              <p class="text-[11px] text-blue-700 bg-blue-50 p-2 rounded border border-blue-200">Click the <strong>Account</strong> tab above to inspect the UPN Prefix and UPN Suffix.</p>
+            </div>
+            <div id="up-pane-account" class="space-y-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-700 mb-1">User logon name (UPN):</label>
+                <div class="flex items-center gap-1.5">
+                  <input type="text" value="user1" readonly class="w-1/2 px-2 py-1.5 border border-blue-400 rounded bg-blue-50/40 font-mono font-bold text-slate-800">
+                  <select disabled class="w-1/2 px-2 py-1.5 border border-emerald-400 rounded bg-emerald-50/40 font-mono font-bold text-emerald-800">
+                    <option>@smec.com</option>
+                  </select>
+                </div>
+                <div class="flex justify-between text-[10px] mt-1 px-0.5">
+                  <span class="text-blue-700 font-semibold">&uarr; UPN Prefix (no spaces)</span>
+                  <span class="text-emerald-700 font-semibold">&uarr; UPN Suffix (Domain)</span>
+                </div>
+              </div>
+              <div class="p-2.5 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-700 space-y-1">
+                <div><strong>UPN Verification:</strong> <span class="font-mono text-blue-700">user1@smec.com</span></div>
+                <div class="text-[10px] text-slate-500">Username has no invalid spaces and UPN Suffix matches the routable domain <code>smec.com</code>. Click <strong>OK</strong> to confirm.</div>
+              </div>
+            </div>
+          </div>
+          <div class="p-2.5 bg-slate-100 border-t border-slate-300 flex justify-end gap-2 text-xs">
+            <button onclick="confirmUserPropsOk()" class="px-5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium shadow">OK</button>
+            <button onclick="closeWindow('win-user-props')" class="px-4 py-1 bg-slate-200 hover:bg-slate-300 border border-slate-400 rounded text-slate-800">Cancel</button>
+          </div>
+        </div>
+
+        <!-- WINDOW: Microsoft IdFix Tool (Step 2) -->
+        <div id="win-idfix" class="hidden absolute w-[740px] h-[480px] rounded-lg win-glass flex flex-col overflow-hidden shadow-2xl z-40" style="top: 28px; left: 95px;">
+          <div class="win-header h-8 bg-slate-800 text-slate-200 flex items-center justify-between px-3 border-b border-slate-700 text-xs font-semibold" onmousedown="startDrag(event, 'win-idfix')">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-wrench text-purple-400"></i>
+              <span>Microsoft IdFix – Directory Synchronization Error Remediation Tool (v2.5)</span>
+            </div>
+            <button onclick="closeWindow('win-idfix')" class="h-full px-2.5 hover:bg-red-600"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+          </div>
+
+          <!-- IdFix Toolbar -->
+          <div class="h-10 bg-slate-100 border-b border-slate-300 flex items-center justify-between px-3 text-xs">
+            <div class="flex items-center gap-2">
+              <button id="idfix-btn-query" onclick="runIdfixQuery()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded shadow flex items-center gap-1.5 pulse-highlight">
+                <i class="fa-solid fa-magnifying-glass"></i><span>Query</span>
+              </button>
+              <button id="idfix-btn-apply" onclick="applyIdfixRemediation()" disabled class="px-3 py-1 bg-slate-300 text-slate-500 font-semibold rounded flex items-center gap-1.5 cursor-not-allowed">
+                <i class="fa-solid fa-check-double"></i><span>Apply</span>
+              </button>
+              <span class="text-slate-300">|</span>
+              <span class="text-[11px] text-slate-600">Target Forest: <strong class="font-mono text-slate-800">smec.com</strong> (Multi-Tenant Mode)</span>
+            </div>
+            <span id="idfix-status-pill" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 text-slate-700">Ready to Query</span>
+          </div>
+
+          <!-- IdFix Educational Strip -->
+          <div class="px-3 py-2.5 bg-purple-50 border-b border-purple-200 text-[11px] text-purple-950 space-y-1">
+            <div class="font-bold flex items-center gap-1.5 text-purple-800">
+              <i class="fa-solid fa-circle-info text-purple-600"></i>
+              <span>Why do we use Microsoft IdFix before Cloud Sync?</span>
+            </div>
+            <p class="text-[10.5px] leading-snug text-purple-900">
+              Microsoft Entra Connect will <strong>fail or skip users</strong> if on-premises AD has bad data. IdFix scans <code>userPrincipalName</code>, <code>mail</code>, and <code>proxyAddresses</code> to catch <strong>spaces, invalid characters, duplicates, and .local domains</strong> so you can fix them in one click before migrating to Azure.
+            </p>
+          </div>
+
+          <!-- IdFix Results Grid -->
+          <div class="flex-1 overflow-auto bg-white">
+            <table class="w-full mmc-table border-collapse">
+              <thead>
+                <tr>
+                  <th class="w-40">DISTINGUISHEDNAME</th>
+                  <th class="w-28">ATTRIBUTE</th>
+                  <th class="w-24">ERROR</th>
+                  <th class="w-40">VALUE</th>
+                  <th class="w-40">UPDATE</th>
+                  <th class="w-24">ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="idfix-results-tbody">
+                <tr>
+                  <td colspan="6" class="text-center text-slate-500 py-12 italic">
+                    Click <strong>Query</strong> on the toolbar above to scan <strong>smec.com</strong> for directory synchronization errors.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- IdFix Status Bar -->
+          <div class="h-8 bg-slate-100 border-t border-slate-300 px-3 flex items-center justify-between text-[11px] text-slate-700 font-mono">
+            <span id="idfix-footer-log">Status: Waiting for Query...</span>
+            <button onclick="closeWindow('win-idfix')" class="px-2.5 py-0.5 bg-slate-200 hover:bg-slate-300 border border-slate-400 rounded text-slate-800 font-sans text-[11px]">Close</button>
+          </div>
+        </div>
+
+        <!-- WINDOW: Windows PowerShell (Step 3: Network Port 443 & TLS 1.2 Check) -->
+        <div id="win-powershell" class="hidden absolute w-[720px] h-[440px] rounded-lg shadow-2xl border border-slate-600 flex flex-col overflow-hidden z-40 bg-[#012456] text-slate-100 font-mono" style="top: 40px; left: 105px;">
+          <div class="win-header h-8 bg-slate-900 text-slate-200 flex items-center justify-between px-3 border-b border-slate-700 text-xs font-sans font-semibold" onmousedown="startDrag(event, 'win-powershell')">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-terminal text-sky-400"></i>
+              <span>Administrator: Windows PowerShell – Network &amp; TLS 1.2 Prerequisite Check</span>
+            </div>
+            <button onclick="closeWindow('win-powershell')" class="h-full px-2.5 hover:bg-red-600"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+          </div>
+
+          <div id="ps-output" class="flex-1 p-3 overflow-y-auto text-xs space-y-1.5 leading-relaxed">
+            <div class="text-slate-300">Windows PowerShell</div>
+            <div class="text-slate-400">Copyright (C) Microsoft Corporation. All rights reserved.</div>
+            <div class="text-sky-300 mt-2 text-[11px]"># Type the exact commands shown in Step 3 of the Right Panel Guide and press Enter.</div>
+          </div>
+
+          <div class="p-2.5 bg-[#011b40] border-t border-slate-700 flex items-center gap-2 text-xs">
+            <span class="text-amber-300 shrink-0">PS C:\Users\Administrator&gt;</span>
+            <input type="text" id="ps-cmd-input" placeholder="Type PowerShell command here and press Enter..." class="flex-1 bg-transparent outline-none text-white font-mono text-xs" onkeydown="if(event.key==='Enter') handlePsManualCmd()">
+          </div>
+        </div>
+
+        <!-- WINDOW: Server Manager -->
+        <div id="win-server-manager" class="hidden absolute w-[680px] h-[440px] rounded-lg win-glass flex flex-col overflow-hidden shadow-2xl z-30" style="top: 35px; left: 80px;">
+          <div class="win-header h-8 bg-slate-800 text-slate-200 flex items-center justify-between px-3 border-b border-slate-700 text-xs font-semibold" onmousedown="startDrag(event, 'win-server-manager')">
+            <div class="flex items-center gap-2"><i class="fa-solid fa-server text-amber-400"></i><span>Server Manager - WIN-DC01</span></div>
+            <button onclick="closeWindow('win-server-manager')" class="h-full px-2.5 hover:bg-red-600"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+          </div>
+          <div class="flex-1 bg-slate-50 p-4 space-y-4 text-xs">
+            <div class="bg-white p-3 rounded border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <h3 class="font-bold text-slate-800 text-sm">Windows Server 2025 Domain Controller</h3>
+                <p class="text-slate-500 text-[11px]">Domain: <strong class="text-blue-600 font-mono">smec.com</strong> | OUs: <strong class="font-mono">Tech, HR, Users</strong></p>
+              </div>
+              <button onclick="openAducWindow()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded font-medium flex items-center gap-1.5">
+                <i class="fa-solid fa-users"></i><span>Open dsa.msc</span>
+              </button>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="p-3 bg-white rounded border border-slate-200">
+                <div class="text-slate-400 text-[10px] uppercase font-bold">IdFix Check</div>
+                <div class="font-bold text-amber-600 mt-1" id="sm-idfix-status">Pending</div>
+              </div>
+              <div class="p-3 bg-white rounded border border-slate-200">
+                <div class="text-slate-400 text-[10px] uppercase font-bold">Network / TLS 1.2</div>
+                <div class="font-bold text-amber-600 mt-1" id="sm-net-status">Not Verified</div>
+              </div>
+              <div class="p-3 bg-white rounded border border-slate-200">
+                <div class="text-slate-400 text-[10px] uppercase font-bold">Entra Connect</div>
+                <div class="font-bold text-amber-600 mt-1" id="sm-sync-status">Not Installed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WINDOW: Microsoft Edge (Bookmarks: GitHub IdFix + Azure Portal) -->
+        <div id="win-edge" class="hidden absolute w-[790px] h-[540px] rounded-lg win-glass flex flex-col overflow-hidden shadow-2xl z-30" style="top: 16px; left: 85px;">
+          <div class="win-header h-9 bg-slate-800/95 text-slate-200 flex items-center justify-between px-3 border-b border-slate-700/60" onmousedown="startDrag(event, 'win-edge')">
+            <div class="flex items-center gap-2 text-xs font-medium">
+              <i class="fa-brands fa-edge text-sky-400"></i>
+              <span id="edge-window-title">Microsoft Edge</span>
+            </div>
+            <div class="flex items-center h-full">
+              <button onclick="minimizeWindow('win-edge')" class="h-full px-3 hover:bg-slate-700/70"><i class="fa-solid fa-minus text-xs"></i></button>
+              <button onclick="maximizeWindow('win-edge')" class="h-full px-3 hover:bg-slate-700/70"><i class="fa-regular fa-square text-xs"></i></button>
+              <button onclick="closeWindow('win-edge')" class="h-full px-3 hover:bg-red-600"><i class="fa-solid fa-xmark text-xs"></i></button>
+            </div>
+          </div>
+
+          <!-- Address Bar -->
+          <div class="h-9 bg-slate-100 border-b border-slate-200 flex items-center gap-2 px-3">
+            <div class="flex-1 bg-white h-7 rounded border border-slate-300 flex items-center px-2.5 text-xs text-slate-700 gap-2 shadow-inner">
+              <i class="fa-solid fa-lock text-emerald-600 text-[11px]"></i>
+              <span id="edge-url-text" class="font-mono text-[11px]">https://github.com/microsoft/idfix/releases</span>
+            </div>
+            <div id="edge-download-btn" onclick="toggleDownloadFlyout()" class="hidden relative p-1.5 hover:bg-slate-200 rounded text-blue-600 cursor-pointer" title="Downloads">
+              <i class="fa-solid fa-download text-sm"></i>
+              <span class="absolute top-0 right-0 w-2 h-2 rounded-full bg-blue-600"></span>
+            </div>
+          </div>
+
+          <!-- Bookmarks Bar (Easy Switching between Microsoft IdFix GitHub & Azure Portal) -->
+          <div class="h-7 bg-slate-50 border-b border-slate-300 flex items-center gap-2 px-3 text-[11px]">
+            <button onclick="openEdgeSite('idfix-github')" id="bm-idfix" class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold hover:bg-purple-200 flex items-center gap-1.5">
+              <i class="fa-brands fa-github"></i><span>Microsoft IdFix (GitHub)</span>
+            </button>
+            <button onclick="openEdgeSite('azure-portal')" id="bm-azure" class="px-2 py-0.5 rounded hover:bg-blue-100 text-slate-700 font-medium flex items-center gap-1.5">
+              <i class="fa-solid fa-cloud text-blue-600"></i><span>Microsoft Azure Portal</span>
+            </button>
+          </div>
+
+          <!-- Download Flyout -->
+          <div id="edge-download-flyout" class="hidden absolute top-28 right-4 w-72 bg-white rounded-lg shadow-2xl border border-slate-300 p-3 z-50">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-200 mb-2">
+              <span class="font-semibold text-xs text-slate-800"><i class="fa-solid fa-arrow-down text-blue-600 mr-1"></i>Downloads</span>
+              <button onclick="toggleDownloadFlyout()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xs"></i></button>
+            </div>
+            <div id="download-flyout-list" class="space-y-2.5 text-xs">
+              <!-- Populated dynamically when IdFix or Entra Connect is downloaded -->
+            </div>
+          </div>
+
+          <div class="flex-1 bg-slate-50 relative overflow-y-auto">
+
+            <!-- SITE 1: Official Microsoft GitHub IdFix Release Page -->
+            <div id="site-idfix-github" class="h-full bg-white p-5 space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                <div class="flex items-center gap-2.5">
+                  <i class="fa-brands fa-github text-2xl text-slate-900"></i>
+                  <div>
+                    <div class="text-sm font-bold text-blue-700 font-mono">microsoft / idfix</div>
+                    <div class="text-[11px] text-slate-500">Official Microsoft Repository · Directory Synchronization Error Remediation Tool</div>
+                  </div>
+                </div>
+                <span class="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300 font-bold">Latest Release v2.5.1</span>
+              </div>
+
+              <div class="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+                <h3 class="font-bold text-slate-900 text-sm">About Microsoft IdFix</h3>
+                <p class="text-slate-600 leading-relaxed">
+                  IdFix is used to perform discovery and remediation of identity objects and their attributes in an on-premises Active Directory environment in preparation for migration to Microsoft Entra ID (Azure AD) and Microsoft 365.
+                </p>
+                <div class="grid grid-cols-3 gap-2 pt-1 text-[11px]">
+                  <div class="p-2 bg-white rounded border border-slate-200"><strong>Detects:</strong> Duplicate UPNs &amp; ProxyAddresses</div>
+                  <div class="p-2 bg-white rounded border border-slate-200"><strong>Detects:</strong> Invalid Characters &amp; Spaces</div>
+                  <div class="p-2 bg-white rounded border border-slate-200"><strong>Detects:</strong> Non-routable `.local` domains</div>
+                </div>
+              </div>
+
+              <div class="border border-slate-200 rounded-lg overflow-hidden text-xs">
+                <div class="bg-slate-100 px-3 py-2 font-bold text-slate-700 border-b border-slate-200">Release Assets</div>
+                <div class="p-3 flex items-center justify-between bg-white">
+                  <div class="flex items-center gap-2.5">
+                    <i class="fa-solid fa-file-zipper text-purple-600 text-lg"></i>
+                    <div>
+                      <div class="font-mono font-bold text-slate-800">IdFix.exe (Microsoft IdFix Installer)</div>
+                      <div class="text-[10px] text-slate-500">Official Microsoft Signed Binary · 4.2 MB</div>
+                    </div>
+                  </div>
+                  <button id="btn-download-idfix" onclick="triggerDownloadIdfix()" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-1.5 rounded shadow flex items-center gap-2 pulse-highlight">
+                    <i class="fa-solid fa-download"></i><span>Download IdFix.exe</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- SITE 2: Azure Portal Container -->
+            <div id="site-azure-portal" class="hidden h-full">
+              <!-- VIEW A: Azure Login -->
+              <div id="azure-login-view" class="h-full flex items-center justify-center p-6 bg-slate-100">
+                <div class="w-[380px] bg-white rounded-lg shadow-xl p-8 border border-slate-200">
+                  <div class="flex items-center gap-2 mb-4">
+                    <div class="grid grid-cols-2 gap-0.5 w-5 h-5">
+                      <div class="bg-red-500 w-2 h-2"></div><div class="bg-green-500 w-2 h-2"></div>
+                      <div class="bg-blue-500 w-2 h-2"></div><div class="bg-amber-500 w-2 h-2"></div>
+                    </div>
+                    <span class="text-sm font-semibold text-slate-600">Microsoft</span>
+                  </div>
+                  <h1 class="text-xl font-bold text-slate-900 mb-1">Sign in</h1>
+                  <p class="text-xs text-slate-500 mb-4">to continue to Microsoft Azure</p>
+
+                  <div id="login-error-msg" class="hidden mb-3 p-2 bg-red-50 border border-red-200 rounded text-[11px] text-red-700"></div>
+
+                  <div id="login-step-email" class="space-y-4">
+                    <div>
+                      <input type="email" id="azure-input-email" placeholder="Email, phone, or Skype" class="w-full px-3 py-2 border-b-2 border-slate-400 focus:border-blue-600 outline-none text-xs font-mono" onkeydown="if(event.key==='Enter') proceedAzureEmail()">
+                      <div class="text-[10px] text-slate-400 mt-1">Use: <strong class="text-blue-600 font-mono">tibinjohn193@gmail.com</strong></div>
+                    </div>
+                    <div class="flex justify-end"><button onclick="proceedAzureEmail()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-6 py-1.5 rounded">Next</button></div>
+                  </div>
+
+                  <div id="login-step-password" class="hidden space-y-4">
+                    <div class="text-xs text-slate-700 font-mono flex items-center gap-1">
+                      <i class="fa-solid fa-user-circle text-slate-400"></i><span id="display-login-email"></span>
+                      <button onclick="backToEmailStage()" class="text-blue-600 text-[10px] ml-1 hover:underline">(change)</button>
+                    </div>
+                    <div>
+                      <input type="password" id="azure-input-password" placeholder="Password" class="w-full px-3 py-2 border-b-2 border-slate-400 focus:border-blue-600 outline-none text-xs font-mono" onkeydown="if(event.key==='Enter') submitAzureLogin()">
+                      <div class="text-[10px] text-slate-400 mt-1">Use: <strong class="text-blue-600 font-mono">password123</strong></div>
+                    </div>
+                    <div class="flex justify-end"><button onclick="submitAzureLogin()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-6 py-1.5 rounded">Sign in</button></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- VIEW B: Azure Portal Shell -->
+              <div id="azure-portal-view" class="hidden h-full flex flex-col bg-slate-100 text-slate-800">
+                <nav class="h-11 bg-[#0078d4] text-white flex items-center justify-between px-3 shrink-0 relative z-40">
+                  <div class="flex items-center gap-3">
+                    <button onclick="showAzureHome()" class="hover:bg-blue-600 p-1.5 rounded" title="Azure Portal Home"><i class="fa-solid fa-house text-xs"></i></button>
+                    <button onclick="showAzureHome()" class="font-semibold text-xs flex items-center gap-1.5 hover:underline">
+                      <i class="fa-solid fa-cloud"></i><span>Microsoft Azure</span>
+                    </button>
+                  </div>
+
+                  <div class="relative w-80">
+                    <div class="flex items-center bg-white rounded px-2.5 py-1 text-slate-700 shadow-inner">
+                      <i class="fa-solid fa-magnifying-glass text-blue-600 text-xs mr-2"></i>
+                      <input type="text" id="azure-global-search" oninput="filterAzureSearch()" onfocus="filterAzureSearch()" placeholder="Search resources, services (type 'Entra')..." class="w-full text-xs outline-none bg-transparent text-slate-800">
+                    </div>
+                    <div id="azure-search-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-md shadow-2xl border border-slate-200 text-slate-800 py-1 z-50 text-xs"></div>
+                  </div>
+
+                  <div class="bg-blue-800/60 px-2 py-0.5 rounded text-[11px] font-mono">tibinjohn193@gmail.com</div>
+                </nav>
+
+                <!-- Azure Home Dashboard -->
+                <div id="azure-home-dashboard" class="flex-1 overflow-y-auto p-5 space-y-5 bg-white">
+                  <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <div>
+                      <h2 class="text-base font-bold text-slate-900">Azure Services</h2>
+                      <p class="text-[11px] text-slate-500">Use the top search bar to search for <strong>Microsoft Entra ID</strong>.</p>
+                    </div>
+                    <span class="text-[11px] bg-blue-50 text-blue-700 px-2.5 py-1 rounded border border-blue-200 font-medium">
+                      <i class="fa-solid fa-magnifying-glass mr-1"></i>Search "Entra" above
+                    </span>
+                  </div>
+
+                  <div class="grid grid-cols-4 gap-3 text-xs">
+                    <div onclick="showToast('Search for Microsoft Entra ID in the top bar.')" class="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-1.5"><i class="fa-solid fa-desktop text-2xl text-blue-500"></i><span>Virtual machines</span></div>
+                    <div onclick="showToast('Search for Microsoft Entra ID in the top bar.')" class="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-1.5"><i class="fa-solid fa-database text-2xl text-emerald-500"></i><span>Storage accounts</span></div>
+                    <div onclick="showToast('Search for Microsoft Entra ID in the top bar.')" class="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-1.5"><i class="fa-solid fa-network-wired text-2xl text-cyan-600"></i><span>Virtual networks</span></div>
+                    <div onclick="showToast('Search for Microsoft Entra ID in the top bar.')" class="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-1.5"><i class="fa-solid fa-cubes text-2xl text-indigo-500"></i><span>Resource groups</span></div>
+                    <div onclick="showToast('Search for Microsoft Entra ID in the top bar.')" class="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-1.5"><i class="fa-solid fa-globe text-2xl text-sky-500"></i><span>App Services</span></div>
+                    <div onclick="showToast('Search for Microsoft Entra ID in the top bar.')" class="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-1.5"><i class="fa-solid fa-server text-2xl text-purple-500"></i><span>SQL databases</span></div>
+                    <div onclick="showToast('Search for Microsoft Entra ID in the top bar.')" class="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-1.5"><i class="fa-solid fa-chart-line text-2xl text-amber-500"></i><span>Monitor</span></div>
+                    <div onclick="showToast('Search for Microsoft Entra ID in the top bar.')" class="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-1.5"><i class="fa-solid fa-key text-2xl text-yellow-600"></i><span>Subscriptions</span></div>
+                  </div>
+                </div>
+
+                <!-- Entra ID Service View -->
+                <div id="azure-entra-service-view" class="hidden flex-1 flex overflow-hidden">
+                  <div class="w-48 bg-white border-r border-slate-200 p-2 space-y-1 text-xs shrink-0">
+                    <div class="font-semibold text-[10px] text-slate-400 uppercase px-2 py-1">Microsoft Entra ID</div>
+                    <button onclick="switchAzureBlade('entra-overview')" id="nav-btn-entra-overview" class="w-full flex items-center gap-2 px-2 py-1.5 rounded bg-blue-50 text-blue-700 font-medium text-left">
+                      <i class="fa-solid fa-id-badge text-blue-600"></i><span>Overview &amp; Sync</span>
+                    </button>
+                    <button onclick="switchAzureBlade('entra-domains')" id="nav-btn-entra-domains" class="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 text-left text-slate-700">
+                      <i class="fa-solid fa-globe text-slate-500"></i><span>Custom domain names</span>
+                    </button>
+                    <button onclick="switchAzureBlade('entra-users')" id="nav-btn-entra-users" class="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 text-left text-slate-700">
+                      <i class="fa-solid fa-users text-slate-500"></i><span>Users &gt; All Users</span>
+                    </button>
+                  </div>
+
+                  <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <!-- Overview Blade -->
+                    <div id="blade-entra-overview" class="space-y-4">
+                      <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                          <div class="w-10 h-10 rounded bg-blue-600 text-white flex items-center justify-center text-xl"><i class="fa-solid fa-id-badge"></i></div>
+                          <div>
+                            <h2 class="text-sm font-bold text-slate-900">Microsoft Entra ID | Overview</h2>
+                            <div class="text-[11px] text-slate-500 space-x-2">
+                              <span>Tenant ID: <strong class="font-mono text-slate-800">9b23f81e-43a0-496a-smec</strong></span>
+                              <span>Primary: <strong class="font-mono text-blue-600">smec.onmicrosoft.com</strong></span>
+                            </div>
+                          </div>
+                        </div>
+                        <button id="btn-verify-tenant" onclick="verifyAzureTenant()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold shadow pulse-highlight">
+                          Verify Tenant
+                        </button>
+                      </div>
+
+                      <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                          <span class="font-semibold text-xs text-slate-800"><i class="fa-solid fa-arrows-split-up-and-left text-blue-600 mr-1.5"></i>Microsoft Entra Connect</span>
+                          <span id="entra-cloud-sync-badge" class="bg-amber-100 text-amber-800 text-[10px] font-medium px-2 py-0.5 rounded border border-amber-200">
+                            Sync Status: Not Configured
+                          </span>
+                        </div>
+                        <div class="p-4 space-y-3">
+                          <div class="grid grid-cols-3 gap-3 text-xs">
+                            <div class="p-2.5 rounded bg-slate-50 border border-slate-200">
+                              <span class="text-[10px] text-slate-500 block">Directory Sync Status</span>
+                              <span class="font-semibold text-red-600 text-[11px]" id="stat-sync-enabled">Disabled</span>
+                            </div>
+                            <div class="p-2.5 rounded bg-slate-50 border border-slate-200">
+                              <span class="text-[10px] text-slate-500 block">Password Hash Sync</span>
+                              <span class="font-semibold text-slate-600 text-[11px]" id="stat-phs-enabled">Disabled</span>
+                            </div>
+                            <div class="p-2.5 rounded bg-slate-50 border border-slate-200">
+                              <span class="text-[10px] text-slate-500 block">Last Directory Sync</span>
+                              <span class="font-semibold text-slate-600 text-[11px]" id="stat-last-sync">Never</span>
+                            </div>
+                          </div>
+                          <div class="pt-1 flex items-center gap-3">
+                            <button id="btn-download-entra" onclick="triggerDownloadEntraConnect()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs py-2 px-4 rounded shadow flex items-center gap-2">
+                              <i class="fa-solid fa-download"></i><span>Download Microsoft Entra Connect</span>
+                            </button>
+                            <button id="btn-verify-sync-health" onclick="verifySyncHealthFinal()" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2 px-4 rounded shadow flex items-center gap-2 pulse-highlight">
+                              <i class="fa-solid fa-heart-pulse"></i><span>Verify Sync Status &amp; Last Sync</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Custom Domain Names Blade -->
+                    <div id="blade-entra-domains" class="hidden space-y-4">
+                      <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm">
+                        <h2 class="text-sm font-bold text-slate-900">Custom domain names</h2>
+                        <p class="text-[11px] text-slate-500">Verify your full on-premises domain (<span class="font-mono">smec.com</span>).</p>
+                      </div>
+                      <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden text-xs">
+                        <table class="w-full text-left border-collapse">
+                          <thead>
+                            <tr class="bg-slate-100 text-slate-600 border-b border-slate-200 text-[11px]">
+                              <th class="py-2 px-3">Domain Name</th><th class="py-2 px-3">DNS TXT</th><th class="py-2 px-3">Status</th><th class="py-2 px-3">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody class="divide-y divide-slate-100 font-mono text-[11px]">
+                            <tr><td class="py-2.5 px-3 font-semibold">smec.onmicrosoft.com</td><td class="py-2.5 px-3 text-slate-400">Initial Domain</td><td class="py-2.5 px-3 text-emerald-600 font-bold">Verified</td><td class="py-2.5 px-3">-</td></tr>
+                            <tr class="bg-blue-50/40">
+                              <td class="py-2.5 px-3 font-bold text-blue-800">smec.com</td>
+                              <td class="py-2.5 px-3 text-slate-600">MS=ms92847102</td>
+                              <td class="py-2.5 px-3" id="custom-domain-status"><span class="text-amber-600 font-semibold">Unverified</span></td>
+                              <td class="py-2.5 px-3"><button id="btn-verify-domain" onclick="verifyCustomDomain()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-[11px] font-sans font-semibold shadow">Verify Domain</button></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <!-- Users Blade -->
+                    <div id="blade-entra-users" class="hidden space-y-4">
+                      <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                          <h2 class="text-sm font-bold text-slate-900">Users | All Users</h2>
+                          <p class="text-[11px] text-slate-500" id="cloud-users-count-badge">1 User Total (0 Synced)</p>
+                        </div>
+                        <button onclick="checkUsersVerification()" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 text-xs border border-slate-300">
+                          <i class="fa-solid fa-rotate-right mr-1"></i>Refresh
+                        </button>
+                      </div>
+                      <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden text-xs">
+                        <table class="w-full text-left border-collapse">
+                          <thead>
+                            <tr class="bg-slate-100 text-slate-600 border-b border-slate-200 text-[11px]">
+                              <th class="py-2 px-3">Display Name</th><th class="py-2 px-3">UPN</th><th class="py-2 px-3">On-Prem Sync</th><th class="py-2 px-3">Source</th>
+                            </tr>
+                          </thead>
+                          <tbody id="cloud-users-table-body" class="divide-y divide-slate-100 font-mono text-[11px]">
+                            <tr><td class="py-2 px-3 font-semibold">Tibin John (Global Admin)</td><td class="py-2 px-3">tibinjohn193@gmail.com</td><td class="py-2 px-3 text-slate-400">No</td><td class="py-2 px-3 text-slate-400">Cloud Only</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div id="users-verified-banner" class="hidden p-3 rounded-lg bg-emerald-50 border border-emerald-500 text-emerald-900 text-xs">
+                        <strong>Users Verified!</strong> Full domain accounts (User1, User2, HRUser) are synced. Click <strong>Overview &amp; Sync</strong> to verify Sync Status &amp; Last Sync.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- WINDOW: Microsoft Entra Connect Setup Wizard -->
+        <div id="win-wizard" class="hidden absolute w-[760px] h-[530px] rounded-lg win-glass flex flex-col overflow-hidden shadow-2xl z-40" style="top: 22px; left: 110px;">
+          <div class="win-header h-9 bg-slate-800 text-slate-200 flex items-center justify-between px-3 border-b border-slate-700" onmousedown="startDrag(event, 'win-wizard')">
+            <div class="flex items-center gap-2 text-xs font-semibold">
+              <i class="fa-solid fa-arrows-split-up-and-left text-blue-400"></i>
+              <span>Microsoft Entra Connect</span>
+            </div>
+            <button onclick="closeWindow('win-wizard')" class="h-full px-3 hover:bg-red-600"><i class="fa-solid fa-xmark text-xs"></i></button>
+          </div>
+
+          <div class="flex-1 flex overflow-hidden bg-white">
+            <div class="w-52 bg-slate-50 border-r border-slate-200 p-2.5 space-y-1 text-[11px] shrink-0 overflow-y-auto">
+              <div class="text-[10px] font-bold text-slate-400 uppercase px-2 mb-1">Wizard Progress</div>
+              <div id="wiz-nav-1" class="entra-sidebar-step active p-1.5 rounded">1. Welcome</div>
+              <div id="wiz-nav-2" class="entra-sidebar-step pending p-1.5 rounded">2. Express Settings Info</div>
+              <div id="wiz-nav-3" class="entra-sidebar-step pending p-1.5 rounded">3. Connect to Entra ID</div>
+              <div id="wiz-nav-4" class="entra-sidebar-step pending p-1.5 rounded">4. Connect to AD DS</div>
+              <div id="wiz-nav-5" class="entra-sidebar-step pending p-1.5 rounded">5. Full Domain Sync</div>
+              <div id="wiz-nav-6" class="entra-sidebar-step pending p-1.5 rounded">6. Password Hash Sync</div>
+              <div id="wiz-nav-7" class="entra-sidebar-step pending p-1.5 rounded">7. Initial Sync Option</div>
+              <div id="wiz-nav-8" class="entra-sidebar-step pending p-1.5 rounded">8. Config Summary</div>
+              <div id="wiz-nav-9" class="entra-sidebar-step pending p-1.5 rounded">9. Initial Synchronization</div>
+            </div>
+
+            <div class="flex-1 flex flex-col justify-between p-5 bg-white overflow-y-auto">
+              <div id="wiz-page-1" class="space-y-4">
+                <h2 class="text-lg font-semibold text-slate-900">Welcome to Microsoft Entra Connect</h2>
+                <p class="text-xs text-slate-600">Synchronize your entire on-premises Active Directory domain (<span class="font-mono font-bold">smec.com</span>) with Microsoft Entra ID.</p>
+                <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800 pt-2">
+                  <input type="checkbox" id="wiz-terms-check" class="w-4 h-4 text-blue-600">
+                  <span>I agree to the license terms and privacy notice.</span>
+                </label>
+                <p id="terms-warning" class="hidden text-xs text-red-600">Please accept the license terms to continue.</p>
+              </div>
+
+              <div id="wiz-page-2" class="hidden space-y-3">
+                <h2 class="text-lg font-semibold text-slate-900">Express Settings Overview</h2>
+                <p class="text-xs text-slate-600">Review what Express Settings configures automatically for a full domain sync:</p>
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                  <div class="p-3 bg-blue-50 border border-blue-200 rounded space-y-1.5">
+                    <div class="font-bold text-blue-900"><i class="fa-solid fa-bolt mr-1"></i>Express Settings</div>
+                    <ul class="list-disc pl-4 text-[11px] text-slate-700 space-y-1">
+                      <li>Syncs the <strong>full domain (smec.com)</strong> including all OUs.</li>
+                      <li>Enables Password Hash Sync (PHS).</li>
+                      <li>Uses SQL Server Express LocalDB.</li>
+                    </ul>
+                  </div>
+                  <div class="p-3 bg-slate-50 border border-slate-200 rounded space-y-1.5">
+                    <div class="font-bold text-slate-800"><i class="fa-solid fa-sliders mr-1"></i>Guided Verification</div>
+                    <ul class="list-disc pl-4 text-[11px] text-slate-600 space-y-1">
+                      <li>Verify full domain selection (<code>smec.com</code>).</li>
+                      <li>Confirm PHS &amp; Initial Sync checkboxes.</li>
+                      <li>Inspect full Configuration Summary.</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="pt-2">
+                  <button onclick="completeExpressInfo()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs py-2 px-4 rounded shadow">
+                    Acknowledge &amp; Continue Setup
+                  </button>
+                </div>
+              </div>
+
+              <div id="wiz-page-3" class="hidden space-y-3">
+                <h2 class="text-lg font-semibold text-slate-900">Connect to Microsoft Entra ID</h2>
+                <div id="wiz-cloud-error" class="hidden p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded"></div>
+                <div class="space-y-3 max-w-md text-xs">
+                  <div>
+                    <label class="block font-semibold text-slate-700 mb-1">GLOBAL ADMIN USERNAME</label>
+                    <input type="text" id="wiz-cloud-user" placeholder="tibinjohn193@gmail.com" class="w-full px-3 py-2 border border-slate-300 rounded font-mono">
+                  </div>
+                  <div>
+                    <label class="block font-semibold text-slate-700 mb-1">PASSWORD</label>
+                    <input type="password" id="wiz-cloud-pass" placeholder="password123" class="w-full px-3 py-2 border border-slate-300 rounded font-mono">
+                  </div>
+                </div>
+              </div>
+
+              <div id="wiz-page-4" class="hidden space-y-3">
+                <h2 class="text-lg font-semibold text-slate-900">Connect to AD DS (smec.com)</h2>
+                <div id="wiz-ad-error" class="hidden p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded"></div>
+                <div class="space-y-3 max-w-md text-xs">
+                  <div>
+                    <label class="block font-semibold text-slate-700 mb-1">ENTERPRISE ADMIN USERNAME</label>
+                    <input type="text" id="wiz-ad-user" placeholder="SMEC\Administrator" class="w-full px-3 py-2 border border-slate-300 rounded font-mono">
+                  </div>
+                  <div>
+                    <label class="block font-semibold text-slate-700 mb-1">PASSWORD</label>
+                    <input type="password" id="wiz-ad-pass" placeholder="password123" class="w-full px-3 py-2 border border-slate-300 rounded font-mono">
+                  </div>
+                </div>
+              </div>
+
+              <div id="wiz-page-5" class="hidden space-y-3">
+                <h2 class="text-lg font-semibold text-slate-900">Domain and OU Filtering – Full Domain Sync</h2>
+                <p class="text-xs text-slate-600">Select <strong>Sync all domains and OUs</strong> to synchronize the entire <strong>smec.com</strong> domain:</p>
+                <div id="wiz-ou-error" class="hidden p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded"></div>
+                <div class="space-y-2 text-xs">
+                  <label class="flex items-center gap-2 font-semibold text-blue-800 cursor-pointer">
+                    <input type="radio" name="ou-mode" id="radio-sync-all" value="all" onchange="toggleDomainTreeSyncMode(true)">
+                    <span>Sync all domains and OUs (Full Domain: smec.com)</span>
+                  </label>
+                  <label class="flex items-center gap-2 text-slate-600 cursor-pointer">
+                    <input type="radio" name="ou-mode" id="radio-sync-selected" value="selected" checked onchange="toggleDomainTreeSyncMode(false)">
+                    <span>Sync selected domains and OUs</span>
+                  </label>
+                </div>
+                <div class="p-3 bg-slate-50 border border-slate-300 rounded text-xs font-mono space-y-1.5">
+                  <label class="flex items-center gap-2 font-bold text-slate-800">
+                    <input type="checkbox" id="ou-chk-root" onchange="toggleRootDomainCheck(this.checked)">
+                    <i class="fa-solid fa-globe text-blue-600"></i><span>smec.com (Entire Domain)</span>
+                  </label>
+                  <div class="pl-6 space-y-1">
+                    <label class="flex items-center gap-2"><input type="checkbox" class="child-ou-chk" id="ou-chk-builtin"><span>Builtin</span></label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="child-ou-chk" id="ou-chk-computers"><span>Computers</span></label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="child-ou-chk" id="ou-chk-hr"><span>HR (OU=HR)</span></label>
+                    <label class="flex items-center gap-2 text-blue-700 font-semibold"><input type="checkbox" class="child-ou-chk" id="ou-chk-tech"><span>Tech (OU=Tech)</span></label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="child-ou-chk" id="ou-chk-users"><span>Users (CN=Users)</span></label>
+                  </div>
+                </div>
+              </div>
+
+              <div id="wiz-page-6" class="hidden space-y-3">
+                <h2 class="text-lg font-semibold text-slate-900">Password Hash Synchronization (PHS)</h2>
+                <div id="wiz-phs-error" class="hidden p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded"></div>
+                <div class="p-3.5 bg-slate-50 border border-slate-200 rounded space-y-2 text-xs">
+                  <label class="flex items-center gap-2.5 font-semibold text-slate-800 cursor-pointer">
+                    <input type="checkbox" id="wiz-phs-check" class="w-4 h-4 text-blue-600">
+                    <span>Enable Password Hash Synchronization (PHS)</span>
+                  </label>
+                  <p class="text-[11px] text-slate-500 pl-6">Synchronizes password hashes from on-premises AD DS to Microsoft Entra ID.</p>
+                </div>
+              </div>
+
+              <div id="wiz-page-7" class="hidden space-y-3">
+                <h2 class="text-lg font-semibold text-slate-900">Ready to Configure – Initial Sync</h2>
+                <div id="wiz-sync-chk-error" class="hidden p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded"></div>
+                <div class="p-3.5 bg-blue-50 border border-blue-200 rounded text-xs">
+                  <label class="flex items-center gap-2.5 font-semibold text-slate-900 cursor-pointer">
+                    <input type="checkbox" id="wiz-sync-now-check" class="w-4 h-4 text-blue-600">
+                    <span>Start the synchronization process when configuration completes.</span>
+                  </label>
+                </div>
+              </div>
+
+              <div id="wiz-page-8" class="hidden space-y-3">
+                <h2 class="text-lg font-semibold text-slate-900">Synchronization Configuration Summary</h2>
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5 font-mono">
+                  <div class="flex justify-between"><span class="text-slate-500">Pre-Checks:</span><span class="font-bold text-emerald-700">IdFix Clean + Port 443 / TLS 1.2 OK</span></div>
+                  <div class="flex justify-between"><span class="text-slate-500">Source Forest:</span><span class="font-bold text-slate-800">smec.com</span></div>
+                  <div class="flex justify-between"><span class="text-slate-500">Sync Scope:</span><span class="font-bold text-blue-700">Full Domain (All OUs: Tech, HR, Users)</span></div>
+                  <div class="flex justify-between"><span class="text-slate-500">Verified Custom Domain:</span><span class="font-bold text-emerald-700">smec.com (Verified)</span></div>
+                  <div class="flex justify-between"><span class="text-slate-500">Sign-in Method:</span><span class="font-bold text-emerald-700">Password Hash Synchronization</span></div>
+                  <div class="flex justify-between"><span class="text-slate-500">Initial Sync Trigger:</span><span class="font-bold text-emerald-700">Enabled</span></div>
+                </div>
+              </div>
+
+              <div id="wiz-page-9" class="hidden space-y-4">
+                <div id="wiz-installing-state" class="space-y-3">
+                  <h2 class="text-lg font-semibold text-slate-900">Running Initial Synchronization</h2>
+                  <div class="flex justify-between text-xs font-medium text-slate-700">
+                    <span id="install-step-status-text">Initializing ADSync Engine...</span>
+                    <span id="install-pct-text">15%</span>
+                  </div>
+                  <div class="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
+                    <div id="install-progress-bar" class="bg-blue-600 h-full w-[15%] transition-all duration-500"></div>
+                  </div>
+                  <div class="p-3 bg-slate-900 text-emerald-400 rounded text-[11px] font-mono space-y-1">
+                    <div>[INFO] Full Import: DC=smec,DC=com (Scope: Full Domain)</div>
+                    <div id="install-log-2" class="hidden">[INFO] Staging OU=Tech: User1 (user1@smec.com), User2 (user2@smec.com)</div>
+                    <div id="install-log-3" class="hidden">[INFO] Staging OU=HR: HRUser (hruser@smec.com) [Remediated via IdFix]</div>
+                    <div id="install-log-4" class="hidden">[INFO] Password Hash Sync: Hashes exported over TLS 1.2 (Port 443)</div>
+                    <div id="install-log-5" class="hidden text-white font-bold">[SUCCESS] Initial Full Domain Synchronization Complete!</div>
+                  </div>
+                </div>
+
+                <div id="wiz-complete-state" class="hidden space-y-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl"><i class="fa-solid fa-circle-check"></i></div>
+                    <div>
+                      <h2 class="text-lg font-semibold text-slate-900">Configuration &amp; Initial Sync Complete</h2>
+                      <p class="text-xs text-slate-600">Click <strong>Exit</strong>, then manually return to Microsoft Edge to verify synced users in Entra ID.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="border-t border-slate-200 pt-3 flex items-center justify-between text-xs">
+                <button id="wiz-btn-previous" onclick="wizardPreviousStep()" class="hidden px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-300">Previous</button>
+                <div class="flex items-center gap-2 ml-auto">
+                  <button id="wiz-btn-next" onclick="wizardNextStep()" class="px-5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded shadow">
+                    <span id="wiz-next-text">Continue</span>
+                  </button>
+                  <button onclick="closeWindow('win-wizard')" class="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-300">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- START MENU -->
+        <div id="win-start-menu" class="hidden absolute bottom-2 left-2 w-72 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-700 text-white shadow-2xl p-4 z-50">
+          <div class="pb-3 border-b border-slate-800 flex justify-between items-center">
+            <span class="text-xs font-bold">Administrator (smec.com)</span>
+            <button onclick="toggleStartMenu()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xs"></i></button>
+          </div>
+          <div class="py-2 space-y-1 text-xs">
+            <button onclick="openRunDialog(); toggleStartMenu();" class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-slate-800 text-left">
+              <svg class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+              <span>Run... (dsa.msc)</span>
+            </button>
+            <button onclick="openAducWindow(); toggleStartMenu();" class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-slate-800 text-left"><i class="fa-solid fa-users text-emerald-400"></i><span>AD Users &amp; Computers</span></button>
+            <button onclick="openPowershellWindow(); toggleStartMenu();" class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-slate-800 text-left"><i class="fa-solid fa-terminal text-sky-400"></i><span>Windows PowerShell</span></button>
+            <button onclick="openEdgeBrowser(); toggleStartMenu();" class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-slate-800 text-left"><i class="fa-brands fa-edge text-sky-400"></i><span>Microsoft Edge</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Taskbar -->
+      <footer class="h-11 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between px-3 z-50">
+        <div class="flex items-center gap-1.5">
+          <button onclick="toggleStartMenu()" class="h-9 px-3 rounded hover:bg-white/10 text-blue-400"><i class="fa-brands fa-windows text-base"></i></button>
+          <button onclick="openRunDialog()" class="h-9 w-9 rounded hover:bg-white/10 text-blue-400 flex items-center justify-center" title="Run">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+          </button>
+          <button onclick="openAducWindow()" class="h-9 w-9 rounded hover:bg-white/10 text-emerald-400" title="ADUC"><i class="fa-solid fa-users text-sm"></i></button>
+          <button onclick="openPowershellWindow()" class="h-9 w-9 rounded hover:bg-white/10 text-sky-300" title="PowerShell"><i class="fa-solid fa-terminal text-sm"></i></button>
+          <button onclick="openEdgeBrowser()" class="h-9 w-9 rounded hover:bg-white/10 text-sky-400" title="Microsoft Edge"><i class="fa-brands fa-edge text-lg"></i></button>
+          <button id="taskbar-idfix-btn" onclick="openIdfixWindow()" class="hidden h-9 w-9 rounded hover:bg-white/10 text-purple-400" title="IdFix"><i class="fa-solid fa-wrench text-sm"></i></button>
+          <button id="taskbar-wizard-btn" onclick="openEntraWizard()" class="hidden h-9 w-9 rounded hover:bg-white/10 text-blue-400" title="Entra Connect"><i class="fa-solid fa-arrows-split-up-and-left text-base"></i></button>
+        </div>
+        <div class="text-right text-xs text-slate-300 leading-tight">
+          <div id="system-time" class="font-semibold">10:25</div>
+          <div id="system-date" class="text-[10px] text-slate-400">11/19/2026</div>
+        </div>
+      </footer>
+    </main>
+
+    <!-- RIGHT PANEL: 14-Step Interactive Guide (Slim Width w-72) -->
+    <aside class="w-72 bg-slate-900 border-l border-slate-800 flex flex-col text-slate-300 z-20 shrink-0">
+      <div class="p-3 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between">
+        <div class="flex items-center gap-2 text-white font-semibold text-sm">
+          <i class="fa-solid fa-list-check text-blue-400"></i>
+          <span>Interactive Lab Guide</span>
+        </div>
+        <span id="guide-progress-pct" class="bg-blue-950 text-blue-300 px-2 py-0.5 rounded text-[11px] font-mono font-bold border border-blue-800">0%</span>
+      </div>
+
+      <div class="p-3 bg-slate-900 border-b border-slate-800">
+        <div class="flex justify-between text-[11px] text-slate-400 mb-1.5">
+          <span>Progress</span>
+          <span id="guide-progress-fraction">0 / 14 Steps</span>
+        </div>
+        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+          <div id="guide-progress-bar" class="bg-gradient-to-r from-blue-500 to-emerald-500 h-full w-[0%] transition-all duration-300"></div>
+        </div>
+      </div>
+
+      <div id="steps-container" class="flex-1 overflow-y-auto p-2.5 space-y-2 text-xs"></div>
+
+      <div id="guide-congrats-card" class="hidden m-2.5 p-3 rounded-lg bg-emerald-950/70 border border-emerald-500 text-emerald-200 text-xs">
+        <div class="font-bold text-white flex items-center gap-1.5 mb-1"><i class="fa-solid fa-award text-yellow-400"></i><span>100% Completed!</span></div>
+        <p class="text-[11px]">Pre-checks (IdFix, Port 443, TLS 1.2) &amp; Full smec.com sync verified!</p>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const REQUIRED_CLOUD_EMAIL = 'tibinjohn193@gmail.com';
+    const REQUIRED_CLOUD_PASS = 'password123';
+    const REQUIRED_AD_USER = 'SMEC\\Administrator';
+    const REQUIRED_AD_PASS = 'password123';
+
+    const AZURE_SERVICES_CATALOG = [
+      { name: 'Microsoft Entra ID', desc: 'Identity & Access Management (Azure AD)', icon: 'fa-id-badge', color: 'text-blue-600', target: 'entra' },
+      { name: 'Virtual machines', desc: 'Provision Windows and Linux VMs', icon: 'fa-desktop', color: 'text-blue-500', target: 'other' },
+      { name: 'Storage accounts', desc: 'Scalable cloud storage', icon: 'fa-database', color: 'text-emerald-500', target: 'other' },
+      { name: 'Virtual networks', desc: 'Private networks in Azure', icon: 'fa-network-wired', color: 'text-cyan-600', target: 'other' },
+      { name: 'Microsoft Entra Connect', desc: 'Hybrid identity synchronization', icon: 'fa-arrows-split-up-and-left', color: 'text-blue-600', target: 'entra' }
+    ];
+
+    const STEPS_DATA = [
+      { id: 1, title: 'Local AD (dsa.msc) & UPN Check', desc: 'Open Run -> type dsa.msc. Click Tech OU -> double-click <strong>User1</strong> -> check <strong>Account</strong> tab (Prefix: <code>user1</code>, Suffix: <code>@smec.com</code> — verifies no spaces/errors in username) -> click OK.' },
+      { id: 2, title: 'Microsoft IdFix Tool Check', desc: 'Open Edge -> Download IdFix.exe -> Run -> Click <strong>Query</strong> -> Click <strong>Apply</strong> to fix HRUser.<div class="mt-1 p-1.5 bg-purple-950/60 rounded border border-purple-700/60 text-[9.5px] text-purple-200"><strong>Why IdFix?</strong> Scans local AD before cloud sync to find &amp; fix spaces, invalid characters, duplicate emails, and .local domains so Entra Connect sync never fails.</div>' },
+      { id: 3, title: 'Network (Port 443) & TLS 1.2 Check', desc: 'Open PowerShell and manually type these 2 commands:<br><div class="mt-1 p-1.5 bg-slate-950 rounded border border-slate-700 font-mono text-[9.5px] text-sky-300 select-text">Test-NetConnection login.microsoftonline.com -Port 443</div><span class="text-[9.5px] text-slate-400">Checks if outbound Port 443 is open to reach Azure.</span><div class="mt-1 p-1.5 bg-slate-950 rounded border border-slate-700 font-mono text-[9.5px] text-emerald-300 select-text">[Net.ServicePointManager]::SecurityProtocol</div><span class="text-[9.5px] text-slate-400">Checks if TLS 1.2 is enabled for Entra Connect.</span>' },
+      { id: 4, title: 'Azure Login & Search Entra ID', desc: 'In Edge, click the "Microsoft Azure Portal" bookmark, sign in, then search "Entra" in the top Azure search bar and open Microsoft Entra ID.' },
+      { id: 5, title: 'Azure Tenant Verification', desc: 'In Microsoft Entra ID Overview, verify Tenant ID & primary domain by clicking "Verify Tenant".' },
+      { id: 6, title: 'smec.com Custom Domain Check', desc: 'Go to "Custom domain names" blade and click "Verify Domain" for smec.com.' },
+      { id: 7, title: 'Entra Connect & Express Info', desc: 'Go to Overview -> Download & Run Entra Connect, accept terms, and review Express Settings.' },
+      { id: 8, title: 'Full Domain Sync (smec.com)', desc: 'Sign in to Entra ID & AD DS in Wizard, then select "Sync all domains and OUs" to sync the full smec.com domain.' },
+      { id: 9, title: 'Password Hash Sync (PHS)', desc: 'Check "Enable Password Hash Synchronization (PHS)" and click Next.' },
+      { id: 10, title: 'Initial Sync Checkbox Check', desc: 'Check "Start the synchronization process when configuration completes" and click Next.' },
+      { id: 11, title: 'Sync Configuration Summary', desc: 'Review Pre-Checks, Full Domain (smec.com), PHS, and Initial Sync in Summary, then click Install.' },
+      { id: 12, title: 'Initial Synchronization', desc: 'Wait for Full Domain Initial Sync to complete, then click Exit.' },
+      { id: 13, title: 'Azure Portal: Users Verification', desc: 'Manually return to Edge -> Users > All Users to verify User1, User2 & HRUser are synced.' },
+      { id: 14, title: 'Sync Status & Last Sync Check', desc: 'Go to Overview & Sync in Entra ID and click "Verify Sync Status & Last Sync".' }
+    ];
+
+    const labState = {
+      currentStep: 1,
+      aducTechInspected: false,
+      aducUpnValidated: false,
+      idfixDownloaded: false,
+      idfixQueried: false,
+      idfixFixed: false,
+      psPortChecked: false,
+      psTlsChecked: false,
+      entraDownloaded: false,
+      wizardPage: 1,
+      syncConfigured: false,
+      activeZIndex: 100
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderStepsList();
+      advanceTracker(1);
+      updateClock();
+      setInterval(updateClock, 1000);
+    });
+
+    function renderStepsList() {
+      document.getElementById('steps-container').innerHTML = STEPS_DATA.map(s => `
+        <div id="guide-step-${s.id}" class="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800 text-slate-400 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200 flex items-center gap-1.5 text-[11px]">
+              <span id="badge-step-${s.id}" class="w-4 h-4 rounded-full bg-slate-700 text-slate-300 text-[10px] flex items-center justify-center font-bold shrink-0">${s.id}</span>
+              <span>${s.title}</span>
+            </span>
+          </div>
+          <p class="text-[10px] text-slate-400 leading-snug pl-5">${s.desc}</p>
+        </div>
+      `).join('');
+    }
+
+    function advanceTracker(stepNum) {
+      if (stepNum < labState.currentStep) return;
+      labState.currentStep = stepNum;
+      const completed = Math.min(stepNum - 1, 14);
+      const pct = Math.round((completed / 14) * 100);
+
+      document.getElementById('guide-progress-pct').innerText = `${pct}%`;
+      document.getElementById('guide-progress-bar').style.width = `${pct}%`;
+      document.getElementById('guide-progress-fraction').innerText = `${completed} / 14 Steps`;
+
+      STEPS_DATA.forEach(s => {
+        const card = document.getElementById(`guide-step-${s.id}`);
+        const badge = document.getElementById(`badge-step-${s.id}`);
+        if (s.id < stepNum) {
+          card.className = 'p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-500/40 text-slate-300';
+          badge.className = 'w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center font-bold shrink-0';
+          badge.innerHTML = '<i class="fa-solid fa-check text-[9px]"></i>';
+        } else if (s.id === stepNum) {
+          card.className = 'p-2.5 rounded-lg bg-blue-950/50 border-2 border-blue-500 text-slate-100 shadow-sm';
+          badge.className = 'w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold shrink-0';
+          badge.innerText = s.id;
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          card.className = 'p-2.5 rounded-lg bg-slate-800/40 border border-slate-800 text-slate-400';
+          badge.className = 'w-4 h-4 rounded-full bg-slate-700 text-slate-300 text-[10px] flex items-center justify-center font-bold shrink-0';
+          badge.innerText = s.id;
+        }
+      });
+
+      if (stepNum > 14) {
+        document.getElementById('guide-congrats-card').classList.remove('hidden');
+        showToast('100% Lab Completed!');
+      }
+    }
+
+    // Window Management & Dragging
+    let dragState = { isDragging: false, winId: null, sx: 0, sy: 0, ex: 0, ey: 0 };
+    function startDrag(e, winId) {
+      bringToFront(winId);
+      const el = document.getElementById(winId);
+      dragState = { isDragging: true, winId, sx: e.clientX, sy: e.clientY, ex: el.offsetLeft, ey: el.offsetTop };
+      document.addEventListener('mousemove', onDragMove);
+      document.addEventListener('mouseup', () => { dragState.isDragging = false; document.removeEventListener('mousemove', onDragMove); }, { once: true });
+    }
+    function onDragMove(e) {
+      if (!dragState.isDragging) return;
+      const el = document.getElementById(dragState.winId);
+      el.style.left = Math.max(0, dragState.ex + (e.clientX - dragState.sx)) + 'px';
+      el.style.top = Math.max(0, dragState.ey + (e.clientY - dragState.sy)) + 'px';
+    }
+    function bringToFront(id) { document.getElementById(id).style.zIndex = ++labState.activeZIndex; }
+    function openRunDialog() { document.getElementById('win-run').classList.remove('hidden'); bringToFront('win-run'); setTimeout(() => document.getElementById('run-dialog-input').focus(), 40); }
+    function openAducWindow() { document.getElementById('win-aduc').classList.remove('hidden'); bringToFront('win-aduc'); }
+    function openIdfixWindow() { document.getElementById('win-idfix').classList.remove('hidden'); bringToFront('win-idfix'); document.getElementById('taskbar-idfix-btn').classList.remove('hidden'); }
+    function openPowershellWindow() { document.getElementById('win-powershell').classList.remove('hidden'); bringToFront('win-powershell'); setTimeout(() => document.getElementById('ps-cmd-input').focus(), 50); }
+    function openServerManager() { document.getElementById('win-server-manager').classList.remove('hidden'); bringToFront('win-server-manager'); }
+    function openEdgeBrowser() { document.getElementById('win-edge').classList.remove('hidden'); bringToFront('win-edge'); }
+    function openEntraWizard() { document.getElementById('win-wizard').classList.remove('hidden'); bringToFront('win-wizard'); document.getElementById('taskbar-wizard-btn').classList.remove('hidden'); }
+    function closeWindow(id) { document.getElementById(id).classList.add('hidden'); }
+    function minimizeWindow(id) { document.getElementById(id).classList.add('hidden'); }
+    function maximizeWindow(id) {
+      const el = document.getElementById(id);
+      if (el.style.width === '100%') { el.style.width = '780px'; el.style.height = '525px'; el.style.top = '18px'; el.style.left = '85px'; }
+      else { el.style.width = '100%'; el.style.height = 'calc(100% - 8px)'; el.style.top = '4px'; el.style.left = '4px'; }
+    }
+    function toggleStartMenu() { document.getElementById('win-start-menu').classList.toggle('hidden'); }
+    function handleDesktopClick(e) {
+      const m = document.getElementById('win-start-menu');
+      if (!m.classList.contains('hidden') && !e.target.closest('#win-start-menu') && !e.target.closest('footer')) m.classList.add('hidden');
+      const dd = document.getElementById('azure-search-dropdown');
+      if (dd && !dd.classList.contains('hidden') && !e.target.closest('#azure-global-search') && !e.target.closest('#azure-search-dropdown')) dd.classList.add('hidden');
+    }
+    function executeRunCommand() {
+      const val = document.getElementById('run-dialog-input').value.trim().toLowerCase();
+      if (val === 'dsa.msc' || val === 'dsa') { closeWindow('win-run'); openAducWindow(); }
+      else if (val === 'powershell' || val === 'powershell.exe') { closeWindow('win-run'); openPowershellWindow(); }
+      else { showToast('Type dsa.msc or powershell.'); }
+    }
+
+    // STEP 1: ADUC OU Inspection & UPN Suffix Validation
+    function toggleDomainTree() {
+      const list = document.getElementById('ad-ou-list');
+      list.classList.toggle('hidden');
+      document.getElementById('ad-domain-caret').className = list.classList.contains('hidden') ? 'fa-solid fa-caret-right text-slate-500' : 'fa-solid fa-caret-down text-slate-500';
+    }
+    function selectAducOu(ou) {
+      const tbody = document.getElementById('aduc-objects-tbody');
+      document.getElementById('aduc-path-label').innerText = `Active Directory Users and Computers > smec.com > ${ou}`;
+      if (ou === 'Tech') {
+        document.getElementById('aduc-status-count').innerText = '2 objects in OU=Tech (Double-click User1 to open Properties)';
+        tbody.innerHTML = `
+          <tr ondblclick="openUser1Properties()" onclick="openUser1Properties()" class="selected cursor-pointer" title="Click/Double-click to open User1 Properties"><td class="font-semibold flex items-center gap-1.5"><i class="fa-solid fa-user text-blue-600"></i><span>User1</span><span class="text-[9px] bg-blue-100 text-blue-700 px-1 rounded ml-1">Inspect</span></td><td>User</td><td>Infrastructure Engineer</td><td class="font-mono text-blue-700 font-semibold">user1@smec.com</td></tr>
+          <tr><td class="font-semibold flex items-center gap-1.5"><i class="fa-solid fa-user text-blue-600"></i><span>User2</span></td><td>User</td><td>Cloud &amp; DevOps Specialist</td><td class="font-mono text-blue-700 font-semibold">user2@smec.com</td></tr>`;
+        labState.aducTechInspected = true;
+      } else if (ou === 'HR') {
+        document.getElementById('aduc-status-count').innerText = '1 object in OU=HR';
+        tbody.innerHTML = `<tr><td class="font-semibold flex items-center gap-1.5"><i class="fa-solid fa-user text-emerald-600"></i><span>HRUser</span></td><td>User</td><td>HR Coordinator</td><td class="font-mono text-amber-700 font-semibold">${labState.idfixFixed ? 'hruser@smec.com' : 'hr user@smec.com (space error)'}</td></tr>`;
+      } else if (ou === 'Users') {
+        document.getElementById('aduc-status-count').innerText = '2 objects in CN=Users';
+        tbody.innerHTML = `<tr><td class="font-semibold flex items-center gap-1.5"><i class="fa-solid fa-user text-slate-600"></i><span>Administrator</span></td><td>User</td><td>Built-in Domain Admin</td><td class="font-mono">Administrator@smec.com</td></tr>`;
+      } else {
+        document.getElementById('aduc-status-count').innerText = '0 user objects';
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6 italic">No user accounts in ${ou}.</td></tr>`;
+      }
+    }
+    function openUser1Properties() {
+      document.getElementById('win-user-props').classList.remove('hidden');
+      bringToFront('win-user-props');
+      switchUserPropTab('account');
+    }
+    function switchUserPropTab(tab) {
+      document.getElementById('up-pane-general').classList.toggle('hidden', tab !== 'general');
+      document.getElementById('up-pane-account').classList.toggle('hidden', tab !== 'account');
+      document.getElementById('tab-up-general').className = tab === 'general' ? 'px-3 py-1 rounded-t bg-white text-blue-700 font-bold border border-b-0 border-slate-300' : 'px-3 py-1 rounded-t bg-slate-100 text-slate-600 border border-b-0 border-slate-300';
+      document.getElementById('tab-up-account').className = tab === 'account' ? 'px-3 py-1 rounded-t bg-white text-blue-700 font-bold border border-b-0 border-slate-300' : 'px-3 py-1 rounded-t bg-slate-100 text-slate-600 border border-b-0 border-slate-300';
+    }
+    function confirmUserPropsOk() {
+      closeWindow('win-user-props');
+      if (!labState.aducUpnValidated) {
+        labState.aducUpnValidated = true;
+        showToast('Step 1 Complete! UPN Prefix (user1) & Suffix (@smec.com) verified. Close ADUC and open Edge.');
+        advanceTracker(2);
+      }
+    }
+    function closeAducWindow() { closeWindow('win-aduc'); }
+
+    // Edge Bookmarks & Downloads
+    function openEdgeSite(site) {
+      const idfixSite = document.getElementById('site-idfix-github');
+      const azureSite = document.getElementById('site-azure-portal');
+      const bmIdfix = document.getElementById('bm-idfix');
+      const bmAzure = document.getElementById('bm-azure');
+      if (site === 'idfix-github') {
+        idfixSite.classList.remove('hidden'); azureSite.classList.add('hidden');
+        document.getElementById('edge-url-text').innerText = 'https://github.com/microsoft/idfix/releases';
+        document.getElementById('edge-window-title').innerText = 'microsoft/idfix - GitHub - Microsoft Edge';
+        bmIdfix.className = 'px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold flex items-center gap-1.5';
+        bmAzure.className = 'px-2 py-0.5 rounded hover:bg-blue-100 text-slate-700 font-medium flex items-center gap-1.5';
+      } else {
+        idfixSite.classList.add('hidden'); azureSite.classList.remove('hidden');
+        document.getElementById('edge-url-text').innerText = 'https://portal.azure.com';
+        document.getElementById('edge-window-title').innerText = 'Microsoft Azure - Microsoft Edge';
+        bmAzure.className = 'px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold flex items-center gap-1.5';
+        bmIdfix.className = 'px-2 py-0.5 rounded hover:bg-purple-100 text-slate-700 font-medium flex items-center gap-1.5';
+      }
+    }
+
+    function refreshDownloadFlyout() {
+      const list = document.getElementById('download-flyout-list');
+      let html = '';
+      if (labState.entraDownloaded) {
+        html += `<div class="p-2 bg-blue-50 rounded border border-blue-200 space-y-1.5">
+          <div class="font-semibold text-slate-800">AzureADConnect.msi</div>
+          <button onclick="runDownloadedInstaller()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-1 rounded text-[11px] font-medium">Run Entra Connect</button>
+        </div>`;
+      }
+      if (labState.idfixDownloaded) {
+        html += `<div class="p-2 bg-purple-50 rounded border border-purple-200 space-y-1.5">
+          <div class="font-semibold text-slate-800">IdFix.exe (v2.5.1)</div>
+          <button onclick="runDownloadedIdfix()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-1 rounded text-[11px] font-medium">Run IdFix.exe</button>
+        </div>`;
+      }
+      list.innerHTML = html;
+    }
+    function toggleDownloadFlyout() { document.getElementById('edge-download-flyout').classList.toggle('hidden'); }
+
+    // STEP 2: Download & Run Microsoft IdFix
+    function triggerDownloadIdfix() {
+      labState.idfixDownloaded = true;
+      const btn = document.getElementById('btn-download-idfix');
+      btn.innerHTML = '<i class="fa-solid fa-check"></i><span>Downloaded IdFix.exe</span>';
+      btn.classList.remove('pulse-highlight');
+      btn.disabled = true;
+      document.getElementById('desktop-idfix-icon').classList.remove('hidden');
+      document.getElementById('edge-download-btn').classList.remove('hidden');
+      refreshDownloadFlyout();
+      document.getElementById('edge-download-flyout').classList.remove('hidden');
+      showToast('IdFix.exe downloaded! Click "Run IdFix.exe".');
+    }
+    function runDownloadedIdfix() {
+      document.getElementById('edge-download-flyout').classList.add('hidden');
+      openIdfixWindow();
+    }
+    function runIdfixQuery() {
+      labState.idfixQueried = true;
+      document.getElementById('idfix-btn-query').classList.remove('pulse-highlight');
+      document.getElementById('idfix-status-pill').innerText = '1 Error Found';
+      document.getElementById('idfix-status-pill').className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold';
+      document.getElementById('idfix-results-tbody').innerHTML = `
+        <tr class="bg-red-50">
+          <td class="font-mono text-[10px]">CN=HRUser,OU=HR,DC=smec,DC=com</td>
+          <td class="font-mono">userPrincipalName</td>
+          <td class="text-red-600 font-bold">character</td>
+          <td class="font-mono text-red-700">hr user@smec.com</td>
+          <td class="font-mono text-emerald-700 font-bold">hruser@smec.com</td>
+          <td><span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-[10px]">EDIT</span></td>
+        </tr>
+        <tr class="bg-emerald-50/40">
+          <td class="font-mono text-[10px]">CN=User1,OU=Tech,DC=smec,DC=com</td>
+          <td class="font-mono">userPrincipalName</td>
+          <td class="text-emerald-600 font-semibold">None (OK)</td>
+          <td class="font-mono">user1@smec.com</td>
+          <td class="text-slate-400">-</td>
+          <td class="text-emerald-700 font-semibold">PASS</td>
+        </tr>
+        <tr class="bg-emerald-50/40">
+          <td class="font-mono text-[10px]">CN=User2,OU=Tech,DC=smec,DC=com</td>
+          <td class="font-mono">userPrincipalName</td>
+          <td class="text-emerald-600 font-semibold">None (OK)</td>
+          <td class="font-mono">user2@smec.com</td>
+          <td class="text-slate-400">-</td>
+          <td class="text-emerald-700 font-semibold">PASS</td>
+        </tr>`;
+      document.getElementById('idfix-footer-log').innerText = 'Query Complete: 3 objects scanned | 1 character error detected on HRUser (invalid space). Click Apply to fix.';
+      const applyBtn = document.getElementById('idfix-btn-apply');
+      applyBtn.disabled = false;
+      applyBtn.className = 'px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded shadow flex items-center gap-1.5 pulse-highlight cursor-pointer';
+    }
+    function applyIdfixRemediation() {
+      if (!labState.idfixQueried) return;
+      labState.idfixFixed = true;
+      document.getElementById('idfix-status-pill').innerText = '0 Errors (Clean)';
+      document.getElementById('idfix-status-pill').className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold';
+      document.getElementById('idfix-results-tbody').innerHTML = `
+        <tr class="bg-emerald-50">
+          <td class="font-mono text-[10px]">CN=HRUser,OU=HR,DC=smec,DC=com</td>
+          <td class="font-mono">userPrincipalName</td>
+          <td class="text-emerald-700 font-bold">COMPLETE</td>
+          <td class="font-mono text-emerald-700 font-bold">hruser@smec.com</td>
+          <td class="text-slate-400">Applied</td>
+          <td class="text-emerald-700 font-bold">FIXED</td>
+        </tr>
+        <tr><td class="font-mono text-[10px]">CN=User1,OU=Tech,DC=smec,DC=com</td><td class="font-mono">userPrincipalName</td><td class="text-emerald-600 font-semibold">None (OK)</td><td class="font-mono">user1@smec.com</td><td>-</td><td class="text-emerald-700">PASS</td></tr>
+        <tr><td class="font-mono text-[10px]">CN=User2,OU=Tech,DC=smec,DC=com</td><td class="font-mono">userPrincipalName</td><td class="text-emerald-600 font-semibold">None (OK)</td><td class="font-mono">user2@smec.com</td><td>-</td><td class="text-emerald-700">PASS</td></tr>`;
+      document.getElementById('idfix-footer-log').innerText = 'Remediation Applied: 0 errors remaining. Local AD smec.com is ready for Azure sync!';
+      const applyBtn = document.getElementById('idfix-btn-apply');
+      applyBtn.disabled = true;
+      applyBtn.className = 'px-3 py-1 bg-slate-300 text-slate-600 font-semibold rounded flex items-center gap-1.5';
+      document.getElementById('sm-idfix-status').innerText = 'Passed (0 Errors)';
+      document.getElementById('sm-idfix-status').className = 'font-bold text-emerald-600 mt-1';
+      showToast('Step 2 Complete! Now open PowerShell to verify Port 443 & TLS 1.2.');
+      advanceTracker(3);
+    }
+
+    // STEP 3: PowerShell Network (Port 443) & TLS 1.2 Check
+    function appendPs(html) {
+      const out = document.getElementById('ps-output');
+      out.insertAdjacentHTML('beforeend', html);
+      out.scrollTop = out.scrollHeight;
+    }
+    function runPsPortCheck(rawCmd) {
+      appendPs(`<div class="text-amber-300 mt-2">PS C:\\Users\\Administrator&gt; <span class="text-white">${rawCmd}</span></div>
+        <div class="text-emerald-300 pl-2">ComputerName     : login.microsoftonline.com</div>
+        <div class="text-emerald-300 pl-2">RemoteAddress    : 20.190.151.132</div>
+        <div class="text-emerald-300 pl-2">RemotePort       : 443</div>
+        <div class="text-emerald-400 font-bold pl-2">TcpTestSucceeded : True (Outbound HTTPS to Azure is OPEN)</div>`);
+      labState.psPortChecked = true;
+      checkStep3Complete();
+    }
+    function runPsTlsCheck(rawCmd) {
+      appendPs(`<div class="text-amber-300 mt-2">PS C:\\Users\\Administrator&gt; <span class="text-white">${rawCmd}</span></div>
+        <div class="text-emerald-400 font-bold pl-2">Tls12, Tls13 (TLS 1.2 Enabled - Compliant with Microsoft Entra ID)</div>`);
+      labState.psTlsChecked = true;
+      checkStep3Complete();
+    }
+    function handlePsManualCmd() {
+      const inp = document.getElementById('ps-cmd-input');
+      const raw = inp.value.trim();
+      const cmd = raw.toLowerCase().replace(/\s+/g, ' ');
+      inp.value = '';
+      if (!raw) return;
+      if (cmd === 'test-netconnection login.microsoftonline.com -port 443' || (cmd.includes('test-netconnection') && cmd.includes('login.microsoftonline.com') && cmd.includes('443'))) {
+        runPsPortCheck(raw);
+      } else if (cmd === '[net.servicepointmanager]::securityprotocol' || cmd.includes('servicepointmanager]::securityprotocol')) {
+        runPsTlsCheck(raw);
+      } else {
+        appendPs(`<div class="text-amber-300 mt-1">PS C:\\Users\\Administrator&gt; <span class="text-white">${raw}</span></div>
+          <div class="text-red-400 pl-2">Command not recognized for this lab. Type the exact command from Step 3 in the right panel:</div>
+          <div class="text-slate-300 pl-4">1) Test-NetConnection login.microsoftonline.com -Port 443</div>
+          <div class="text-slate-300 pl-4">2) [Net.ServicePointManager]::SecurityProtocol</div>`);
+      }
+    }
+    function checkStep3Complete() {
+      if (labState.psPortChecked && labState.psTlsChecked && labState.currentStep <= 3) {
+        document.getElementById('sm-net-status').innerText = 'Port 443 & TLS 1.2 OK';
+        document.getElementById('sm-net-status').className = 'font-bold text-emerald-600 mt-1';
+        showToast('Step 3 Complete! Open Edge -> Azure Portal bookmark to log in.');
+        advanceTracker(4);
+      }
+    }
+
+    // STEP 4: Azure Login & Search Entra ID
+    function proceedAzureEmail() {
+      const email = document.getElementById('azure-input-email').value.trim();
+      const err = document.getElementById('login-error-msg');
+      if (email.toLowerCase() !== REQUIRED_CLOUD_EMAIL) { err.innerText = 'Use ' + REQUIRED_CLOUD_EMAIL; err.classList.remove('hidden'); return; }
+      err.classList.add('hidden');
+      document.getElementById('login-step-email').classList.add('hidden');
+      document.getElementById('login-step-password').classList.remove('hidden');
+      document.getElementById('display-login-email').innerText = email;
+      document.getElementById('azure-input-password').focus();
+    }
+    function backToEmailStage() {
+      document.getElementById('login-step-email').classList.remove('hidden');
+      document.getElementById('login-step-password').classList.add('hidden');
+    }
+    function submitAzureLogin() {
+      const pass = document.getElementById('azure-input-password').value;
+      const err = document.getElementById('login-error-msg');
+      if (pass !== REQUIRED_CLOUD_PASS) { err.innerText = 'Incorrect password (use password123)'; err.classList.remove('hidden'); return; }
+      err.classList.add('hidden');
+      document.getElementById('azure-login-view').classList.add('hidden');
+      document.getElementById('azure-portal-view').classList.remove('hidden');
+      showAzureHome();
+      showToast('Logged in! Search "Entra" in the top Azure search bar.');
+    }
+    function showAzureHome() {
+      document.getElementById('azure-home-dashboard').classList.remove('hidden');
+      document.getElementById('azure-entra-service-view').classList.add('hidden');
+      document.getElementById('edge-url-text').innerText = 'https://portal.azure.com/#home';
+    }
+    function filterAzureSearch() {
+      const q = document.getElementById('azure-global-search').value.trim().toLowerCase();
+      const dd = document.getElementById('azure-search-dropdown');
+      const matches = AZURE_SERVICES_CATALOG.filter(s => s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q));
+      dd.innerHTML = matches.length === 0
+        ? `<div class="px-3 py-2 text-slate-400 italic">No services found</div>`
+        : matches.map(s => `<div onclick="selectAzureSearchService('${s.target}', '${s.name}')" class="px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center gap-2.5 border-b border-slate-50"><i class="fa-solid ${s.icon} ${s.color} w-4 text-center"></i><div><div class="font-semibold text-slate-800">${s.name}</div><div class="text-[10px] text-slate-500">${s.desc}</div></div></div>`).join('');
+      dd.classList.remove('hidden');
+    }
+    function selectAzureSearchService(target, name) {
+      document.getElementById('azure-search-dropdown').classList.add('hidden');
+      document.getElementById('azure-global-search').value = '';
+      if (target === 'entra') {
+        document.getElementById('azure-home-dashboard').classList.add('hidden');
+        document.getElementById('azure-entra-service-view').classList.remove('hidden');
+        document.getElementById('edge-url-text').innerText = 'https://portal.azure.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Overview';
+        if (labState.currentStep === 4) { showToast('Step 4 Complete: Opened Microsoft Entra ID!'); advanceTracker(5); }
+      } else { showToast(`Search for Microsoft Entra ID.`); }
+    }
+    function switchAzureBlade(blade) {
+      ['entra-overview', 'entra-domains', 'entra-users'].forEach(b => {
+        document.getElementById('blade-' + b).classList.add('hidden');
+        document.getElementById('nav-btn-' + b).className = 'w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 text-left text-slate-700';
+      });
+      document.getElementById('blade-' + blade).classList.remove('hidden');
+      document.getElementById('nav-btn-' + blade).className = 'w-full flex items-center gap-2 px-2 py-1.5 rounded bg-blue-50 text-blue-700 font-medium text-left';
+      if (blade === 'entra-users') checkUsersVerification();
+    }
+
+    // STEP 5 & 6: Tenant & Custom Domain
+    function verifyAzureTenant() {
+      const btn = document.getElementById('btn-verify-tenant');
+      btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Tenant Verified';
+      btn.className = 'bg-emerald-600 text-white px-3 py-1.5 rounded text-xs font-semibold';
+      btn.disabled = true;
+      showToast('Step 5 Complete: Azure Tenant Verified!');
+      advanceTracker(6);
+    }
+    function verifyCustomDomain() {
+      document.getElementById('custom-domain-status').innerHTML = '<span class="text-emerald-600 font-bold"><i class="fa-solid fa-check mr-1"></i>Verified</span>';
+      const btn = document.getElementById('btn-verify-domain');
+      btn.innerText = 'Verified'; btn.className = 'bg-emerald-600 text-white px-3 py-1 rounded text-[11px] font-semibold'; btn.disabled = true;
+      showToast('Step 6 Complete: smec.com Custom Domain Verified!');
+      advanceTracker(7);
+    }
+
+    // STEP 7 - 12: Entra Connect Wizard
+    function triggerDownloadEntraConnect() {
+      labState.entraDownloaded = true;
+      const btn = document.getElementById('btn-download-entra');
+      btn.innerHTML = '<i class="fa-solid fa-check"></i><span>Downloaded (AzureADConnect.msi)</span>'; btn.disabled = true;
+      document.getElementById('edge-download-btn').classList.remove('hidden');
+      document.getElementById('desktop-entra-icon').classList.remove('hidden');
+      refreshDownloadFlyout();
+      document.getElementById('edge-download-flyout').classList.remove('hidden');
+    }
+    function runDownloadedInstaller() { document.getElementById('edge-download-flyout').classList.add('hidden'); openEntraWizard(); }
+
+    function showWizardPage(p) {
+      labState.wizardPage = p;
+      for (let i = 1; i <= 9; i++) {
+        document.getElementById(`wiz-page-${i}`).classList.toggle('hidden', i !== p);
+        const nav = document.getElementById(`wiz-nav-${i}`);
+        nav.classList.remove('active', 'completed', 'pending');
+        if (i === p) nav.classList.add('active'); else if (i < p) nav.classList.add('completed'); else nav.classList.add('pending');
+      }
+      document.getElementById('wiz-btn-previous').classList.toggle('hidden', p === 1 || p === 9);
+      document.getElementById('wiz-btn-next').classList.toggle('hidden', p === 2 || (p === 9 && !labState.syncConfigured));
+      const nextTxt = document.getElementById('wiz-next-text');
+      nextTxt.innerText = p === 1 ? 'Continue' : p === 8 ? 'Install' : p === 9 ? 'Exit' : 'Next';
+    }
+    function completeExpressInfo() { showToast('Step 7 Complete: Express Settings reviewed.'); advanceTracker(8); showWizardPage(3); }
+    function toggleDomainTreeSyncMode(syncAll) {
+      document.getElementById('ou-chk-root').checked = syncAll;
+      document.getElementById('ou-chk-root').disabled = syncAll;
+      document.querySelectorAll('.child-ou-chk').forEach(c => { c.checked = syncAll; c.disabled = syncAll; });
+    }
+    function toggleRootDomainCheck(checked) { document.querySelectorAll('.child-ou-chk').forEach(c => c.checked = checked); }
+    function wizardPreviousStep() { if (labState.wizardPage > 1 && labState.wizardPage < 9) showWizardPage(labState.wizardPage - 1); }
+
+    function wizardNextStep() {
+      const p = labState.wizardPage;
+      if (p === 1) {
+        if (!document.getElementById('wiz-terms-check').checked) { document.getElementById('terms-warning').classList.remove('hidden'); return; }
+        document.getElementById('terms-warning').classList.add('hidden'); showWizardPage(2);
+      } else if (p === 3) {
+        const u = document.getElementById('wiz-cloud-user').value.trim(), pw = document.getElementById('wiz-cloud-pass').value;
+        const err = document.getElementById('wiz-cloud-error');
+        if (u.toLowerCase() !== REQUIRED_CLOUD_EMAIL || pw !== REQUIRED_CLOUD_PASS) { err.innerText = 'Invalid Cloud Admin credentials.'; err.classList.remove('hidden'); return; }
+        err.classList.add('hidden'); showWizardPage(4);
+      } else if (p === 4) {
+        const u = document.getElementById('wiz-ad-user').value.trim(), pw = document.getElementById('wiz-ad-pass').value;
+        const err = document.getElementById('wiz-ad-error');
+        if (u.toUpperCase() !== REQUIRED_AD_USER.toUpperCase() || pw !== REQUIRED_AD_PASS) { err.innerText = 'Invalid AD DS credentials.'; err.classList.remove('hidden'); return; }
+        err.classList.add('hidden'); showWizardPage(5);
+      } else if (p === 5) {
+        const syncAll = document.getElementById('radio-sync-all').checked;
+        const allChecked = document.getElementById('ou-chk-root').checked && Array.from(document.querySelectorAll('.child-ou-chk')).every(c => c.checked);
+        const err = document.getElementById('wiz-ou-error');
+        if (!syncAll && !allChecked) { err.innerText = 'Select "Sync all domains and OUs" for Full Domain Sync.'; err.classList.remove('hidden'); return; }
+        err.classList.add('hidden'); showToast('Step 8 Complete: Full smec.com domain selected.'); advanceTracker(9); showWizardPage(6);
+      } else if (p === 6) {
+        const err = document.getElementById('wiz-phs-error');
+        if (!document.getElementById('wiz-phs-check').checked) { err.innerText = 'Enable Password Hash Synchronization (PHS).'; err.classList.remove('hidden'); return; }
+        err.classList.add('hidden'); showToast('Step 9 Complete: PHS verified.'); advanceTracker(10); showWizardPage(7);
+      } else if (p === 7) {
+        const err = document.getElementById('wiz-sync-chk-error');
+        if (!document.getElementById('wiz-sync-now-check').checked) { err.innerText = 'Check "Start the synchronization process when configuration completes."'; err.classList.remove('hidden'); return; }
+        err.classList.add('hidden'); showToast('Step 10 Complete: Initial Sync checkbox validated.'); advanceTracker(11); showWizardPage(8);
+      } else if (p === 8) {
+        showToast('Step 11 Complete: Summary confirmed.'); advanceTracker(12); showWizardPage(9); runInitialSync();
+      } else if (p === 9) {
+        closeWindow('win-wizard'); showToast('Wizard closed. Manually open Edge -> Users > All Users.');
+      }
+    }
+
+    function runInitialSync() {
+      const bar = document.getElementById('install-progress-bar'), txt = document.getElementById('install-step-status-text'), pct = document.getElementById('install-pct-text');
+      setTimeout(() => { bar.style.width = '40%'; pct.innerText = '40%'; txt.innerText = 'Importing OU=Tech...'; document.getElementById('install-log-2').classList.remove('hidden'); }, 800);
+      setTimeout(() => { bar.style.width = '70%'; pct.innerText = '70%'; txt.innerText = 'Importing OU=HR & CN=Users...'; document.getElementById('install-log-3').classList.remove('hidden'); }, 1600);
+      setTimeout(() => { bar.style.width = '92%'; pct.innerText = '92%'; txt.innerText = 'Exporting Password Hashes (TLS 1.2)...'; document.getElementById('install-log-4').classList.remove('hidden'); }, 2300);
+      setTimeout(() => {
+        bar.style.width = '100%'; pct.innerText = '100%'; txt.innerText = 'Initial Full Domain Sync Complete!';
+        document.getElementById('install-log-5').classList.remove('hidden');
+        setTimeout(() => {
+          document.getElementById('wiz-installing-state').classList.add('hidden');
+          document.getElementById('wiz-complete-state').classList.remove('hidden');
+          labState.syncConfigured = true;
+          document.getElementById('wiz-btn-next').classList.remove('hidden');
+          document.getElementById('wiz-next-text').innerText = 'Exit';
+          document.getElementById('sm-sync-status').innerText = 'Active (Full Domain)';
+          document.getElementById('sm-sync-status').className = 'font-bold text-emerald-600 mt-1';
+          showToast('Step 12 Complete: Initial Synchronization finished!');
+          advanceTracker(13);
+        }, 700);
+      }, 3100);
+    }
+
+    // STEP 13 & 14: Azure Users & Sync Health Verification
+    function checkUsersVerification() {
+      if (!labState.syncConfigured) return;
+      document.getElementById('cloud-users-table-body').innerHTML = `
+        <tr><td class="py-2 px-3 font-semibold">Tibin John (Global Admin)</td><td class="py-2 px-3">tibinjohn193@gmail.com</td><td class="py-2 px-3 text-slate-400">No</td><td class="py-2 px-3 text-slate-400">Cloud Only</td></tr>
+        <tr class="bg-emerald-50/70"><td class="py-2 px-3 font-semibold">User1</td><td class="py-2 px-3">user1@smec.com</td><td class="py-2 px-3 text-emerald-700 font-bold">Yes</td><td class="py-2 px-3">smec.com (OU=Tech)</td></tr>
+        <tr class="bg-emerald-50/70"><td class="py-2 px-3 font-semibold">User2</td><td class="py-2 px-3">user2@smec.com</td><td class="py-2 px-3 text-emerald-700 font-bold">Yes</td><td class="py-2 px-3">smec.com (OU=Tech)</td></tr>
+        <tr class="bg-emerald-50/70"><td class="py-2 px-3 font-semibold">HRUser</td><td class="py-2 px-3">hruser@smec.com</td><td class="py-2 px-3 text-emerald-700 font-bold">Yes</td><td class="py-2 px-3">smec.com (OU=HR)</td></tr>`;
+      document.getElementById('cloud-users-count-badge').innerText = '4 Users Total (3 Synced from Full Domain smec.com)';
+      document.getElementById('users-verified-banner').classList.remove('hidden');
+
+      document.getElementById('entra-cloud-sync-badge').innerText = 'Sync Status: Enabled (Full Domain)';
+      document.getElementById('entra-cloud-sync-badge').className = 'bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300';
+      document.getElementById('stat-sync-enabled').innerText = 'Enabled (Healthy)';
+      document.getElementById('stat-sync-enabled').className = 'font-semibold text-emerald-600 text-[11px]';
+      document.getElementById('stat-phs-enabled').innerText = 'Enabled';
+      document.getElementById('stat-phs-enabled').className = 'font-semibold text-emerald-600 text-[11px]';
+      document.getElementById('stat-last-sync').innerText = 'Less than 1 minute ago';
+      document.getElementById('btn-verify-sync-health').classList.remove('hidden');
+
+      if (labState.currentStep === 13) { showToast('Step 13 Complete: Synced users verified!'); advanceTracker(14); }
+    }
+    function verifySyncHealthFinal() {
+      const btn = document.getElementById('btn-verify-sync-health');
+      btn.innerHTML = '<i class="fa-solid fa-circle-check"></i><span>Sync Health Verified</span>';
+      btn.classList.remove('pulse-highlight'); btn.disabled = true;
+      advanceTracker(15);
+    }
+
+    // Utilities
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('system-time').innerText = now.toTimeString().slice(0, 5);
+      document.getElementById('system-date').innerText = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+    }
+    function copyText(text, label) { navigator.clipboard.writeText(text).catch(() => {}); showToast(label); }
+    function showToast(msg) {
+      const t = document.getElementById('quick-toast');
+      t.innerText = msg; t.classList.remove('hidden');
+      setTimeout(() => t.classList.add('hidden'), 2800);
+    }
+    function resetLab() { if (confirm('Reset the 14-step Hybrid Identity simulation?')) window.location.reload(); }
+  </script>
+</body>
+</html>
