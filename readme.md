@@ -50,6 +50,11 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *   [🖥️ Lab 17: Convert Secondary DNS to Primary DNS (Failover Lab) ](lab17.md)
 
+*   [🖥️ Lab 18: DNS Stub Zone Setup Lab ](lab18.md)
+
+
+
+
 
 
 
