@@ -54,6 +54,10 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *   [🖥️ Lab 19: IIS Website Hosting Lab ](lab19.md)
 
+*   [🖥️ Lab 20: IIS HTTP Redirection Lab](lab20.md)
+
+
+
 
 
 
