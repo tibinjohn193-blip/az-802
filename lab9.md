@@ -153,16 +153,10 @@ In Active Directory, **Account Policies** (Password Policy, Account Lockout Poli
 
 ## How to Run & Deploy
 
-### Run Locally
-1. Download `gpo_account_lockout_policy_lab_v3.html`.
-2. Double-click the file to launch it in any modern browser (Chrome, Edge, Firefox, or Safari).
-3. Works **100% offline** — no external CDN dependencies or build tools required.
+## 🚀 Access the Interactive Lab
+You can run this simulation directly in your web browser without downloading any files:
 
-### Deploy on GitHub Pages
-1. Upload `gpo_account_lockout_policy_lab_v3.html` (or rename it to `index.html`) to a GitHub repository.
-2. Go to **Repository Settings -> Pages**.
-3. Under **Build and deployment**, select **Deploy from a branch** (`main` / `root`) and click **Save**.
-4. Share the live GitHub Pages URL with students.
+**[▶ Start Lab 9: Active Directory Group Policy - Account Lockout policy](https://tibinjohn193-blip.github.io/az-802/lab9.html)**
 
 ---
 
