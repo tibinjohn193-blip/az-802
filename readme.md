@@ -36,6 +36,8 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *  [🖥️ Lab 10: Active Directory Group Policy - Software installation policy](lab10.md)
 
+*   [🖥️ Lab 11: Additional Domain Controller ](lab11.md)
+
 
 
 ---
