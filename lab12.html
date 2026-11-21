@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: Read-Only Domain Controller (RODC) Setup - smec.com (v2)</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea { user-select: text; }
+
+        /* ==================== LEFT MACHINE SELECTOR SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .machine-btn:hover { background: #273549; border-color: #60a5fa; }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+        .machine-btn-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .machine-btn-sub { font-size: 10.5px; opacity: 0.88; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .rodc-note-card {
+            background: #1e1b4b;
+            border: 1px solid #4338ca;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.5;
+            color: #e0e7ff;
+        }
+        .rodc-note-card strong { color: #a5b4fc; }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc { display: block; }
+
+        #dc1-pc { background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%); }
+        #dc2-pc { background: radial-gradient(circle at 75% 20%, #2b3a67 0%, #162447 60%, #0b132b 100%); }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 30px; margin-bottom: 4px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 390px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 11px 8px;
+            border-radius: 6px;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 26px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 16px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], input[type="password"], select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus, select:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #dc2-run-window, #dc1-run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; }
+        #ncpa-window { width: 640px; height: 390px; top: 60px; left: 50%; transform: translateX(-50%); z-index: 10001; }
+        #eth-props-window { width: 410px; height: 370px; top: 80px; left: 50%; transform: translateX(-50%); z-index: 10010; }
+        #ipv4-window { width: 410px; height: 420px; top: 55px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #sysdm-window { width: 440px; height: 390px; top: 65px; left: 50%; transform: translateX(-50%); z-index: 10005; }
+        #domain-change-window { width: 400px; height: 310px; top: 95px; left: 50%; transform: translateX(-50%); z-index: 10015; }
+        #win-sec-window { width: 390px; height: 270px; top: 120px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #sm-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10002; }
+        #add-roles-window { width: 760px; height: 490px; top: 36px; left: 50%; transform: translateX(-50%); z-index: 10015; }
+        #promote-dc-window { width: 780px; height: 510px; top: 28px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #prp-select-user-window { width: 420px; height: 320px; top: 110px; left: 50%; transform: translateX(-50%); z-index: 10040; }
+        #dc1-aduc-window, #dc2-aduc-window { width: 84%; height: 76%; top: 48px; left: 8%; z-index: 10005; }
+        #rodc-error-window { width: 470px; height: 230px; top: 140px; left: 50%; transform: translateX(-50%); z-index: 10050; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 200px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+
+        /* Wizard Sidebar */
+        .wiz-layout { display: flex; flex: 1; min-height: 0; background: #fff; }
+        .wiz-side { width: 210px; background: #f4f6f9; border-right: 1px solid #d4d4d4; padding: 12px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+        .wiz-step { padding: 6px 8px; border-radius: 4px; color: #64748b; }
+        .wiz-step.active { background: #e5f1fb; color: #005a9e; font-weight: 700; border-left: 3px solid var(--win-blue); }
+        .wiz-step.done { color: #15803d; }
+        .wiz-main { flex: 1; padding: 16px 20px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; }
+
+        /* Progress Bar */
+        .prog-track { width: 100%; height: 14px; background: #e2e8f0; border-radius: 7px; overflow: hidden; margin: 12px 0; }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0078D7, #16a34a); transition: width 0.45s ease; }
+
+        /* Overlays */
+        .full-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(150deg, #004e8c, #002342);
+            z-index: 99920;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            padding: 24px;
+            text-align: center;
+        }
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 4px solid rgba(255,255,255,0.25);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin-bottom: 14px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .login-card {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .login-card input {
+            width: 100%;
+            padding: 9px 11px;
+            border-radius: 4px;
+            border: 2px solid rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.96);
+            font-size: 13px;
+            color: #111;
+        }
+        .login-error {
+            background: rgba(220,38,38,0.85);
+            border: 1px solid #fca5a5;
+            padding: 7px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
+        }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 18px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .icon-domain::before { content: '🏢 '; }
+        .icon-ou::before { content: '🗂️ '; }
+        .icon-dc::before { content: '🖥️ '; }
+        .icon-user::before { content: '👤 '; }
+        .icon-folder::before { content: '📁 '; }
+        .icon-folder-open::before { content: '📂 '; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 10px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 10px; border-bottom: 1px solid #efefef; }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🔒 Read-Only DC (RODC)</h2>
+            <span>Windows Server 2025 Lab</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Server</div>
+
+        <button id="btn-switch-dc1" class="machine-btn active" onclick="switchMachine('dc1')">
+            <div class="machine-btn-header"><span>🖥️ Server 1 (PDC)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">SMEC-DC1 (192.168.1.1)</div>
+            <div class="machine-btn-sub">Writable DC: smec.com</div>
+        </button>
+
+        <button id="btn-switch-dc2" class="machine-btn" onclick="switchMachine('dc2')">
+            <div class="machine-btn-header"><span>🔒 Server 2 (RODC)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub" id="dc2-sidebar-ip">SMEC-RODC (IP: Not Set)</div>
+            <div class="machine-btn-sub" id="dc2-sidebar-role">Workgroup Server</div>
+        </button>
+
+        <div class="lab-info-card">
+            <div><strong>Domain:</strong> <code>smec.com</code></div>
+            <div><strong>Tech OU Users:</strong> <code>Arun</code>, <code>User1</code>, <code>User2</code></div>
+            <div><strong>DC1 IP / DNS:</strong> <code>192.168.1.1</code></div>
+            <div><strong>RODC Target IP:</strong> <code>192.168.1.2</code></div>
+            <div><strong>Subnet Mask:</strong> <code>255.255.255.0</code></div>
+            <div><strong>Admin:</strong> <code>smec\administrator</code></div>
+            <div><strong>Password / DSRM:</strong> <code>password123</code></div>
+        </div>
+
+        <div class="rodc-note-card">
+            <strong>What is an RODC?</strong><br>
+            A Read-Only Domain Controller hosts a <b>read-only</b> copy of Active Directory for branch offices. Allowed users (e.g., <b>Arun</b>) can sign in, but <b>creating or modifying AD objects is blocked</b>.
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <!-- ==================== SERVER 1: SMEC-DC1 (Primary Writable DC) ==================== -->
+            <div class="pc-container active-pc" id="dc1-pc">
+                <div class="pc-label">
+                    SMEC-DC1 (Primary Writable DC)
+                    <span>IP: 192.168.1.1 | DNS: 192.168.1.1 | Domain: smec.com</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openDC1Aduc()">
+                        <div class="ico">👥</div>
+                        <span>AD Users &amp; Computers</span>
+                    </div>
+                </div>
+
+                <!-- DC1 Run Window -->
+                <div id="dc1-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('dc1-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>dsa.msc</code> to verify AD DS is installed on SMEC-DC1.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="dc1-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeDC1Run()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeDC1Run()">OK</button>
+                        <button onclick="closeWindow('dc1-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- DC1 ADUC Window -->
+                <div id="dc1-aduc-window" class="window">
+                    <div class="title-bar"><span>Active Directory Users and Computers [SMEC-DC1.smec.com]</span><span class="close-btn" onclick="closeWindow('dc1-aduc-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 42%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded" onclick="toggleTree(this, event)">Active Directory Users and Computers
+                                    <ul>
+                                        <li class="icon-domain expanded" onclick="toggleTree(this, event)">smec.com
+                                            <ul>
+                                                <li class="icon-folder">Builtin</li>
+                                                <li class="icon-folder">Computers</li>
+                                                <li class="icon-ou" onclick="selectDC1Node('dcs', this, event)">Domain Controllers</li>
+                                                <li class="icon-ou" onclick="selectDC1Node('tech', this, event)" style="color:#005a9e; font-weight:600;">Tech</li>
+                                                <li class="icon-folder">Users</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 58%; padding: 12px; overflow:auto;">
+                            <div id="dc1-aduc-placeholder" style="color:#555; font-size:12.5px; padding:10px;">
+                                AD DS is active on <b>SMEC-DC1</b>! Click the <b>Tech</b> OU under <b>smec.com</b> to view existing AD users (<b>Arun</b>, <b>User1</b>, <b>User2</b>).
+                            </div>
+                            <table id="dc1-tech-table" class="mmc-table" style="display:none;">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>User Logon Name</th>
+                                    <th>OU</th>
+                                </tr>
+                                <tr style="background:#eff6ff;">
+                                    <td><span class="icon-user"></span><strong>Arun</strong></td>
+                                    <td>User</td>
+                                    <td style="font-family:Consolas, monospace;">arun@smec.com</td>
+                                    <td>Tech</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="icon-user"></span><strong>User1</strong></td>
+                                    <td>User</td>
+                                    <td style="font-family:Consolas, monospace;">user1@smec.com</td>
+                                    <td>Tech</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="icon-user"></span><strong>User2</strong></td>
+                                    <td>User</td>
+                                    <td style="font-family:Consolas, monospace;">user2@smec.com</td>
+                                    <td>Tech</td>
+                                </tr>
+                            </table>
+                            <table id="dc1-dcs-table" class="mmc-table" style="display:none;">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>DC Type</th>
+                                    <th>Site</th>
+                                </tr>
+                                <tr>
+                                    <td><span class="icon-dc"></span><strong>SMEC-DC1</strong></td>
+                                    <td>Computer</td>
+                                    <td>GC (Writable Primary DC)</td>
+                                    <td>Default-First-Site-Name</td>
+                                </tr>
+                                <tr id="dc1-rodc-row" style="display:none; background:#eef2ff;">
+                                    <td><span class="icon-dc"></span><strong style="color:#4338ca;">SMEC-RODC</strong></td>
+                                    <td>Computer</td>
+                                    <td style="color:#4338ca; font-weight:700;">Read-Only GC (RODC)</td>
+                                    <td>Default-First-Site-Name</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('dc1-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="dc1-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openDC1Run(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:5px;">Run</span>
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openDC1Aduc(); document.getElementById('dc1-start-menu').style.display='none';">
+                            <div class="app-icon">👥</div>
+                            <span style="font-size:11.5px; font-weight:600;">ADUC</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== SERVER 2: SMEC-RODC (Target RODC) ==================== -->
+            <div class="pc-container" id="dc2-pc">
+                <div class="pc-label" id="dc2-top-label">
+                    SMEC-RODC (Plain Server)
+                    <span id="dc2-top-sub">IP: DHCP (Not Configured) | Workgroup | User: Local Administrator</span>
+                </div>
+
+                <!-- Desktop Icons -->
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openServerManager()">
+                        <div class="ico">🗄️</div>
+                        <span>Server Manager</span>
+                    </div>
+                    <!-- Appears after SMEC-RODC is promoted to RODC -->
+                    <div class="d-icon" id="dc2-aduc-desktop-icon" style="display:none;" onclick="openDC2Aduc()">
+                        <div class="ico">👥</div>
+                        <span><strong>AD Users &amp; Computers</strong></span>
+                    </div>
+                </div>
+
+                <!-- Restarting Overlay -->
+                <div id="dc2-restart-overlay" class="full-overlay">
+                    <div class="spinner"></div>
+                    <h2 id="restart-title" style="margin:0 0 6px 0;">Restarting SMEC-RODC...</h2>
+                    <p id="restart-sub" style="margin:0; font-size:13px; color:#bae6fd;">Applying computer domain settings...</p>
+                </div>
+
+                <!-- Domain Login Overlay (Used after Domain Join AND after RODC Promotion) -->
+                <div id="dc2-login-overlay" class="full-overlay">
+                    <div id="dc2-login-badge" style="position:absolute; top:22px; background:rgba(0,0,0,0.35); padding:8px 20px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); font-size:13.5px;">
+                        <strong>SMEC-RODC</strong> · Joined to <code>smec.com</code>
+                    </div>
+                    <div style="font-size:50px; background:rgba(255,255,255,0.18); width:92px; height:92px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,0.35); margin-bottom:10px;">👤</div>
+                    <h2 id="dc2-login-heading" style="margin:0 0 4px 0; font-weight:500;">Other user</h2>
+                    <p id="dc2-login-hint" style="margin:0 0 8px 0; font-size:12px; color:#bae6fd;">Sign in to domain: <strong>SMEC</strong> (<code>smec\administrator</code> / <code>password123</code>)</p>
+                    <div class="login-card">
+                        <input type="text" id="dc2-login-user" placeholder="User name (smec\administrator)" autocomplete="off">
+                        <input type="password" id="dc2-login-pass" placeholder="Password" autocomplete="off" onkeypress="if(event.key==='Enter') submitDC2DomainLogin()">
+                        <div id="dc2-login-err" class="login-error"></div>
+                        <button class="primary-btn" onclick="submitDC2DomainLogin()" style="padding:9px; font-size:13px;">Sign In &rarr;</button>
+                    </div>
+                </div>
+
+                <!-- DC2 Run Window -->
+                <div id="dc2-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('dc2-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type the name of a program, folder, document, or Internet resource.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="dc2-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeDC2Run()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeDC2Run()">OK</button>
+                        <button onclick="closeWindow('dc2-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- DC2 ADUC Window (Read-Only Verification: Can view Tech users, CANNOT create new user!) -->
+                <div id="dc2-aduc-window" class="window">
+                    <div class="title-bar"><span>Active Directory Users and Computers [SMEC-RODC.smec.com - Read-Only]</span><span class="close-btn" onclick="closeWindow('dc2-aduc-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 42%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded" onclick="toggleTree(this, event)">Active Directory Users and Computers
+                                    <ul>
+                                        <li class="icon-domain expanded" onclick="toggleTree(this, event)">smec.com
+                                            <ul>
+                                                <li class="icon-folder">Builtin</li>
+                                                <li class="icon-folder">Computers</li>
+                                                <li class="icon-ou" onclick="selectDC2Node('dcs', this, event)">Domain Controllers</li>
+                                                <li class="icon-ou" onclick="selectDC2Node('tech', this, event)" oncontextmenu="showContext('ctx-rodc-tech', event)" style="color:#4338ca; font-weight:700;">Tech</li>
+                                                <li class="icon-folder">Users</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 58%; padding: 12px; overflow:auto;">
+                            <div id="dc2-aduc-placeholder" style="color:#555; font-size:12.5px; padding:10px; line-height:1.55;">
+                                Connected to <b>SMEC-RODC.smec.com (Read-Only)</b>.<br><br>
+                                1. Click <b>Tech</b> OU to see replicated users (<b>Arun</b>, <b>User1</b>, <b>User2</b>).<br>
+                                2. <b>Right-click Tech OU &rarr; New &rarr; User...</b> to test Read-Only protection!
+                            </div>
+                            <div id="dc2-tech-pane" style="display:none;">
+                                <table class="mmc-table">
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>User Logon Name</th>
+                                        <th>PRP Status</th>
+                                    </tr>
+                                    <tr style="background:#eef2ff;">
+                                        <td><span class="icon-user"></span><strong>Arun</strong></td>
+                                        <td>User</td>
+                                        <td style="font-family:Consolas, monospace;">arun@smec.com</td>
+                                        <td id="prp-status-arun" style="color:#4338ca; font-weight:700;">Allowed (Cached)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="icon-user"></span><strong>User1</strong></td>
+                                        <td>User</td>
+                                        <td style="font-family:Consolas, monospace;">user1@smec.com</td>
+                                        <td id="prp-status-user1" style="color:#64748b;">Read-Only Copy</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="icon-user"></span><strong>User2</strong></td>
+                                        <td>User</td>
+                                        <td style="font-family:Consolas, monospace;">user2@smec.com</td>
+                                        <td id="prp-status-user2" style="color:#64748b;">Read-Only Copy</td>
+                                    </tr>
+                                </table>
+                                <div style="margin-top:12px; padding:10px 12px; background:#fffbeb; border:1px solid #f59e0b; border-radius:5px; color:#92400e; font-size:12px;">
+                                    <strong>Test Read-Only Restriction:</strong> Right-click the <b>Tech</b> OU on the left pane and click <b>New &rarr; User...</b> to verify that creating new users is blocked on an RODC!
+                                </div>
+                            </div>
+                            <table id="dc2-dcs-table" class="mmc-table" style="display:none;">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>DC Type</th>
+                                    <th>Site</th>
+                                </tr>
+                                <tr>
+                                    <td><span class="icon-dc"></span><strong>SMEC-DC1</strong></td>
+                                    <td>Computer</td>
+                                    <td>GC (Writable Primary DC)</td>
+                                    <td>Default-First-Site-Name</td>
+                                </tr>
+                                <tr style="background:#eef2ff;">
+                                    <td><span class="icon-dc"></span><strong style="color:#4338ca;">SMEC-RODC</strong></td>
+                                    <td>Computer</td>
+                                    <td style="color:#4338ca; font-weight:700;">Read-Only GC (RODC)</td>
+                                    <td>Default-First-Site-Name</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Authentic RODC Write-Blocked Error Dialog -->
+                <div id="rodc-error-window" class="window">
+                    <div class="title-bar"><span>Active Directory Domain Services</span><span class="close-btn" onclick="confirmRodcBlockedError()">X</span></div>
+                    <div class="content" style="background:#fff; display:flex; align-items:flex-start; gap:14px; padding:18px;">
+                        <div style="width:36px; height:36px; border-radius:50%; background:#dc2626; color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; flex-shrink:0;">✕</div>
+                        <div style="font-size:12.5px; line-height:1.55; color:#1f2937;">
+                            <strong>Windows cannot create the new user object.</strong><br><br>
+                            The Directory Service on <code>SMEC-RODC.smec.com</code> is a <b>Read-Only Domain Controller (RODC)</b>. Creating, modifying, or deleting Active Directory objects is not permitted on an RODC. Perform write operations on a writable DC (<code>SMEC-DC1</code>).
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="confirmRodcBlockedError()">OK</button>
+                    </div>
+                </div>
+
+                <!-- ncpa.cpl Network Connections -->
+                <div id="ncpa-window" class="window">
+                    <div class="title-bar"><span>Network Connections</span><span class="close-btn" onclick="closeWindow('ncpa-window')">X</span></div>
+                    <div class="menu-bar"><span>Organize</span><span>Change settings of this connection</span></div>
+                    <div class="content" style="background:#fff; padding:18px;">
+                        <div id="eth-adapter" oncontextmenu="showContext('ctx-ethernet', event)" style="display:inline-flex; align-items:center; gap:12px; padding:12px 16px; border:1px solid #99d1ff; background:#e5f1fb; border-radius:5px; cursor:pointer;">
+                            <div style="font-size:32px;">🔌</div>
+                            <div>
+                                <div style="font-weight:700; font-size:13px;">Ethernet</div>
+                                <div id="eth-status-sub" style="font-size:11.5px; color:#475569;">Network (DHCP) · Intel(R) Gigabit</div>
+                            </div>
+                        </div>
+                        <p style="font-size:12px; color:#64748b; margin-top:16px;">Right-click <b>Ethernet</b> and select <b>Properties</b> to configure Static IP and DNS.</p>
+                    </div>
+                </div>
+
+                <!-- Ethernet Properties -->
+                <div id="eth-props-window" class="window">
+                    <div class="title-bar"><span>Ethernet Properties</span><span class="close-btn" onclick="closeWindow('eth-props-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <p style="margin:0 0 8px 0;">This connection uses the following items:</p>
+                        <div style="border:1px solid #ccc; padding:6px; height:195px; overflow:auto; background:#fafafa; display:flex; flex-direction:column; gap:4px;">
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> Client for Microsoft Networks</div>
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> File and Printer Sharing for Microsoft Networks</div>
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> Internet Protocol Version 6 (TCP/IPv6)</div>
+                            <div id="ipv4-row" ondblclick="openIPv4Dialog()" onclick="selectIPv4Row()" style="padding:5px 6px; border-radius:3px; cursor:pointer; background:#cce8ff; font-weight:600;">
+                                <input type="checkbox" checked disabled> Internet Protocol Version 4 (TCP/IPv4)
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+                            <button class="primary-btn" onclick="openIPv4Dialog()">Properties</button>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="closeWindow('eth-props-window')">OK</button>
+                        <button onclick="closeWindow('eth-props-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- IPv4 Properties (NO AUTO-FILL!) -->
+                <div id="ipv4-window" class="window">
+                    <div class="title-bar"><span>Internet Protocol Version 4 (TCP/IPv4) Properties</span><span class="close-btn" onclick="closeWindow('ipv4-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <label style="display:block; margin-bottom:6px;"><input type="radio" name="ip-mode" value="dhcp" onchange="toggleStaticIP(false)"> Obtain an IP address automatically</label>
+                        <label style="display:block; font-weight:600; margin-bottom:10px;"><input type="radio" name="ip-mode" id="radio-static-ip" value="static" checked onchange="toggleStaticIP(true)"> Use the following IP address:</label>
+
+                        <div style="display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; padding-left:18px; margin-bottom:14px;">
+                            <label>IP address:</label>
+                            <input type="text" id="inp-ip" placeholder="e.g. 192.168.1.2" autocomplete="off">
+                            <label>Subnet mask:</label>
+                            <input type="text" id="inp-mask" placeholder="e.g. 255.255.255.0" autocomplete="off">
+                            <label>Default gateway:</label>
+                            <input type="text" id="inp-gw" placeholder="(Optional)" autocomplete="off">
+                        </div>
+
+                        <label style="display:block; font-weight:600; margin-bottom:10px;"><input type="radio" checked disabled> Use the following DNS server addresses:</label>
+                        <div style="display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; padding-left:18px;">
+                            <label>Preferred DNS server:</label>
+                            <input type="text" id="inp-dns" placeholder="e.g. 192.168.1.1" autocomplete="off">
+                            <label>Alternate DNS server:</label>
+                            <input type="text" id="inp-dns2" placeholder="(Optional)" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="saveIPv4()">OK</button>
+                        <button onclick="closeWindow('ipv4-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- sysdm.cpl System Properties -->
+                <div id="sysdm-window" class="window">
+                    <div class="title-bar"><span>System Properties</span><span class="close-btn" onclick="closeWindow('sysdm-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <div style="font-weight:700; color:#005a9e; border-bottom:1px solid #e2e8f0; padding-bottom:6px; margin-bottom:12px;">Computer Name</div>
+                        <div style="display:grid; grid-template-columns:140px 1fr; gap:8px; margin-bottom:18px;">
+                            <span style="color:#555;">Full computer name:</span><strong id="sysdm-comp-name">SMEC-RODC</strong>
+                            <span style="color:#555;">Member of:</span><strong id="sysdm-domain-val">WORKGROUP</strong>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #e2e8f0; padding-top:14px;">
+                            <span style="font-size:12px; color:#444;">To rename this computer or change its domain, click Change.</span>
+                            <button class="primary-btn" onclick="openDomainChange()">Change...</button>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="closeWindow('sysdm-window')">OK</button>
+                    </div>
+                </div>
+
+                <!-- Computer Name / Domain Changes -->
+                <div id="domain-change-window" class="window">
+                    <div class="title-bar"><span>Computer Name/Domain Changes</span><span class="close-btn" onclick="closeWindow('domain-change-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <label style="display:block; margin-bottom:4px; font-weight:600;">Computer name:</label>
+                        <input type="text" value="SMEC-RODC" readonly style="width:100%; background:#f8fafc; margin-bottom:14px;">
+                        <div style="border:1px solid #ccc; padding:12px; border-radius:4px;">
+                            <div style="font-weight:600; margin-bottom:8px;">Member of</div>
+                            <label style="display:block; margin-bottom:6px; font-weight:600;">
+                                <input type="radio" name="dom-join-mode" id="radio-join-domain" onchange="document.getElementById('inp-join-domain').disabled=false; document.getElementById('inp-join-domain').focus();"> Domain:
+                            </label>
+                            <input type="text" id="inp-join-domain" placeholder="smec.com" disabled style="width:100%; margin-bottom:10px;" autocomplete="off" onkeypress="if(event.key==='Enter') submitDomainName()">
+                            <label style="display:block;"><input type="radio" name="dom-join-mode" checked onchange="document.getElementById('inp-join-domain').disabled=true;"> Workgroup: WORKGROUP</label>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="submitDomainName()">OK</button>
+                        <button onclick="closeWindow('domain-change-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Windows Security Auth Prompt -->
+                <div id="win-sec-window" class="window">
+                    <div class="title-bar"><span>Windows Security</span><span class="close-btn" onclick="closeWindow('win-sec-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <p style="margin:0 0 12px 0;">Enter the name and password of an account with permission to join the domain <strong>smec.com</strong>.</p>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <input type="text" id="winsec-user" placeholder="User name (smec\administrator)" autocomplete="off">
+                            <input type="password" id="winsec-pass" placeholder="Password" autocomplete="off" onkeypress="if(event.key==='Enter') submitWinSecJoin()">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="submitWinSecJoin()">OK</button>
+                        <button onclick="closeWindow('win-sec-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server Manager Window -->
+                <div id="sm-window" class="window">
+                    <div class="title-bar"><span>Server Manager - SMEC-RODC</span><span class="close-btn" onclick="closeWindow('sm-window')">X</span></div>
+                    <div style="background:#005a9e; color:#fff; padding:8px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12.5px;">
+                        <div style="font-weight:700;">Dashboard · Server Manager</div>
+                        <div style="display:flex; align-items:center; gap:14px;">
+                            <div id="sm-flag-btn" onclick="togglePromotePopover(event)" style="cursor:pointer; position:relative; padding:3px 8px; border-radius:4px; background:rgba(255,255,255,0.12);">
+                                🚩 Notifications <span id="sm-flag-badge" style="display:none; background:#facc15; color:#000; font-weight:700; font-size:10px; padding:1px 5px; border-radius:10px; margin-left:3px;">1</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Notification Flag Popover -->
+                    <div id="sm-promote-popover" style="display:none; position:absolute; top:70px; right:16px; width:340px; background:#fff; border:1px solid #999; border-radius:5px; box-shadow:0 8px 24px rgba(0,0,0,0.3); padding:12px; z-index:10050; font-size:12px;">
+                        <div style="font-weight:700; color:#b45309; margin-bottom:6px;">⚠️ Post-deployment Configuration</div>
+                        <p style="margin:0 0 10px 0; color:#333;">Configuration required for Active Directory Domain Services at SMEC-RODC.</p>
+                        <a href="#" onclick="openPromoteWizard(event)" style="color:#0078D7; font-weight:700; text-decoration:underline;">Promote this server to a domain controller</a>
+                    </div>
+
+                    <div class="content" style="background:#f8fafc; padding:18px; display:flex; flex-direction:column; gap:16px;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <h3 style="margin:0 0 4px 0; color:#0f172a;">Configure this local server</h3>
+                                <div style="font-size:12px; color:#475569;">Logged in as: <strong id="sm-logged-user">Local Administrator</strong> | Domain: <strong id="sm-domain-lbl">WORKGROUP</strong></div>
+                            </div>
+                            <button id="btn-add-roles" class="primary-btn" onclick="openAddRolesWizard()">+ Add roles and features</button>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; font-size:12px;">
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">IP / DNS Status</div>
+                                <div id="sm-card-ip" style="font-weight:700; color:#b45309; margin-top:4px;">DHCP (Pending)</div>
+                            </div>
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">AD DS Role</div>
+                                <div id="sm-card-adds" style="font-weight:700; color:#64748b; margin-top:4px;">Not Installed</div>
+                            </div>
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">DC Promotion</div>
+                                <div id="sm-card-rodc" style="font-weight:700; color:#64748b; margin-top:4px;">Member Server</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Roles and Features Wizard -->
+                <div id="add-roles-window" class="window">
+                    <div class="title-bar"><span>Add Roles and Features Wizard</span><span class="close-btn" onclick="closeWindow('add-roles-window')">X</span></div>
+                    <div class="wiz-layout">
+                        <div class="wiz-side">
+                            <div class="wiz-step active" id="ar-nav-1">Before You Begin</div>
+                            <div class="wiz-step" id="ar-nav-2">Installation Type</div>
+                            <div class="wiz-step" id="ar-nav-3">Server Selection</div>
+                            <div class="wiz-step" id="ar-nav-4">Server Roles</div>
+                            <div class="wiz-step" id="ar-nav-5">Features</div>
+                            <div class="wiz-step" id="ar-nav-6">AD DS</div>
+                            <div class="wiz-step" id="ar-nav-7">Confirmation</div>
+                            <div class="wiz-step" id="ar-nav-8">Results</div>
+                        </div>
+                        <div class="wiz-main" id="ar-main-pane"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button id="ar-prev-btn" onclick="arPrev()" style="display:none;">&lt; Previous</button>
+                        <button id="ar-next-btn" class="primary-btn" onclick="arNext()">Next &gt;</button>
+                        <button onclick="closeWindow('add-roles-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- AD DS Configuration Wizard (Promote to RODC + RODC Options User Selection) -->
+                <div id="promote-dc-window" class="window">
+                    <div class="title-bar"><span>Active Directory Domain Services Configuration Wizard (RODC)</span><span class="close-btn" onclick="closeWindow('promote-dc-window')">X</span></div>
+                    <div class="wiz-layout">
+                        <div class="wiz-side">
+                            <div class="wiz-step active" id="pd-nav-1">Deployment Configuration</div>
+                            <div class="wiz-step" id="pd-nav-2">Domain Controller Options</div>
+                            <div class="wiz-step" id="pd-nav-3">RODC Options</div>
+                            <div class="wiz-step" id="pd-nav-4">Additional Options</div>
+                            <div class="wiz-step" id="pd-nav-5">Paths</div>
+                            <div class="wiz-step" id="pd-nav-6">Review Options</div>
+                            <div class="wiz-step" id="pd-nav-7">Prerequisites Check</div>
+                            <div class="wiz-step" id="pd-nav-8">Installation</div>
+                        </div>
+                        <div class="wiz-main" id="pd-main-pane"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button id="pd-prev-btn" onclick="pdPrev()" style="display:none;">&lt; Previous</button>
+                        <button id="pd-next-btn" class="primary-btn" onclick="pdNext()">Next &gt;</button>
+                        <button onclick="closeWindow('promote-dc-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Authentic Windows "Select Users, Computers, Service Accounts, or Groups" Dialog -->
+                <div id="prp-select-user-window" class="window" style="width: 470px; height: 350px; top: 95px;">
+                    <div class="title-bar"><span>Select Users, Computers, Service Accounts, or Groups</span><span class="close-btn" onclick="closeWindow('prp-select-user-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                        <div>
+                            <div style="margin-bottom:3px; color:#333;">Select this object type:</div>
+                            <input type="text" value="Users, Groups, or Built-in security principals" readonly style="width:100%; background:#f8fafc; font-size:11.5px;">
+                        </div>
+                        <div>
+                            <div style="margin-bottom:3px; color:#333;">From this location:</div>
+                            <input type="text" value="smec.com" readonly style="width:100%; background:#f8fafc; font-size:11.5px; font-weight:600;">
+                        </div>
+                        <div>
+                            <div style="margin-bottom:4px; font-weight:600; color:#111;">Enter the object names to select (<a href="#" onclick="event.preventDefault(); showToast('Available users: Arun, User1, User2');" style="color:#0078D7;">examples</a>):</div>
+                            <div style="display:flex; gap:8px; align-items:flex-start;">
+                                <textarea id="prp-search-input" rows="3" placeholder="Type user name (e.g. Arun, User1, or User2)..." oninput="prpResolvedUsers=[]" onkeydown="if(event.key==='Enter'){event.preventDefault(); checkPrpNames();}" style="flex:1; padding:6px 8px; border:1px solid #999; border-radius:3px; font-family:inherit; font-size:12.5px; resize:none;"></textarea>
+                                <button onclick="checkPrpNames()" style="white-space:nowrap; height:32px; font-weight:600;">Check Names</button>
+                            </div>
+                            <div id="prp-check-status" style="margin-top:6px; font-size:11.5px; color:#475569; min-height:18px;">
+                                Tip: Type <code>Arun</code> (or <code>User1</code> / <code>User2</code>) and click <b>Check Names</b>, then click <b>OK</b>.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="confirmPrpUsers()">OK</button>
+                        <button onclick="closeWindow('prp-select-user-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- DC2 Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('dc2-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="dc2-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-RODC)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openDC2Run(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:5px;">Run</span>
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openServerManager(); document.getElementById('dc2-start-menu').style.display='none';">
+                            <div class="app-icon">🗄️</div>
+                            <span style="font-size:11.5px; font-weight:600; text-align:center;">Server<br>Manager</span>
+                        </div>
+                        <div class="app" id="dc2-start-aduc" style="display:none;" onclick="openDC2Aduc(); document.getElementById('dc2-start-menu').style.display='none';">
+                            <div class="app-icon">👥</div>
+                            <span style="font-size:11.5px; font-weight:600;">ADUC</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Dedicated Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 14</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Context Menus -->
+    <div id="ctx-ethernet" class="context-menu">
+        <div onclick="openEthProperties()"><strong>Properties</strong></div>
+    </div>
+    <div id="ctx-rodc-tech" class="context-menu">
+        <div onclick="attemptCreateUserOnRodc(event)"><strong>New &rarr; User...</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 'dc1';
+        let dc1Verified = false;
+        let ipConfigured = false;
+        let domainJoined = false;
+        let loggedInAsDomainAdmin = false;
+        let addsRoleInstalled = false;
+        let rodcPromoted = false;
+        let rodcUserLoggedIn = false;
+        let loginPhase = 'domain-join'; // 'domain-join' or 'rodc-verify'
+
+        // Add Roles Wizard state
+        let arPage = 1;
+        let addsRoleChecked = false;
+
+        // Promote RODC Wizard state
+        let pdPage = 1;
+        let pdDeployMode = 'add-dc';
+        let pdDomainVal = 'smec.com';
+        let pdRodcChecked = false;
+        let pdDsrmPass = '';
+        let pdDsrmConfirm = '';
+        let allowedRodcUsers = [];
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => el.style.display = 'none');
+            const pop = document.getElementById('sm-promote-popover');
+            if (pop) pop.style.display = 'none';
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 2900);
+        }
+
+        function switchMachine(m) {
+            activeMachine = m;
+            document.getElementById('dc1-pc').classList.toggle('active-pc', m === 'dc1');
+            document.getElementById('dc2-pc').classList.toggle('active-pc', m === 'dc2');
+            document.getElementById('btn-switch-dc1').classList.toggle('active', m === 'dc1');
+            document.getElementById('btn-switch-dc2').classList.toggle('active', m === 'dc2');
+            updateSidebarAttention();
+        }
+
+        function updateSidebarAttention() {
+            const b1 = document.getElementById('btn-switch-dc1');
+            const b2 = document.getElementById('btn-switch-dc2');
+            b1.classList.remove('attention');
+            b2.classList.remove('attention');
+            if (step <= 2 && activeMachine !== 'dc1') b1.classList.add('attention');
+            if (step >= 3 && step <= 14 && activeMachine !== 'dc2') b2.classList.add('attention');
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+
+        function toggleTree(el, e) {
+            e.stopPropagation();
+            el.classList.toggle('expanded');
+            if (el.classList.contains('icon-folder')) { el.classList.remove('icon-folder'); el.classList.add('icon-folder-open'); }
+            else if (el.classList.contains('icon-folder-open')) { el.classList.remove('icon-folder-open'); el.classList.add('icon-folder'); }
+        }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 210) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 90) + 'px';
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 14)} / 14`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER 1 (Verify AD DS):</strong> Click <b>Start &rarr; Run</b>, type <code>dsa.msc</code> (or click AD Users &amp; Computers) to verify AD is installed on <b>SMEC-DC1</b>."; break;
+                case 2: text = "<strong>SERVER 1 (Verify Users):</strong> Click the <b>Tech</b> OU under <b>smec.com</b> to confirm existing AD users (<b>Arun</b>, <b>User1</b>, <b>User2</b>)."; break;
+                case 3: text = "<strong>SERVER 2 (IP Setup):</strong> Switch to <b>🔒 Server 2 (RODC)</b> on the left sidebar! Open <b>Start &rarr; Run</b>, type <code>ncpa.cpl</code>, and click <b>OK</b>."; break;
+                case 4: text = "<strong>SERVER 2 (IP Setup):</strong> Right-click <b>Ethernet</b> &rarr; <b>Properties</b> &rarr; double-click <b>Internet Protocol Version 4 (TCP/IPv4)</b>."; break;
+                case 5: text = "<strong>SERVER 2 (IP Setup):</strong> Enter IP <code>192.168.1.2</code>, Subnet Mask <code>255.255.255.0</code>, and Preferred DNS <code>192.168.1.1</code> &rarr; click <b>OK</b>."; break;
+                case 6: text = "<strong>SERVER 2 (Domain Join):</strong> Click <b>Start &rarr; Run</b>, type <code>sysdm.cpl</code>, and click <b>OK</b>."; break;
+                case 7: text = "<strong>SERVER 2 (Domain Join):</strong> Click <b>Change...</b> &rarr; select <b>Domain</b> &rarr; type <code>smec.com</code> &rarr; OK &rarr; authenticate with <code>smec\\administrator</code> / <code>password123</code> &rarr; Restart."; break;
+                case 8: text = "<strong>SERVER 2 (Domain Login):</strong> After restart, sign in as Domain Admin using <code>smec\\administrator</code> and password <code>password123</code>."; break;
+                case 9: text = "<strong>SERVER 2 (Install AD DS):</strong> Open <b>Server Manager</b> and click <b>+ Add roles and features</b>."; break;
+                case 10: text = "<strong>SERVER 2 (Install AD DS):</strong> Navigate to <b>Server Roles</b>, check <b>Active Directory Domain Services</b>, proceed to Confirmation, and click <b>Install</b>."; break;
+                case 11: text = "<strong>SERVER 2 (Promote to RODC):</strong> Click the yellow <b>🚩 Notifications</b> flag in Server Manager &rarr; click <b>Promote this server to a domain controller</b>."; break;
+                case 12: text = "<strong>SERVER 2 (RODC Wizard):</strong> Select <b>Add a DC to existing domain</b> (<code>smec.com</code>) &rarr; check <b>Read only domain controller (RODC)</b> &amp; DSRM <code>password123</code> &rarr; on <b>RODC Options</b> click <b>Select...</b>, type <code>Arun</code> (or <code>User1</code>), click <b>Check Names</b> &rarr; <b>OK</b> &rarr; proceed &amp; click <b>Install</b>."; break;
+                case 13: text = "<strong>SERVER 2 (RODC User Login):</strong> After restart, sign in to the RODC using an existing AD user (e.g., <code>smec\\Arun</code> or <code>smec\\User1</code> with password <code>password123</code>) to verify user login works!"; break;
+                case 14: text = "<strong>SERVER 2 (Test Read-Only Block):</strong> Open <b>AD Users &amp; Computers</b> (<code>dsa.msc</code>) on <b>SMEC-RODC</b>, click <b>Tech</b> OU, then <b>right-click Tech OU &rarr; New &rarr; User...</b> to verify creating new users is blocked on an RODC!"; break;
+                case 15:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> You configured <b>SMEC-RODC</b> (192.168.1.2) as a Read-Only Domain Controller, delegated allowed users in Password Replication Policy, verified existing AD user login, and confirmed new user creation is blocked!";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        // --- STEP 1-2: SERVER 1 (PDC) ADUC CHECK ---
+        function openDC1Run(e) {
+            e.stopPropagation();
+            document.getElementById('dc1-start-menu').style.display = 'none';
+            document.getElementById('dc1-run-window').style.display = 'flex';
+            document.getElementById('dc1-run-input').value = '';
+            document.getElementById('dc1-run-input').focus();
+        }
+        function executeDC1Run() {
+            const cmd = document.getElementById('dc1-run-input').value.trim().toLowerCase();
+            closeWindow('dc1-run-window');
+            if (cmd === 'dsa.msc') openDC1Aduc();
+            else if (cmd !== '') alert(`Windows cannot find '${cmd}'.`);
+        }
+        function openDC1Aduc() {
+            document.getElementById('dc1-aduc-window').style.display = 'flex';
+            if (step === 1) { step = 2; updateGuide(); }
+        }
+        function selectDC1Node(node, el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('#dc1-aduc-window li').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('dc1-aduc-placeholder').style.display = 'none';
+            document.getElementById('dc1-tech-table').style.display = (node === 'tech') ? 'table' : 'none';
+            document.getElementById('dc1-dcs-table').style.display = (node === 'dcs') ? 'table' : 'none';
+            if (node === 'tech' && step === 2) {
+                dc1Verified = true;
+                showToast("AD DS verified on SMEC-DC1! Now switch to Server 2 (RODC) on the left.");
+                step = 3;
+                updateGuide();
+            }
+        }
+
+        // --- DC2 RUN DIALOG ---
+        function openDC2Run(e) {
+            e.stopPropagation();
+            document.getElementById('dc2-start-menu').style.display = 'none';
+            document.getElementById('dc2-run-window').style.display = 'flex';
+            document.getElementById('dc2-run-input').value = '';
+            document.getElementById('dc2-run-input').focus();
+        }
+        function executeDC2Run() {
+            const cmd = document.getElementById('dc2-run-input').value.trim().toLowerCase();
+            closeWindow('dc2-run-window');
+            if (cmd === 'ncpa.cpl') {
+                if (!dc1Verified) { alert("First verify AD DS & Tech OU users on Server 1 (PDC)!"); return; }
+                document.getElementById('ncpa-window').style.display = 'flex';
+                if (step === 3) { step = 4; updateGuide(); }
+            } else if (cmd === 'sysdm.cpl') {
+                if (!ipConfigured) { alert("Please configure Static IP (192.168.1.2) and DNS (192.168.1.1) in ncpa.cpl first!"); return; }
+                document.getElementById('sysdm-window').style.display = 'flex';
+                if (step === 6) { step = 7; updateGuide(); }
+            } else if (cmd === 'dsa.msc') {
+                if (!rodcPromoted) { alert("AD Users & Computers is available after promoting SMEC-RODC!"); return; }
+                openDC2Aduc();
+            } else if (cmd !== '') {
+                alert(`Windows cannot find '${cmd}'.`);
+            }
+        }
+
+        // --- STEP 3-5: IP & DNS CONFIG ---
+        function openEthProperties() { document.getElementById('eth-props-window').style.display = 'flex'; }
+        function selectIPv4Row() { document.getElementById('ipv4-row').style.background = '#cce8ff'; }
+        function openIPv4Dialog() {
+            document.getElementById('ipv4-window').style.display = 'flex';
+            document.getElementById('inp-ip').focus();
+            if (step === 4) { step = 5; updateGuide(); }
+        }
+        function toggleStaticIP(en) {
+            ['inp-ip', 'inp-mask', 'inp-gw', 'inp-dns', 'inp-dns2'].forEach(id => document.getElementById(id).disabled = !en);
+        }
+        function saveIPv4() {
+            const ip = document.getElementById('inp-ip').value.trim();
+            const mask = document.getElementById('inp-mask').value.trim();
+            const dns = document.getElementById('inp-dns').value.trim();
+            if (ip !== '192.168.1.2') { alert("Please set IP address to 192.168.1.2"); return; }
+            if (mask !== '255.255.255.0') { alert("Please set Subnet mask to 255.255.255.0"); return; }
+            if (dns !== '192.168.1.1') { alert("Please set Preferred DNS server to 192.168.1.1 (Primary DC IP)"); return; }
+
+            ipConfigured = true;
+            closeWindow('ipv4-window');
+            closeWindow('eth-props-window');
+            closeWindow('ncpa-window');
+            document.getElementById('eth-status-sub').innerText = 'IP: 192.168.1.2 | DNS: 192.168.1.1';
+            document.getElementById('dc2-sidebar-ip').innerText = 'SMEC-RODC (192.168.1.2)';
+            document.getElementById('dc2-top-sub').innerText = 'IP: 192.168.1.2 | DNS: 192.168.1.1 | Workgroup';
+            document.getElementById('sm-card-ip').innerText = '192.168.1.2 (DNS: .1)';
+            document.getElementById('sm-card-ip').style.color = '#15803d';
+            showToast("IP 192.168.1.2 & DNS 192.168.1.1 configured!");
+            if (step === 5) { step = 6; updateGuide(); }
+        }
+
+        // --- STEP 6-8: DOMAIN JOIN (smec.com) & RESTART & DOMAIN LOGIN ---
+        function openDomainChange() { document.getElementById('domain-change-window').style.display = 'flex'; }
+        function submitDomainName() {
+            if (!document.getElementById('radio-join-domain').checked) { alert("Please select 'Domain' radio button."); return; }
+            const dom = document.getElementById('inp-join-domain').value.trim().toLowerCase();
+            if (dom !== 'smec.com') { alert("Please type 'smec.com' as the domain name."); return; }
+            document.getElementById('win-sec-window').style.display = 'flex';
+            document.getElementById('winsec-user').value = '';
+            document.getElementById('winsec-pass').value = '';
+            document.getElementById('winsec-user').focus();
+        }
+        function submitWinSecJoin() {
+            const u = document.getElementById('winsec-user').value.trim().toLowerCase();
+            const p = document.getElementById('winsec-pass').value;
+            if ((u !== 'smec\\administrator' && u !== 'administrator' && u !== 'administrator@smec.com') || p !== 'password123') {
+                alert("Invalid credentials! Use smec\\administrator and password123");
+                return;
+            }
+            domainJoined = true;
+            closeWindow('win-sec-window');
+            closeWindow('domain-change-window');
+            closeWindow('sysdm-window');
+            alert("Welcome to the smec.com domain.\n\nYou must restart your computer to apply these changes.");
+
+            const ov = document.getElementById('dc2-restart-overlay');
+            document.getElementById('restart-title').innerText = 'Restarting SMEC-RODC...';
+            document.getElementById('restart-sub').innerText = 'Joining domain smec.com...';
+            ov.style.display = 'flex';
+            setTimeout(() => {
+                ov.style.display = 'none';
+                loginPhase = 'domain-join';
+                document.getElementById('dc2-login-badge').innerHTML = '<strong>SMEC-RODC</strong> · Joined to <code>smec.com</code>';
+                document.getElementById('dc2-login-heading').innerText = 'Other user (Domain Admin)';
+                document.getElementById('dc2-login-hint').innerHTML = 'Sign in as Domain Admin: <code>smec\\administrator</code> / <code>password123</code>';
+                document.getElementById('dc2-login-user').placeholder = 'User name (smec\\administrator)';
+                document.getElementById('dc2-login-overlay').style.display = 'flex';
+                document.getElementById('dc2-login-user').value = '';
+                document.getElementById('dc2-login-pass').value = '';
+                document.getElementById('dc2-login-user').focus();
+                if (step === 7) { step = 8; updateGuide(); }
+            }, 1700);
+        }
+
+        function submitDC2DomainLogin() {
+            const u = document.getElementById('dc2-login-user').value.trim().toLowerCase();
+            const p = document.getElementById('dc2-login-pass').value;
+            const err = document.getElementById('dc2-login-err');
+
+            if (loginPhase === 'domain-join') {
+                if (u !== 'smec\\administrator' || p !== 'password123') {
+                    err.innerText = 'Please sign in as Domain Admin: smec\\administrator / password123';
+                    err.style.display = 'block';
+                    return;
+                }
+                err.style.display = 'none';
+                loggedInAsDomainAdmin = true;
+                document.getElementById('dc2-login-overlay').style.display = 'none';
+                document.getElementById('dc2-sidebar-role').innerText = 'Member: smec.com';
+                document.getElementById('dc2-top-label').childNodes[0].nodeValue = 'SMEC-RODC (Member Server) ';
+                document.getElementById('dc2-top-sub').innerText = 'IP: 192.168.1.2 | Domain: smec.com | User: smec\\administrator';
+                document.getElementById('sm-logged-user').innerText = 'smec\\administrator';
+                document.getElementById('sm-domain-lbl').innerText = 'smec.com';
+                document.getElementById('sysdm-domain-val').innerText = 'smec.com';
+                showToast("Signed in as smec\\administrator! Open Server Manager to install AD DS.");
+                if (step === 8) { step = 9; updateGuide(); }
+            } else if (loginPhase === 'rodc-verify') {
+                const validUsers = ['smec\\arun', 'arun@smec.com', 'smec\\user1', 'user1@smec.com', 'smec\\user2', 'user2@smec.com', 'smec\\administrator'];
+                if (!validUsers.includes(u) || p !== 'password123') {
+                    err.innerText = 'Sign in with an existing AD user (e.g. smec\\Arun or smec\\User1) and password123';
+                    err.style.display = 'block';
+                    return;
+                }
+                err.style.display = 'none';
+                rodcUserLoggedIn = true;
+                document.getElementById('dc2-login-overlay').style.display = 'none';
+                document.getElementById('dc2-top-sub').innerText = `IP: 192.168.1.2 | RODC: smec.com | Signed in: ${u}`;
+                showToast(`Signed in to RODC as ${u}! Now open ADUC (dsa.msc) to test Read-Only restriction.`);
+                if (step === 13) { step = 14; updateGuide(); }
+            }
+        }
+
+        // --- STEP 9-10: SERVER MANAGER & ADD AD DS ROLE ---
+        function openServerManager() {
+            if (!loggedInAsDomainAdmin) { alert("First configure IP, join smec.com, restart, and sign in as smec\\administrator!"); return; }
+            document.getElementById('sm-window').style.display = 'flex';
+        }
+
+        function openAddRolesWizard() {
+            if (addsRoleInstalled) { showToast("AD DS Role is already installed. Click the 🚩 Notifications flag to promote!"); return; }
+            arPage = 1;
+            document.getElementById('add-roles-window').style.display = 'flex';
+            renderArPage();
+            if (step === 9) { step = 10; updateGuide(); }
+        }
+
+        function renderArPage() {
+            for (let i = 1; i <= 8; i++) {
+                const el = document.getElementById('ar-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === arPage) el.classList.add('active');
+                else if (i < arPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('ar-main-pane');
+            const prev = document.getElementById('ar-prev-btn');
+            const next = document.getElementById('ar-next-btn');
+            prev.style.display = (arPage > 1 && arPage < 8) ? 'inline-block' : 'none';
+            next.disabled = false;
+
+            if (arPage === 1) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Before You Begin</h3><p>This wizard installs roles and features on <b>SMEC-RODC.smec.com</b>.</p><p>Verify static IP (<code>192.168.1.2</code>) and DNS (<code>192.168.1.1</code>) are set. Click <b>Next</b>.</p>`;
+            } else if (arPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select installation type</h3><label style="display:block; font-weight:600; margin-bottom:8px;"><input type="radio" checked> Role-based or feature-based installation</label><label style="display:block; color:#666;"><input type="radio" disabled> Remote Desktop Services installation</label>`;
+            } else if (arPage === 3) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select destination server</h3><table class="mmc-table" style="border:1px solid #ccc;"><tr><th>Name</th><th>IP Address</th><th>OS</th></tr><tr style="background:#e5f1fb;"><td><strong>SMEC-RODC.smec.com</strong></td><td>192.168.1.2</td><td>Windows Server 2025</td></tr></table>`;
+            } else if (arPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select server roles</h3>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; display:flex; flex-direction:column; gap:8px;">
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-adds-role" ${addsRoleChecked ? 'checked' : ''} onchange="addsRoleChecked=this.checked; if(this.checked) showToast('Included required AD DS Management Tools.');"> Active Directory Domain Services</label>
+                        <label style="color:#555;"><input type="checkbox" disabled> DHCP Server</label>
+                        <label style="color:#555;"><input type="checkbox" disabled> DNS Server</label>
+                        <label style="color:#555;"><input type="checkbox" disabled> Web Server (IIS)</label>
+                    </div>`;
+            } else if (arPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select features</h3><p>AD DS and AD LDS Tools are automatically selected. Click <b>Next</b>.</p>`;
+            } else if (arPage === 6) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Active Directory Domain Services (AD DS)</h3><p>After installing AD DS binaries, you will promote <b>SMEC-RODC</b> as a <b>Read-Only Domain Controller (RODC)</b> for <code>smec.com</code>.</p>`;
+            } else if (arPage === 7) {
+                next.innerText = 'Install';
+                pane.innerHTML = `<h3 style="margin-top:0;">Confirm installation selections</h3><ul><li>Destination Server: <b>SMEC-RODC.smec.com</b></li><li>Role: <b>Active Directory Domain Services</b></li></ul><p>Click <b>Install</b> to begin.</p>`;
+            } else if (arPage === 8) {
+                next.innerText = 'Close';
+                next.disabled = !addsRoleInstalled;
+                pane.innerHTML = `<h3 style="margin-top:0;">Installation progress</h3>
+                    <div id="ar-prog-txt">Installing Active Directory Domain Services binaries...</div>
+                    <div class="prog-track"><div id="ar-prog-fill" class="prog-fill"></div></div>
+                    <div id="ar-done-msg" style="display:none; padding:10px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; color:#15803d; font-weight:600;">
+                        ✓ Installation succeeded on SMEC-RODC.smec.com! Click Close, then click the yellow 🚩 Notifications flag.
+                    </div>`;
+                if (!addsRoleInstalled) runAddsInstall();
+            }
+        }
+
+        function arPrev() { if (arPage > 1 && arPage < 8) { arPage--; renderArPage(); } }
+        function arNext() {
+            if (arPage === 4 && !addsRoleChecked) { alert("Please check 'Active Directory Domain Services' to continue."); return; }
+            if (arPage === 8) { closeWindow('add-roles-window'); return; }
+            arPage++;
+            renderArPage();
+        }
+
+        function runAddsInstall() {
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '45%'; }, 350);
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '85%'; }, 1000);
+            setTimeout(() => {
+                addsRoleInstalled = true;
+                const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '100%';
+                const t = document.getElementById('ar-prog-txt'); if (t) t.innerText = 'Installation succeeded.';
+                const d = document.getElementById('ar-done-msg'); if (d) d.style.display = 'block';
+                document.getElementById('ar-next-btn').disabled = false;
+                document.getElementById('sm-card-adds').innerText = 'Installed ✓';
+                document.getElementById('sm-card-adds').style.color = '#15803d';
+                document.getElementById('sm-flag-badge').style.display = 'inline';
+                if (step === 10) { step = 11; updateGuide(); }
+            }, 1600);
+        }
+
+        // --- STEP 11-12: PROMOTE TO READ-ONLY DOMAIN CONTROLLER (RODC) ---
+        function togglePromotePopover(e) {
+            e.stopPropagation();
+            if (!addsRoleInstalled) { showToast("No pending notifications. Install AD DS role first."); return; }
+            const pop = document.getElementById('sm-promote-popover');
+            pop.style.display = pop.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function openPromoteWizard(e) {
+            e.preventDefault(); e.stopPropagation();
+            document.getElementById('sm-promote-popover').style.display = 'none';
+            pdPage = 1;
+            document.getElementById('promote-dc-window').style.display = 'flex';
+            renderPdPage();
+            if (step === 11) { step = 12; updateGuide(); }
+        }
+
+        function renderPdPage() {
+            for (let i = 1; i <= 8; i++) {
+                const el = document.getElementById('pd-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === pdPage) el.classList.add('active');
+                else if (i < pdPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('pd-main-pane');
+            const prev = document.getElementById('pd-prev-btn');
+            const next = document.getElementById('pd-next-btn');
+            prev.style.display = (pdPage > 1 && pdPage < 8) ? 'inline-block' : 'none';
+            next.disabled = false;
+
+            if (pdPage === 1) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Deployment Configuration</h3>
+                    <p style="margin-top:0;">Select the deployment operation:</p>
+                    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+                        <label style="font-weight:700; color:#005a9e;"><input type="radio" name="pd-mode" value="add-dc" ${pdDeployMode==='add-dc'?'checked':''} onchange="pdDeployMode='add-dc'"> Add a domain controller to an existing domain</label>
+                        <label style="color:#555;"><input type="radio" name="pd-mode" value="add-dom" ${pdDeployMode==='add-dom'?'checked':''} onchange="pdDeployMode='add-dom'"> Add a new domain to an existing forest</label>
+                        <label style="color:#555;"><input type="radio" name="pd-mode" value="new-forest" ${pdDeployMode==='new-forest'?'checked':''} onchange="pdDeployMode='new-forest'"> Add a new forest</label>
+                    </div>
+                    <div style="border:1px solid #ccc; padding:12px; border-radius:4px; background:#fafafa;">
+                        <div style="margin-bottom:8px;"><strong>Domain:</strong> <input type="text" id="pd-dom-inp" value="${pdDomainVal}" style="width:220px; margin-left:8px;"></div>
+                        <div style="font-size:12px; color:#333;">Current credentials: <strong style="color:#15803d;">SMEC\\Administrator</strong></div>
+                    </div>`;
+            } else if (pdPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Domain Controller Options</h3>
+                    <div style="margin-bottom:12px; border:1px solid #c7d2fe; background:#eef2ff; padding:10px; border-radius:4px;">
+                        <label style="display:block; margin-bottom:6px;"><input type="checkbox" checked> Domain Name System (DNS) server</label>
+                        <label style="display:block; margin-bottom:6px;"><input type="checkbox" checked> Global Catalog (GC)</label>
+                        <label style="display:block; font-weight:700; color:#4338ca; cursor:pointer;"><input type="checkbox" id="chk-rodc-mode" ${pdRodcChecked?'checked':''} onchange="pdRodcChecked=this.checked;"> 🔒 Read only domain controller (RODC)</label>
+                    </div>
+                    <div style="margin-bottom:12px;">Site name: <select><option>Default-First-Site-Name</option></select></div>
+                    <div style="border:1px solid #ccc; padding:12px; border-radius:4px; background:#fafafa;">
+                        <div style="font-weight:600; margin-bottom:8px;">Directory Services Restore Mode (DSRM) password:</div>
+                        <div style="display:grid; grid-template-columns:140px 1fr; gap:8px; align-items:center;">
+                            <label>Password:</label><input type="password" id="pd-dsrm-1" value="${pdDsrmPass}" placeholder="password123">
+                            <label>Confirm password:</label><input type="password" id="pd-dsrm-2" value="${pdDsrmConfirm}" placeholder="password123">
+                        </div>
+                    </div>`;
+            } else if (pdPage === 3) {
+                next.innerText = 'Next >';
+                const allowedHtml = allowedRodcUsers.length > 0
+                    ? allowedRodcUsers.map(u => `<div style="padding:3px 6px; background:#ecfdf5; color:#15803d; font-weight:600; border-radius:3px; margin-bottom:3px;">👤 ${u}</div>`).join('')
+                    : `<div style="color:#64748b; font-style:italic;">Default: Allowed RODC Password Replication Group (Click Select... to search &amp; add Arun / User1)</div>`;
+                pane.innerHTML = `<h3 style="margin-top:0;">RODC Options (Password Replication Policy)</h3>
+                    <div style="margin-bottom:12px;">
+                        <div style="font-weight:600; margin-bottom:4px;">Delegated administrator account (optional):</div>
+                        <input type="text" value="SMEC\\Administrator" readonly style="width:100%; background:#f8fafc;">
+                    </div>
+                    <div style="border:1px solid #c7d2fe; padding:10px; border-radius:4px; background:#f8fafc; margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                            <strong style="color:#4338ca;">Accounts allowed to replicate passwords to the RODC:</strong>
+                            <button class="primary-btn" onclick="openPrpUserPicker()">Select...</button>
+                        </div>
+                        <div id="prp-allowed-list" style="border:1px solid #ccc; background:#fff; padding:8px; min-height:66px; border-radius:3px; font-size:12px;">
+                            ${allowedHtml}
+                        </div>
+                    </div>
+                    <div style="font-size:11.5px; color:#555;">
+                        <strong>Denied by default:</strong> Domain Admins, Enterprise Admins, Schema Admins, Administrators (for branch office security).
+                    </div>`;
+            } else if (pdPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Additional Options</h3>
+                    <p>Specify additional replication options:</p>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-weight:600;">Replicate from:</label>
+                        <select style="width:260px;"><option>SMEC-DC1.smec.com</option><option>Any domain controller</option></select>
+                    </div>`;
+            } else if (pdPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Paths</h3>
+                    <div style="display:grid; grid-template-columns:130px 1fr; gap:8px; align-items:center;">
+                        <label>Database folder:</label><input type="text" value="C:\\Windows\\NTDS" readonly style="background:#f8fafc;">
+                        <label>Log files folder:</label><input type="text" value="C:\\Windows\\NTDS" readonly style="background:#f8fafc;">
+                        <label>SYSVOL folder:</label><input type="text" value="C:\\Windows\\SYSVOL" readonly style="background:#f8fafc;">
+                    </div>`;
+            } else if (pdPage === 6) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Review Options</h3>
+                    <div style="border:1px solid #ccc; padding:12px; background:#fafafa; font-family:Consolas, monospace; font-size:12px; line-height:1.7;">
+                        Operation: Add a Read-Only Domain Controller (RODC)<br>
+                        Domain Name: smec.com<br>
+                        Server Name: SMEC-RODC (192.168.1.2)<br>
+                        Replicate From: SMEC-DC1.smec.com (192.168.1.1)<br>
+                        Allowed PRP Users: ${allowedRodcUsers.join(', ')}<br>
+                        Global Catalog: Yes | DNS Server: Yes | Read-Only: Yes
+                    </div>`;
+            } else if (pdPage === 7) {
+                next.innerText = 'Install';
+                pane.innerHTML = `<h3 style="margin-top:0;">Prerequisites Check</h3>
+                    <div style="padding:12px; background:#ecfdf5; border:1px solid #16a34a; border-radius:5px; color:#15803d; font-weight:600; margin-bottom:10px;">
+                        ✓ All prerequisite checks passed successfully. Click "Install" to promote SMEC-RODC.
+                    </div>
+                    <p style="font-size:12px; color:#475569;">Verified connectivity to <b>SMEC-DC1.smec.com</b>, RODC schema prep, and Password Replication Policy.</p>`;
+            } else if (pdPage === 8) {
+                next.innerText = 'Close';
+                next.disabled = true;
+                pane.innerHTML = `<h3 style="margin-top:0;">Installing &amp; Replicating Read-Only AD DS...</h3>
+                    <div id="pd-prog-txt">Replicating read-only directory partition and Password Replication Policy from SMEC-DC1...</div>
+                    <div class="prog-track"><div id="pd-prog-fill" class="prog-fill"></div></div>`;
+                runRodcPromotion();
+            }
+        }
+
+        let prpResolvedUsers = [];
+        const AD_USER_DIRECTORY = {
+            'arun': { display: 'Arun (arun@smec.com)', account: 'SMEC\\Arun' },
+            'smec\\arun': { display: 'Arun (arun@smec.com)', account: 'SMEC\\Arun' },
+            'arun@smec.com': { display: 'Arun (arun@smec.com)', account: 'SMEC\\Arun' },
+            'user1': { display: 'User1 (user1@smec.com)', account: 'SMEC\\User1' },
+            'smec\\user1': { display: 'User1 (user1@smec.com)', account: 'SMEC\\User1' },
+            'user1@smec.com': { display: 'User1 (user1@smec.com)', account: 'SMEC\\User1' },
+            'user2': { display: 'User2 (user2@smec.com)', account: 'SMEC\\User2' },
+            'smec\\user2': { display: 'User2 (user2@smec.com)', account: 'SMEC\\User2' },
+            'user2@smec.com': { display: 'User2 (user2@smec.com)', account: 'SMEC\\User2' }
+        };
+
+        function openPrpUserPicker() {
+            prpResolvedUsers = [];
+            const inp = document.getElementById('prp-search-input');
+            inp.value = '';
+            inp.style.textDecoration = 'none';
+            inp.style.color = '#111';
+            document.getElementById('prp-check-status').innerHTML = 'Tip: Type <code>Arun</code> (or <code>User1</code> / <code>User2</code>) and click <b>Check Names</b>, then click <b>OK</b>.';
+            document.getElementById('prp-select-user-window').style.display = 'flex';
+            setTimeout(() => inp.focus(), 40);
+        }
+
+        function checkPrpNames() {
+            const inp = document.getElementById('prp-search-input');
+            const raw = inp.value.trim();
+            const status = document.getElementById('prp-check-status');
+            if (!raw) {
+                status.innerHTML = '<span style="color:#b91c1c; font-weight:600;">Please type a username (Arun, User1, or User2) first.</span>';
+                return false;
+            }
+            const parts = raw.split(/[;,]+/).map(s => s.trim()).filter(Boolean);
+            const foundAccounts = [];
+            const foundDisplays = [];
+            for (const p of parts) {
+                const key = p.toLowerCase();
+                // Allow already-resolved display format like "Arun (arun@smec.com)"
+                const cleaned = key.split(' ')[0];
+                const match = AD_USER_DIRECTORY[key] || AD_USER_DIRECTORY[cleaned];
+                if (!match) {
+                    status.innerHTML = `<span style="color:#b91c1c; font-weight:600;">Name Not Found: "${p}" was not found in smec.com. Try Arun, User1, or User2.</span>`;
+                    prpResolvedUsers = [];
+                    inp.style.textDecoration = 'none';
+                    return false;
+                }
+                if (!foundAccounts.includes(match.account)) {
+                    foundAccounts.push(match.account);
+                    foundDisplays.push(match.display);
+                }
+            }
+            prpResolvedUsers = foundAccounts;
+            inp.value = foundDisplays.join('; ');
+            inp.style.textDecoration = 'underline';
+            inp.style.color = '#005a9e';
+            status.innerHTML = `<span style="color:#15803d; font-weight:600;">✓ Name resolved in smec.com! Click OK to add to Allowed list.</span>`;
+            return true;
+        }
+
+        function confirmPrpUsers() {
+            if (prpResolvedUsers.length === 0) {
+                if (!checkPrpNames()) return;
+            }
+            prpResolvedUsers.forEach(acc => {
+                if (!allowedRodcUsers.includes(acc)) allowedRodcUsers.push(acc);
+            });
+            closeWindow('prp-select-user-window');
+            renderPdPage();
+            showToast("Added to RODC Allowed Password Replication Policy: " + allowedRodcUsers.join(', '));
+        }
+
+        function pdPrev() { if (pdPage > 1 && pdPage < 8) { pdPage--; renderPdPage(); } }
+        function pdNext() {
+            if (pdPage === 1) {
+                pdDomainVal = document.getElementById('pd-dom-inp').value.trim().toLowerCase();
+                if (pdDeployMode !== 'add-dc') { alert("Select 'Add a domain controller to an existing domain'!"); return; }
+                if (pdDomainVal !== 'smec.com') { alert("Domain must be 'smec.com'."); return; }
+            }
+            if (pdPage === 2) {
+                if (!pdRodcChecked) { alert("Please check 'Read only domain controller (RODC)' to configure an RODC!"); return; }
+                pdDsrmPass = document.getElementById('pd-dsrm-1').value;
+                pdDsrmConfirm = document.getElementById('pd-dsrm-2').value;
+                if (!pdDsrmPass || pdDsrmPass !== pdDsrmConfirm) { alert("Please enter matching DSRM passwords (e.g. password123)."); return; }
+            }
+            if (pdPage === 3) {
+                if (allowedRodcUsers.length === 0) { alert("Please click 'Select...' and search/add at least one user (e.g. Arun) for the RODC Password Replication Policy!"); return; }
+            }
+            pdPage++;
+            renderPdPage();
+        }
+
+        function runRodcPromotion() {
+            setTimeout(() => { const f = document.getElementById('pd-prog-fill'); if (f) f.style.width = '42%'; }, 400);
+            setTimeout(() => {
+                const f = document.getElementById('pd-prog-fill'); if (f) f.style.width = '80%';
+                const t = document.getElementById('pd-prog-txt'); if (t) t.innerText = 'Applying Read-Only Database & Password Replication Policy (Allowed: ' + allowedRodcUsers.join(', ') + ')...';
+            }, 1100);
+            setTimeout(() => {
+                const f = document.getElementById('pd-prog-fill'); if (f) f.style.width = '100%';
+                const t = document.getElementById('pd-prog-txt'); if (t) t.innerText = 'SMEC-RODC successfully promoted as Read-Only Domain Controller! Restarting...';
+                setTimeout(() => {
+                    closeWindow('promote-dc-window');
+                    closeWindow('sm-window');
+                    const ov = document.getElementById('dc2-restart-overlay');
+                    document.getElementById('restart-title').innerText = 'Restarting SMEC-RODC...';
+                    document.getElementById('restart-sub').innerText = 'Starting Read-Only Domain Controller services for smec.com...';
+                    ov.style.display = 'flex';
+                    setTimeout(() => {
+                        ov.style.display = 'none';
+                        rodcPromoted = true;
+                        document.getElementById('dc2-sidebar-role').innerText = 'RODC: smec.com 🔒';
+                        document.getElementById('dc2-top-label').childNodes[0].nodeValue = 'SMEC-RODC (Read-Only DC) ';
+                        document.getElementById('sm-card-rodc').innerText = 'Read-Only DC (Active) 🔒';
+                        document.getElementById('sm-card-rodc').style.color = '#4338ca';
+                        document.getElementById('sm-flag-badge').style.display = 'none';
+                        document.getElementById('dc1-rodc-row').style.display = 'table-row';
+                        document.getElementById('dc2-aduc-desktop-icon').style.display = 'flex';
+                        document.getElementById('dc2-start-aduc').style.display = 'flex';
+
+                        // Update PRP status display in RODC ADUC
+                        document.getElementById('prp-status-arun').innerText = allowedRodcUsers.includes('SMEC\\Arun') ? 'Allowed (Cached) ✓' : 'Read-Only Copy';
+                        document.getElementById('prp-status-user1').innerText = allowedRodcUsers.includes('SMEC\\User1') ? 'Allowed (Cached) ✓' : 'Read-Only Copy';
+                        document.getElementById('prp-status-user2').innerText = allowedRodcUsers.includes('SMEC\\User2') ? 'Allowed (Cached) ✓' : 'Read-Only Copy';
+
+                        // Show RODC Sign-in screen so student tests existing AD user login!
+                        loginPhase = 'rodc-verify';
+                        document.getElementById('dc2-login-badge').innerHTML = '<strong>SMEC-RODC (Read-Only DC)</strong> · Domain: <code>smec.com</code>';
+                        document.getElementById('dc2-login-heading').innerText = 'Sign in to RODC (Test AD User)';
+                        document.getElementById('dc2-login-hint').innerHTML = `Sign in with an existing AD user (e.g. <code>${allowedRodcUsers[0]}</code> / <code>password123</code>)`;
+                        document.getElementById('dc2-login-user').placeholder = allowedRodcUsers[0] || 'smec\\Arun';
+                        document.getElementById('dc2-login-user').value = '';
+                        document.getElementById('dc2-login-pass').value = '';
+                        document.getElementById('dc2-login-overlay').style.display = 'flex';
+                        document.getElementById('dc2-login-user').focus();
+                        if (step === 12) { step = 13; updateGuide(); }
+                    }, 1700);
+                }, 900);
+            }, 2100);
+        }
+
+        // --- STEP 14: VERIFY READ-ONLY RESTRICTION IN RODC ADUC ---
+        function openDC2Aduc() {
+            document.getElementById('dc2-aduc-window').style.display = 'flex';
+        }
+        function selectDC2Node(node, el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('#dc2-aduc-window li').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('dc2-aduc-placeholder').style.display = 'none';
+            document.getElementById('dc2-tech-pane').style.display = (node === 'tech') ? 'block' : 'none';
+            document.getElementById('dc2-dcs-table').style.display = (node === 'dcs') ? 'table' : 'none';
+        }
+        function attemptCreateUserOnRodc(e) {
+            e.stopPropagation();
+            document.getElementById('ctx-rodc-tech').style.display = 'none';
+            document.getElementById('rodc-error-window').style.display = 'flex';
+        }
+        function confirmRodcBlockedError() {
+            closeWindow('rodc-error-window');
+            if (step === 14) {
+                step = 15;
+                updateGuide();
+                showToast("🎉 RODC Verified! Existing AD users can log in, and creating new users is blocked!");
+            }
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
