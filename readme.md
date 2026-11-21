@@ -30,15 +30,17 @@ This project provides **100% browser-based interactive simulations** for complex
 
 * [🖥️ Lab 7: Active Directory Group Policy - Blocking Command Prompt](lab7.md)
 
-*  [🖥️ Lab 8: Active Directory Group Policy - Blocking USB Drives](lab8.md)
+* [🖥️ Lab 8: Active Directory Group Policy - Blocking USB Drives](lab8.md)
 
-*  [🖥️ Lab 9: Active Directory Group Policy - Account-lockout policy](lab9.md)
+* [🖥️ Lab 9: Active Directory Group Policy - Account-lockout policy](lab9.md)
 
-*  [🖥️ Lab 10: Active Directory Group Policy - Software installation policy](lab10.md)
+* [🖥️ Lab 10: Active Directory Group Policy - Software installation policy](lab10.md)
 
-*   [🖥️ Lab 11: Additional Domain Controller ](lab11.md)
+* [🖥️ Lab 11: Additional Domain Controller ](lab11.md)
 
-*    [🖥️ Lab 12: Readonly Domain Controller ](lab12.md)
+*  [🖥️ Lab 12: Readonly Domain Controller ](lab12.md)
+
+* [🖥️ Lab 13: Child Domain Controller ](lab13.md)
 
 
 
