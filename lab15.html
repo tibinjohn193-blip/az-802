@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: Active Directory FSMO Role Migration (ntdsutil) - smec.com</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea { user-select: text; }
+
+        /* ==================== LEFT SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .machine-btn:hover { background: #273549; border-color: #60a5fa; }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+        .machine-btn-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .machine-btn-sub { font-size: 10.5px; opacity: 0.88; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+
+        /* Live FSMO Role Tracker Card */
+        .fsmo-tracker {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            color: #cbd5e1;
+        }
+        .fsmo-tracker-title {
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .fsmo-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3.5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .fsmo-row:last-child { border-bottom: none; }
+        .fsmo-badge {
+            font-family: Consolas, monospace;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .fsmo-dc1 { background: #1e3a8a; color: #93c5fd; }
+        .fsmo-dc2 { background: #14532d; color: #86efac; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.55;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc { display: block; }
+
+        #dc1-pc { background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%); }
+        #dc2-pc { background: radial-gradient(circle at 75% 20%, #14453d 0%, #0a2924 60%, #051412 100%); }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 104px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 30px; margin-bottom: 4px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 380px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 11px 8px;
+            border-radius: 6px;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 26px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS & CMD ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 16px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+
+        input[type="text"] {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus { border-color: var(--win-blue); outline: none; }
+
+        #dc1-run-window, #dc2-run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; }
+        #dc1-cmd-window, #dc2-cmd-window {
+            width: 86%;
+            height: 78%;
+            top: 44px;
+            left: 7%;
+            background: #0c0c0c;
+            color: #e2e8f0;
+            font-family: Consolas, 'Courier New', monospace;
+            z-index: 10005;
+        }
+
+        /* Authentic Role Transfer Confirmation Dialog */
+        #role-confirm-window {
+            width: 460px;
+            height: 205px;
+            top: 160px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10050;
+        }
+
+        .cmd-body {
+            flex: 1;
+            background: #0c0c0c;
+            color: #e5e5e5;
+            padding: 12px 14px;
+            overflow-y: auto;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.48;
+            cursor: text;
+            user-select: text;
+        }
+        .cmd-output { white-space: pre-wrap; word-break: break-word; }
+        .cmd-input-line { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+        .cmd-prompt { color: #f8fafc; font-weight: 700; white-space: nowrap; }
+        .cmd-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #38bdf8;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 13px;
+            outline: none;
+            padding: 0;
+        }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🔄 FSMO Role Migration</h2>
+            <span>ntdsutil Transfer Lab (smec.com)</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Domain Controller</div>
+
+        <button id="btn-switch-dc1" class="machine-btn active" onclick="switchMachine('dc1')">
+            <div class="machine-btn-header"><span>🖥️ Server 1 (DC)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">server1.smec.com (192.168.1.1)</div>
+            <div class="machine-btn-sub">Primary DC (Source)</div>
+        </button>
+
+        <button id="btn-switch-dc2" class="machine-btn" onclick="switchMachine('dc2')">
+            <div class="machine-btn-header"><span>🖥️ Server 2 (ADC)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">server2.smec.com (192.168.1.2)</div>
+            <div class="machine-btn-sub">Additional DC (Target)</div>
+        </button>
+
+        <!-- Live FSMO Ownership Tracker -->
+        <div class="fsmo-tracker">
+            <div class="fsmo-tracker-title">
+                <span>⚡ 5 FSMO Role Holders</span>
+                <span id="fsmo-count" style="color:#38bdf8; font-size:10px;">0 / 5 Moved</span>
+            </div>
+            <div class="fsmo-row">
+                <span>Schema Master</span>
+                <span id="badge-schema" class="fsmo-badge fsmo-dc1">server1</span>
+            </div>
+            <div class="fsmo-row">
+                <span>Domain Naming</span>
+                <span id="badge-naming" class="fsmo-badge fsmo-dc1">server1</span>
+            </div>
+            <div class="fsmo-row">
+                <span>PDC Emulator</span>
+                <span id="badge-pdc" class="fsmo-badge fsmo-dc1">server1</span>
+            </div>
+            <div class="fsmo-row">
+                <span>RID Master</span>
+                <span id="badge-rid" class="fsmo-badge fsmo-dc1">server1</span>
+            </div>
+            <div class="fsmo-row">
+                <span>Infrastructure</span>
+                <span id="badge-infra" class="fsmo-badge fsmo-dc1">server1</span>
+            </div>
+        </div>
+
+        <div class="lab-info-card">
+            <div><strong>Domain:</strong> <code>smec.com</code></div>
+            <div><strong>Source DC:</strong> <code>server1.smec.com</code></div>
+            <div><strong>Target ADC:</strong> <code>server2.smec.com</code></div>
+            <div><strong>Tool:</strong> <code>cmd</code> &rarr; <code>ntdsutil</code></div>
+            <div><strong>Verify:</strong> <code>netdom query fsmo</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <!-- ==================== SERVER 1: server1.smec.com (Primary DC) ==================== -->
+            <div class="pc-container active-pc" id="dc1-pc">
+                <div class="pc-label">
+                    server1.smec.com (Primary DC)
+                    <span>IP: 192.168.1.1 | Domain: smec.com</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openCmd('dc1')">
+                        <div class="ico">💻</div>
+                        <span>Command Prompt (Admin)</span>
+                    </div>
+                </div>
+
+                <!-- DC1 Run Window -->
+                <div id="dc1-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('dc1-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>cmd</code> to open Administrator: Command Prompt.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="dc1-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun('dc1')">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeRun('dc1')">OK</button>
+                        <button onclick="closeWindow('dc1-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- DC1 Administrator Command Prompt -->
+                <div id="dc1-cmd-window" class="window">
+                    <div class="title-bar">
+                        <span style="display:flex; align-items:center; gap:6px;"><span style="background:#000; color:#fff; font-size:10px; padding:1px 4px; font-family:Consolas;">C:\_</span> Administrator: Command Prompt (server1.smec.com)</span>
+                        <span class="close-btn" onclick="closeWindow('dc1-cmd-window')">X</span>
+                    </div>
+                    <div class="cmd-body" id="dc1-cmd-body" onclick="document.getElementById('dc1-cmd-input').focus()">
+                        <div id="dc1-cmd-output" class="cmd-output">Microsoft Windows [Version 10.0.26100.1]
+(c) Microsoft Corporation. All rights reserved.
+
+</div>
+                        <div class="cmd-input-line">
+                            <span id="dc1-cmd-prompt" class="cmd-prompt">C:\Users\Administrator&gt;</span>
+                            <input type="text" id="dc1-cmd-input" class="cmd-input" autocomplete="off" onkeydown="handleCmdKey(event, 'dc1')">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Role Transfer Confirmation Dialog (Authentic ntdsutil popup) -->
+                <div id="role-confirm-window" class="window">
+                    <div class="title-bar"><span>Role Transfer Confirmation Dialog</span><span class="close-btn" onclick="confirmRoleTransfer(false)">X</span></div>
+                    <div class="content" style="background:#fff; display:flex; align-items:flex-start; gap:14px; padding:18px;">
+                        <div style="width:36px; height:36px; border-radius:50%; background:#0078D7; color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; flex-shrink:0;">?</div>
+                        <div id="role-confirm-msg" style="font-size:12.5px; line-height:1.55; color:#1f2937;"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="confirmRoleTransfer(true)">Yes</button>
+                        <button onclick="confirmRoleTransfer(false)">No</button>
+                    </div>
+                </div>
+
+                <!-- Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('dc1-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="dc1-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (server1.smec.com)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openRun('dc1', event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:5px;">Run</span>
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openCmd('dc1'); document.getElementById('dc1-start-menu').style.display='none';">
+                            <div class="app-icon">💻</div>
+                            <span style="font-size:11px; font-weight:600; text-align:center;">Command<br>Prompt</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== SERVER 2: server2.smec.com (Additional DC) ==================== -->
+            <div class="pc-container" id="dc2-pc">
+                <div class="pc-label">
+                    server2.smec.com (Additional DC)
+                    <span>IP: 192.168.1.2 | DNS: 192.168.1.1 | Domain: smec.com</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openCmd('dc2')">
+                        <div class="ico">💻</div>
+                        <span>Command Prompt (Admin)</span>
+                    </div>
+                </div>
+
+                <!-- DC2 Run Window -->
+                <div id="dc2-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('dc2-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>cmd</code> to open Command Prompt on server2.smec.com.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="dc2-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun('dc2')">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeRun('dc2')">OK</button>
+                        <button onclick="closeWindow('dc2-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- DC2 Command Prompt -->
+                <div id="dc2-cmd-window" class="window">
+                    <div class="title-bar">
+                        <span style="display:flex; align-items:center; gap:6px;"><span style="background:#000; color:#fff; font-size:10px; padding:1px 4px; font-family:Consolas;">C:\_</span> Administrator: Command Prompt (server2.smec.com)</span>
+                        <span class="close-btn" onclick="closeWindow('dc2-cmd-window')">X</span>
+                    </div>
+                    <div class="cmd-body" id="dc2-cmd-body" onclick="document.getElementById('dc2-cmd-input').focus()">
+                        <div id="dc2-cmd-output" class="cmd-output">Microsoft Windows [Version 10.0.26100.1]
+(c) Microsoft Corporation. All rights reserved.
+
+</div>
+                        <div class="cmd-input-line">
+                            <span id="dc2-cmd-prompt" class="cmd-prompt">C:\Users\Administrator&gt;</span>
+                            <input type="text" id="dc2-cmd-input" class="cmd-input" autocomplete="off" onkeydown="handleCmdKey(event, 'dc2')">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('dc2-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="dc2-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (server2.smec.com)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openRun('dc2', event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:5px;">Run</span>
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openCmd('dc2'); document.getElementById('dc2-start-menu').style.display='none';">
+                            <div class="app-icon">💻</div>
+                            <span style="font-size:11px; font-weight:600; text-align:center;">Command<br>Prompt</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Dedicated Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 11</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 'dc1';
+
+        // FSMO Role Holders
+        const fsmo = {
+            schema: 'server1.smec.com',
+            naming: 'server1.smec.com',
+            pdc: 'server1.smec.com',
+            rid: 'server1.smec.com',
+            infra: 'server1.smec.com'
+        };
+
+        // Per-machine ntdsutil state
+        const cliState = {
+            dc1: { mode: 'cmd', connectedServer: null, history: [], histIdx: -1 },
+            dc2: { mode: 'cmd', connectedServer: null, history: [], histIdx: -1 }
+        };
+
+        let pendingTransfer = null; // { machine, roleKey, roleLabel }
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 2800);
+        }
+
+        function switchMachine(m) {
+            activeMachine = m;
+            document.getElementById('dc1-pc').classList.toggle('active-pc', m === 'dc1');
+            document.getElementById('dc2-pc').classList.toggle('active-pc', m === 'dc2');
+            document.getElementById('btn-switch-dc1').classList.toggle('active', m === 'dc1');
+            document.getElementById('btn-switch-dc2').classList.toggle('active', m === 'dc2');
+            updateSidebarAttention();
+        }
+
+        function updateSidebarAttention() {
+            const b1 = document.getElementById('btn-switch-dc1');
+            const b2 = document.getElementById('btn-switch-dc2');
+            b1.classList.remove('attention');
+            b2.classList.remove('attention');
+            if (step === 11 && activeMachine !== 'dc2') b2.classList.add('attention');
+            if (step < 11 && activeMachine !== 'dc1') b1.classList.add('attention');
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+
+        function openRun(m, e) {
+            e.stopPropagation();
+            document.getElementById(m + '-start-menu').style.display = 'none';
+            document.getElementById(m + '-run-window').style.display = 'flex';
+            const inp = document.getElementById(m + '-run-input');
+            inp.value = '';
+            inp.focus();
+        }
+
+        function executeRun(m) {
+            const cmd = document.getElementById(m + '-run-input').value.trim().toLowerCase();
+            closeWindow(m + '-run-window');
+            if (cmd === 'cmd') openCmd(m);
+            else if (cmd !== '') alert(`Windows cannot find '${cmd}'. Type cmd.`);
+        }
+
+        function openCmd(m) {
+            document.getElementById(m + '-cmd-window').style.display = 'flex';
+            setTimeout(() => document.getElementById(m + '-cmd-input').focus(), 40);
+            if (m === 'dc1' && step === 1) { step = 2; updateGuide(); }
+        }
+
+        function updateFsmoBadges() {
+            const map = [
+                ['schema', 'badge-schema'],
+                ['naming', 'badge-naming'],
+                ['pdc', 'badge-pdc'],
+                ['rid', 'badge-rid'],
+                ['infra', 'badge-infra']
+            ];
+            let moved = 0;
+            map.forEach(([key, id]) => {
+                const el = document.getElementById(id);
+                const isDC2 = fsmo[key] === 'server2.smec.com';
+                if (isDC2) moved++;
+                el.innerText = isDC2 ? 'server2 ✓' : 'server1';
+                el.className = 'fsmo-badge ' + (isDC2 ? 'fsmo-dc2' : 'fsmo-dc1');
+            });
+            document.getElementById('fsmo-count').innerText = `${moved} / 5 Moved`;
+            return moved;
+        }
+
+        function getRemainingTransferCommands() {
+            const rem = [];
+            if (fsmo.schema !== 'server2.smec.com') rem.push('<code>transfer schema master</code>');
+            if (fsmo.naming !== 'server2.smec.com') rem.push('<code>transfer naming master</code>');
+            if (fsmo.pdc !== 'server2.smec.com') rem.push('<code>transfer pdc</code>');
+            if (fsmo.rid !== 'server2.smec.com') rem.push('<code>transfer rid master</code>');
+            if (fsmo.infra !== 'server2.smec.com') rem.push('<code>transfer infrastructure master</code>');
+            return rem;
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 11)} / 11`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER 1 (Open CMD):</strong> Click <b>Start &rarr; Run</b>, type <code>cmd</code> (or click Command Prompt on Desktop) to start FSMO migration."; break;
+                case 2: text = "<strong>SERVER 1 (Check Current Holders):</strong> Type <code>netdom query fsmo</code> and press <b>Enter</b> to see all 5 FSMO roles currently on <code>server1.smec.com</code>."; break;
+                case 3: text = "<strong>SERVER 1 (Launch ntdsutil):</strong> Type <code>ntdsutil</code> and press <b>Enter</b>."; break;
+                case 4: text = "<strong>SERVER 1 (Enter FSMO Maintenance):</strong> At the <code>ntdsutil:</code> prompt, type <code>roles</code> and press <b>Enter</b>."; break;
+                case 5: text = "<strong>SERVER 1 (Open Connections):</strong> At the <code>fsmo maintenance:</code> prompt, type <code>connections</code> and press <b>Enter</b>."; break;
+                case 6: text = "<strong>SERVER 1 (Connect to Target ADC):</strong> Type <code>connect to server server2.smec.com</code> and press <b>Enter</b> to bind to Server 2."; break;
+                case 7: text = "<strong>SERVER 1 (Return to fsmo maintenance):</strong> Type <code>q</code> (or <code>quit</code>) and press <b>Enter</b> to exit server connections."; break;
+                case 8: text = "<strong>SERVER 1 (View Transfer Commands):</strong> Type <code>?</code> and press <b>Enter</b> to view all available FSMO transfer commands."; break;
+                case 9:
+                    const rem = getRemainingTransferCommands();
+                    text = `<strong>SERVER 1 (Transfer All 5 Roles):</strong> Transfer remaining roles to <code>server2.smec.com</code> (click <b>Yes</b> on each popup): ${rem.join(', ')}.`;
+                    break;
+                case 10: text = "<strong>SERVER 1 (Exit &amp; Verify):</strong> Type <code>q</code> twice to exit <code>ntdsutil</code> back to <code>C:\\&gt;</code>, then run <code>netdom query fsmo</code> to confirm all 5 roles moved to <code>server2.smec.com</code>."; break;
+                case 11: text = "<strong>SERVER 2 (Final Verification):</strong> Switch to <b>🖥️ Server 2 (ADC)</b> on the left sidebar, open <code>cmd</code>, and run <code>netdom query fsmo</code> to verify from the new FSMO holder!"; break;
+                case 12:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> All 5 FSMO roles (Schema, Domain Naming, PDC, RID, Infrastructure) were cleanly migrated from <code>server1.smec.com</code> to <code>server2.smec.com</code> using <code>ntdsutil</code>!";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        function getPromptText(mode) {
+            if (mode === 'ntdsutil') return 'ntdsutil:';
+            if (mode === 'roles') return 'fsmo maintenance:';
+            if (mode === 'connections') return 'server connections:';
+            return 'C:\\Users\\Administrator>';
+        }
+
+        function appendOut(m, text) {
+            const out = document.getElementById(m + '-cmd-output');
+            out.textContent += text;
+            const body = document.getElementById(m + '-cmd-body');
+            body.scrollTop = body.scrollHeight;
+        }
+
+        function formatNetdomFsmo() {
+            return `Schema master               ${fsmo.schema}
+Domain naming master        ${fsmo.naming}
+PDC                         ${fsmo.pdc}
+RID pool manager            ${fsmo.rid}
+Infrastructure master       ${fsmo.infra}
+The command completed successfully.\n\n`;
+        }
+
+        const FSMO_HELP_TEXT = `
+ ?                             - Show this help information
+ Connections                   - Connect to a specific AD DC/LDS instance
+ Help                          - Show this help information
+ Quit                          - Return to the prior menu
+ Seize infrastructure master   - Overwrite infrastructure role on connected server
+ Seize naming master           - Overwrite Naming Master role on connected server
+ Seize PDC                     - Overwrite PDC role on connected server
+ Seize RID master              - Overwrite RID role on connected server
+ Seize schema master           - Overwrite schema role on connected server
+ Select operation target       - Select sites, servers, domains, roles and naming contexts
+ Transfer infrastructure master - Make connected server the infrastructure master
+ Transfer naming master        - Make connected server the naming master
+ Transfer PDC                  - Make connected server the PDC
+ Transfer RID master           - Make connected server the RID master
+ Transfer schema master        - Make connected server the schema master\n\n`;
+
+        function handleCmdKey(e, m) {
+            const st = cliState[m];
+            const inp = document.getElementById(m + '-cmd-input');
+
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (st.history.length > 0 && st.histIdx > 0) {
+                    st.histIdx--;
+                    inp.value = st.history[st.histIdx];
+                }
+                return;
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (st.histIdx < st.history.length - 1) {
+                    st.histIdx++;
+                    inp.value = st.history[st.histIdx];
+                } else {
+                    st.histIdx = st.history.length;
+                    inp.value = '';
+                }
+                return;
+            }
+            if (e.key !== 'Enter') return;
+
+            const raw = inp.value.trim();
+            const cmd = raw.toLowerCase().replace(/\s+/g, ' ');
+            const promptTxt = getPromptText(st.mode);
+
+            if (raw) {
+                st.history.push(raw);
+                st.histIdx = st.history.length;
+            }
+
+            appendOut(m, `${promptTxt} ${raw}\n`);
+            inp.value = '';
+
+            if (!cmd) return;
+
+            // --- MODE: Standard CMD ---
+            if (st.mode === 'cmd') {
+                if (cmd === 'cls' || cmd === 'clear') {
+                    document.getElementById(m + '-cmd-output').textContent = '';
+                    return;
+                }
+                if (cmd === 'netdom query fsmo') {
+                    appendOut(m, formatNetdomFsmo());
+                    if (m === 'dc1' && step === 2) { step = 3; updateGuide(); }
+                    const moved = updateFsmoBadges();
+                    if (m === 'dc1' && step === 10 && moved === 5) {
+                        step = 11;
+                        updateGuide();
+                        showToast("All 5 FSMO roles verified on server2.smec.com! Switch to Server 2 to confirm.");
+                    } else if (m === 'dc2' && step === 11 && moved === 5) {
+                        step = 12;
+                        updateGuide();
+                        showToast("🎉 FSMO Migration Lab Complete!");
+                    }
+                    return;
+                }
+                if (cmd === 'ntdsutil') {
+                    st.mode = 'ntdsutil';
+                    document.getElementById(m + '-cmd-prompt').innerText = getPromptText(st.mode);
+                    if (m === 'dc1' && step === 3) { step = 4; updateGuide(); }
+                    return;
+                }
+                appendOut(m, `'${raw}' is not recognized as an internal or external command.\nTry 'netdom query fsmo' or 'ntdsutil'.\n\n`);
+                return;
+            }
+
+            // --- MODE: ntdsutil: ---
+            if (st.mode === 'ntdsutil') {
+                if (cmd === 'roles') {
+                    st.mode = 'roles';
+                    document.getElementById(m + '-cmd-prompt').innerText = getPromptText(st.mode);
+                    if (m === 'dc1' && step === 4) { step = 5; updateGuide(); }
+                    return;
+                }
+                if (cmd === 'q' || cmd === 'quit') {
+                    st.mode = 'cmd';
+                    st.connectedServer = null;
+                    document.getElementById(m + '-cmd-prompt').innerText = getPromptText(st.mode);
+                    appendOut(m, '\n');
+                    return;
+                }
+                if (cmd === '?' || cmd === 'help') {
+                    appendOut(m, " Roles    - Manage NTDS role owner tokens\n Quit     - Quit the utility\n\n");
+                    return;
+                }
+                appendOut(m, `Error: Invalid syntax. Type 'roles' or 'quit'.\n`);
+                return;
+            }
+
+            // --- MODE: fsmo maintenance: ---
+            if (st.mode === 'roles') {
+                if (cmd === 'connections' || cmd === 'connection') {
+                    st.mode = 'connections';
+                    document.getElementById(m + '-cmd-prompt').innerText = getPromptText(st.mode);
+                    if (m === 'dc1' && step === 5) { step = 6; updateGuide(); }
+                    return;
+                }
+                if (cmd === 'q' || cmd === 'quit') {
+                    st.mode = 'ntdsutil';
+                    document.getElementById(m + '-cmd-prompt').innerText = getPromptText(st.mode);
+                    return;
+                }
+                if (cmd === '?' || cmd === 'help') {
+                    appendOut(m, FSMO_HELP_TEXT);
+                    if (m === 'dc1' && step === 8) { step = 9; updateGuide(); }
+                    return;
+                }
+
+                // Transfer commands
+                const transferMap = {
+                    'transfer schema master': ['schema', 'Schema Master'],
+                    'transfer naming master': ['naming', 'Domain Naming Master'],
+                    'transfer domain naming master': ['naming', 'Domain Naming Master'],
+                    'transfer pdc': ['pdc', 'PDC Emulator'],
+                    'transfer pdc emulator': ['pdc', 'PDC Emulator'],
+                    'transfer rid master': ['rid', 'RID Master'],
+                    'transfer infrastructure master': ['infra', 'Infrastructure Master']
+                };
+
+                if (transferMap[cmd]) {
+                    if (!st.connectedServer) {
+                        appendOut(m, "Error: Not connected to a target server. Type 'connections' -> 'connect to server server2.smec.com' first.\n\n");
+                        return;
+                    }
+                    const [roleKey, roleLabel] = transferMap[cmd];
+                    if (fsmo[roleKey] === st.connectedServer) {
+                        appendOut(m, `${roleLabel} is already owned by ${st.connectedServer}.\n\n`);
+                        return;
+                    }
+                    pendingTransfer = { machine: m, roleKey, roleLabel, target: st.connectedServer };
+                    document.getElementById('role-confirm-msg').innerHTML =
+                        `Are you sure you want the server <b>"${st.connectedServer}"</b> to perform the role of <b>${roleLabel}</b> with the values below?<br><br><code style="background:#f1f5f9; padding:2px 6px; border-radius:3px;">CN=NTDS Settings,CN=SERVER2,CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=smec,DC=com</code>`;
+                    document.getElementById('role-confirm-window').style.display = 'flex';
+                    return;
+                }
+
+                appendOut(m, `Invalid command '${raw}'. Type '?' to list FSMO transfer commands.\n`);
+                return;
+            }
+
+            // --- MODE: server connections: ---
+            if (st.mode === 'connections') {
+                if (cmd === 'q' || cmd === 'quit') {
+                    st.mode = 'roles';
+                    document.getElementById(m + '-cmd-prompt').innerText = getPromptText(st.mode);
+                    if (m === 'dc1' && step === 7 && st.connectedServer) { step = 8; updateGuide(); }
+                    return;
+                }
+                if (cmd === '?' || cmd === 'help') {
+                    appendOut(m, " Connect to server <DNS name> - Connect to a specific AD DC\n Quit                         - Return to the prior menu\n\n");
+                    return;
+                }
+                if (cmd.startsWith('connect to server ')) {
+                    const target = cmd.replace('connect to server ', '').trim();
+                    if (target === 'server2.smec.com' || target === 'server2') {
+                        st.connectedServer = 'server2.smec.com';
+                        appendOut(m, `Binding to server2.smec.com ...\nConnected to server2.smec.com using credentials of locally logged on user.\n`);
+                        if (m === 'dc1' && step === 6) { step = 7; updateGuide(); }
+                    } else if (target === 'server1.smec.com' || target === 'server1') {
+                        st.connectedServer = 'server1.smec.com';
+                        appendOut(m, `Binding to server1.smec.com ...\nConnected to server1.smec.com using credentials of locally logged on user.\n(Note: To migrate roles to Server 2, connect to server2.smec.com)\n`);
+                    } else {
+                        appendOut(m, `DsBindW error 0x6ba(The RPC server is unavailable.)\nCould not find '${target}'. Try: connect to server server2.smec.com\n`);
+                    }
+                    return;
+                }
+                appendOut(m, `Invalid command. Use: connect to server server2.smec.com (or 'q' to go back).\n`);
+            }
+        }
+
+        function confirmRoleTransfer(accepted) {
+            closeWindow('role-confirm-window');
+            if (!pendingTransfer) return;
+            const { machine, roleKey, roleLabel, target } = pendingTransfer;
+            pendingTransfer = null;
+
+            if (!accepted) {
+                appendOut(machine, `Role transfer of ${roleLabel} was cancelled by the user.\n`);
+                document.getElementById(machine + '-cmd-input').focus();
+                return;
+            }
+
+            fsmo[roleKey] = target;
+            const movedCount = updateFsmoBadges();
+            appendOut(machine, `Server "${target}" knows about 5 roles\nSchema - CN=NTDS Settings,CN=${fsmo.schema.split('.')[0].toUpperCase()},CN=Servers,...\nNaming - CN=NTDS Settings,CN=${fsmo.naming.split('.')[0].toUpperCase()},CN=Servers,...\nPDC - CN=NTDS Settings,CN=${fsmo.pdc.split('.')[0].toUpperCase()},CN=Servers,...\nRID - CN=NTDS Settings,CN=${fsmo.rid.split('.')[0].toUpperCase()},CN=Servers,...\nInfrastructure - CN=NTDS Settings,CN=${fsmo.infra.split('.')[0].toUpperCase()},CN=Servers,...\n✓ Successfully transferred ${roleLabel} to ${target}!\n\n`);
+            showToast(`✓ ${roleLabel} transferred to ${target} (${movedCount}/5)`);
+
+            if (movedCount === 5 && step <= 9) {
+                step = 10;
+            }
+            updateGuide();
+            document.getElementById(machine + '-cmd-input').focus();
+        }
+
+        window.onload = () => {
+            updateFsmoBadges();
+            updateGuide();
+        };
+    </script>
+</body>
+</html>
