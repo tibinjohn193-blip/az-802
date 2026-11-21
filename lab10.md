@@ -6,7 +6,7 @@
 
 [![Click to Launch Interactive Lab](https://img.shields.io/badge/▶_CLICK_TO_START-INTERACTIVE_LAB-28a745?style=for-the-badge)](https://tibinjohn193-blip.github.io/az-802/lab10.html)
 
-*(Replace `<REPO-NAME>` and the HTML filename in the link above with your actual GitHub repository and uploaded filename once GitHub Pages is enabled.)*
+
 
 </div>
 
