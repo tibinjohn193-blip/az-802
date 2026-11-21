@@ -32,6 +32,9 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *  [🖥️ Lab 8: Active Directory Group Policy - Blocking USB Drives](lab8.md)
 
+*  [🖥️ Lab 9: Active Directory Group Policy - Account-lockout policy](lab9.md)
+
+
 ---
 
 
