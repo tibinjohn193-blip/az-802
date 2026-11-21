@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: GPO Software Installation Policy (Google Chrome MSI) v4</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea { user-select: text; }
+
+        /* ==================== LEFT MACHINE SELECTOR SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 225px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .machine-btn:hover { background: #273549; border-color: #60a5fa; }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+        .machine-btn-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .machine-btn-sub { font-size: 10.5px; opacity: 0.88; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.55;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+        .download-link-box {
+            background: #172554;
+            border: 1px solid #1d4ed8;
+            border-radius: 7px;
+            padding: 8px 10px;
+            font-size: 10.5px;
+            color: #dbeafe;
+            line-height: 1.45;
+        }
+        .download-link-box a {
+            color: #93c5fd;
+            word-break: break-all;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc { display: block; }
+
+        #server-pc { background: radial-gradient(circle at 25% 20%, #163d6b 0%, #0b2545 60%, #061529 100%); }
+        #client-pc { background: radial-gradient(circle at 75% 25%, #0072c6 0%, #004e8c 60%, #00315c 100%); }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.78);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 98px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 32px; margin-bottom: 4px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); word-break: break-word; }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 380px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 11px 8px;
+            border-radius: 6px;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 26px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 16px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+
+        input[type="text"], input[type="password"] {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #server-run-window { width: 420px; height: 210px; top: 36%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; }
+        #explorer-window { width: 84%; height: 78%; top: 46px; left: 8%; z-index: 10001; }
+        #folder-props-window { width: 460px; height: 410px; top: 64px; left: 50%; transform: translateX(-50%); z-index: 10015; }
+        #adv-sharing-window { width: 430px; height: 310px; top: 96px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #share-perms-window { width: 430px; height: 340px; top: 112px; left: 50%; transform: translateX(-50%); z-index: 10035; }
+        #sec-edit-window { width: 430px; height: 350px; top: 104px; left: 50%; transform: translateX(-50%); z-index: 10030; }
+        #add-user-window { width: 390px; height: 225px; top: 145px; left: 50%; transform: translateX(-50%); z-index: 10040; }
+        #gpm-window { width: 84%; height: 78%; top: 46px; left: 8%; z-index: 10002; }
+        #create-gpo-window { width: 390px; height: 200px; top: 140px; left: 50%; transform: translateX(-50%); z-index: 10012; }
+        #gpme-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10006; }
+        #sw-props-window { width: 490px; height: 420px; top: 60px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #open-pkg-window { width: 540px; height: 360px; top: 75px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #server-cmd-window { width: 78%; height: 68%; top: 65px; left: 11%; background: #0c0c0c; color: #e5e5e5; font-family: Consolas, monospace; z-index: 10008; }
+        #client-chrome-window { width: 78%; height: 74%; top: 55px; left: 11%; z-index: 10010; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 220px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+        .context-menu div.disabled-item { color: #999; cursor: default; }
+        .context-menu div.disabled-item:hover { background: transparent; color: #999; }
+
+        /* Tabs */
+        .tab-bar { display: flex; gap: 4px; padding: 8px 12px 0; background: #e9e9e9; border-bottom: 1px solid #ccc; }
+        .tab-btn {
+            padding: 6px 14px;
+            background: #dfdfdf;
+            border: 1px solid #bbb;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .tab-btn.active { background: #fff; font-weight: 600; color: var(--win-blue); }
+
+        /* File Explorer */
+        .exp-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #fff;
+            border-bottom: 1px solid #d4d4d4;
+        }
+        .exp-body { display: flex; flex: 1; min-height: 0; background: #fff; }
+        .exp-nav { width: 175px; border-right: 1px solid #e0e0e0; padding: 10px; font-size: 12.5px; }
+        .exp-nav-item { padding: 6px 8px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; }
+        .exp-nav-item:hover { background: #eef6fc; }
+        .exp-nav-item.active { background: #cce8ff; font-weight: 600; }
+        .exp-main { flex: 1; padding: 14px; overflow: auto; min-height: 100%; }
+        .exp-item {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            width: 125px;
+            padding: 10px 6px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            cursor: pointer;
+            vertical-align: top;
+            text-align: center;
+            margin: 4px;
+        }
+        .exp-item:hover { background: #e5f1fb; border-color: #99d1ff; }
+        .exp-item .e-ico { font-size: 34px; margin-bottom: 4px; }
+        .exp-item span { font-size: 11.5px; word-break: break-word; }
+
+        .drive-card {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            width: 240px;
+            padding: 12px;
+            border: 1px solid #d4d4d4;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 6px;
+        }
+        .drive-card:hover { background: #e5f1fb; border-color: #99d1ff; }
+        .drive-bar { height: 7px; background: #e5e5e5; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+        .drive-bar-fill { height: 100%; width: 42%; background: var(--win-blue); }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 18px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .icon-domain::before { content: '🏢 '; }
+        .icon-ou::before { content: '🗂️ '; }
+        .icon-gpo::before { content: '📜 '; }
+        .icon-folder::before { content: '📁 '; }
+        .icon-folder-open::before { content: '📂 '; }
+        .icon-pkg::before { content: '📦 '; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 10px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 10px; border-bottom: 1px solid #efefef; }
+
+        /* Toast feedback */
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+
+        /* Client Login */
+        #client-login-screen {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(150deg, rgba(0, 80, 145, 0.97), rgba(0, 42, 82, 0.99));
+            z-index: 99900;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            padding: 24px;
+        }
+        .login-domain-info {
+            position: absolute;
+            top: 24px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 600;
+            background: rgba(0, 0, 0, 0.32);
+            padding: 9px 22px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        .login-domain-info span { font-size: 12px; font-weight: 400; color: #a9d6ff; display: block; margin-top: 3px; }
+        .login-avatar {
+            font-size: 52px;
+            background: rgba(255, 255, 255, 0.18);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-radius: 50%;
+            width: 96px;
+            height: 96px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+        .password-row {
+            display: flex;
+            width: 280px;
+            background: rgba(255, 255, 255, 0.96);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+        .password-row input { flex: 1; border: none; padding: 9px 12px; font-size: 13.5px; }
+        .password-row button { border: none; background: var(--win-blue); color: #fff; padding: 0 16px; font-size: 16px; font-weight: 700; border-radius: 0; }
+
+        #client-installing-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 48, 92, 0.96);
+            z-index: 99910;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            gap: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>📦 GPO Software Deploy</h2>
+            <span>Google Chrome MSI Lab</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Machine</div>
+
+        <button id="btn-switch-server" class="machine-btn active" onclick="switchMachine('server')">
+            <div class="machine-btn-header"><span>🖥️ Server</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">SMEC-DC1 (192.168.1.100)</div>
+            <div class="machine-btn-sub">Domain Controller</div>
+        </button>
+
+        <button id="btn-switch-client" class="machine-btn" onclick="switchMachine('client')">
+            <div class="machine-btn-header"><span>💻 Client</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">PC-ARUN (192.168.1.101)</div>
+            <div class="machine-btn-sub">User: Arun (Sales OU)</div>
+        </button>
+
+        <div class="download-link-box">
+            <strong>🌐 Official Chrome MSI Link:</strong><br>
+            <a href="https://chromeenterprise.google/download/" target="_blank">https://chromeenterprise.google/download/</a><br>
+            <span style="font-size:9.5px; color:#bfdbfe;">(Pre-downloaded on Server Desktop as <code>GoogleChromeStandaloneEnterprise64.msi</code>)</span>
+        </div>
+
+        <div class="lab-info-card">
+            <div><strong>Share Folder:</strong> <code>C:\Software</code></div>
+            <div><strong>UNC Path:</strong> <code>\\SMEC-DC1\Software</code></div>
+            <div><strong>GPO Name:</strong> <code>Install_Chrome</code></div>
+            <div><strong>Client Pass:</strong> <code>Password123</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <!-- ==================== SERVER PC ==================== -->
+            <div class="pc-container active-pc" id="server-pc">
+                <div class="pc-label">
+                    SMEC-DC1 (Server)
+                    <span>IP: 192.168.1.100 | Domain: smec.com</span>
+                </div>
+
+                <!-- Server Desktop Icons -->
+                <div class="desktop-icons">
+                    <div class="d-icon" ondblclick="openExplorer('this-pc')" onclick="openExplorer('this-pc')">
+                        <div class="ico">💻</div>
+                        <span>This PC</span>
+                    </div>
+                    <div class="d-icon" id="desktop-msi-icon" oncontextmenu="showContext('ctx-desktop-msi', event)" onclick="copyDesktopMsiHint()">
+                        <div class="ico">📦</div>
+                        <span>GoogleChromeStandaloneEnterprise64.msi</span>
+                    </div>
+                </div>
+
+                <!-- Taskbar -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('server-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <!-- Server Start Menu -->
+                <div id="server-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (Server)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openServerRun(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                            <div class="app-icon" style="margin-bottom:0;">🪟</div>
+                        </div>
+                        <div class="app" onclick="openExplorer('this-pc'); document.getElementById('server-start-menu').style.display='none';">
+                            <div class="app-icon">📁</div>
+                            <span style="font-size:11.5px; font-weight:600;">File Explorer</span>
+                        </div>
+                        <div class="app">
+                            <div class="app-icon">🗄️</div>
+                            <span style="font-size:11.5px; font-weight:600; text-align:center;">Server<br>Manager</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Authentic File Explorer Window (NO artificial New Folder / Paste buttons!) -->
+                <div id="explorer-window" class="window">
+                    <div class="title-bar"><span>File Explorer</span><span class="close-btn" onclick="closeWindow('explorer-window')">X</span></div>
+                    <div class="exp-toolbar">
+                        <button onclick="navigateUpExplorer()" title="Up" style="padding:4px 10px;">&uarr;</button>
+                        <input type="text" id="exp-path-bar" value="This PC" readonly style="flex:1; background:#f9f9f9; font-family:Consolas, monospace;">
+                    </div>
+                    <div class="exp-body">
+                        <div class="exp-nav">
+                            <div class="exp-nav-item" id="nav-desktop" onclick="openExplorer('desktop')">🖥️ Desktop</div>
+                            <div class="exp-nav-item active" id="nav-thispc" onclick="openExplorer('this-pc')">💻 This PC</div>
+                            <div class="exp-nav-item" id="nav-cdrive" style="padding-left:18px;" onclick="openExplorer('c-drive')">💽 Local Disk (C:)</div>
+                            <div class="exp-nav-item" id="nav-software" style="display:none; padding-left:32px;" onclick="openExplorer('software')">📁 Software</div>
+                        </div>
+                        <div class="exp-main" id="exp-main-content" oncontextmenu="handleExplorerRightClick(event)"></div>
+                    </div>
+                </div>
+
+                <!-- Software Folder Properties Window (Sharing + Security, Authentic Selectable Network Path) -->
+                <div id="folder-props-window" class="window">
+                    <div class="title-bar"><span>Software Properties</span><span class="close-btn" onclick="closeFolderProps()">X</span></div>
+                    <div class="tab-bar">
+                        <div class="tab-btn active" id="fp-tab-sharing" onclick="switchFolderPropTab('sharing')">Sharing</div>
+                        <div class="tab-btn" id="fp-tab-security" onclick="switchFolderPropTab('security')">Security</div>
+                    </div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <!-- Sharing Tab -->
+                        <div id="fp-pane-sharing">
+                            <div style="border:1px solid #d4d4d4; padding:12px; border-radius:4px; margin-bottom:12px;">
+                                <div style="font-weight:600; margin-bottom:6px;">Network File and Folder Sharing</div>
+                                <div style="font-size:12px; color:#444; margin-bottom:4px;">Network Path:</div>
+                                <input type="text" id="unc-path-field" value="Not Shared" readonly
+                                    onclick="selectUncField()"
+                                    onfocus="selectUncField()"
+                                    oncopy="onUncPathCopied()"
+                                    onkeydown="handleUncKeydown(event)"
+                                    oncontextmenu="showUncCopyContext(event)"
+                                    style="width:100%; font-family:Consolas, monospace; font-weight:700; color:#005a9e; background:#f8fafc; cursor:text;">
+                                <div id="unc-copy-hint" style="display:none; font-size:11px; color:#005a9e; margin-top:5px;">
+                                    Select the Network Path above and press <b>Ctrl+C</b> (or right-click it &rarr; <b>Copy</b>).
+                                </div>
+                            </div>
+                            <div style="border:1px solid #d4d4d4; padding:12px; border-radius:4px;">
+                                <div style="font-weight:600; margin-bottom:6px;">Advanced Sharing</div>
+                                <p style="margin:0 0 10px 0; font-size:11.5px; color:#555;">Set custom permissions, create multiple shares, and set other advanced sharing options.</p>
+                                <button onclick="openAdvSharing()" class="primary-btn">Advanced Sharing...</button>
+                            </div>
+                        </div>
+
+                        <!-- Security Tab -->
+                        <div id="fp-pane-security" style="display:none;">
+                            <div style="font-weight:600; margin-bottom:6px;">Group or user names:</div>
+                            <div id="sec-users-list" style="border:1px solid #ccc; padding:8px; height:110px; overflow:auto; margin-bottom:10px; background:#fafafa; font-size:12px;">
+                                <div>👤 SYSTEM</div>
+                                <div>👥 Administrators (SMEC\Administrators)</div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                                <span style="font-size:11.5px; color:#555;">To change permissions, click Edit.</span>
+                                <button onclick="openSecEdit()" class="primary-btn">Edit...</button>
+                            </div>
+                            <div style="border:1px solid #d4d4d4; padding:10px; border-radius:4px; background:#fafafa; font-size:11.5px;">
+                                <strong>NTFS Security Status:</strong> <span id="sec-status-text" style="color:#b45309;">Everyone not added yet</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="closeFolderProps()" class="primary-btn">Close</button>
+                    </div>
+                </div>
+
+                <!-- Advanced Sharing Modal -->
+                <div id="adv-sharing-window" class="window">
+                    <div class="title-bar"><span>Advanced Sharing</span><span class="close-btn" onclick="closeWindow('adv-sharing-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <label style="display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:14px; cursor:pointer;">
+                            <input type="checkbox" id="chk-share-folder" onchange="toggleShareFolderChk()">
+                            <span>Share this folder</span>
+                        </label>
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block; font-size:12px; margin-bottom:4px;">Share name:</label>
+                            <input type="text" id="share-name-input" value="Software" disabled style="width:100%;">
+                        </div>
+                        <button id="btn-share-perms" onclick="openSharePerms()" disabled>Permissions</button>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="okAdvSharing()" class="primary-btn">OK</button>
+                        <button onclick="closeWindow('adv-sharing-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Share Permissions Modal -->
+                <div id="share-perms-window" class="window">
+                    <div class="title-bar"><span>Permissions for Software</span><span class="close-btn" onclick="closeWindow('share-perms-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <div style="font-weight:600; margin-bottom:6px;">Group or user names:</div>
+                        <div style="border:1px solid #ccc; padding:8px; background:#e5f1fb; font-weight:600; margin-bottom:12px;">👥 Everyone</div>
+                        <div style="font-weight:600; margin-bottom:6px;">Permissions for Everyone (Allow):</div>
+                        <div style="border:1px solid #ccc; padding:10px; display:flex; flex-direction:column; gap:6px;">
+                            <label style="cursor:pointer;"><input type="checkbox" id="chk-share-full" onchange="if(this.checked){document.getElementById('chk-share-change').checked=true; document.getElementById('chk-share-read').checked=true;}"> <strong>Full Control</strong></label>
+                            <label><input type="checkbox" id="chk-share-change"> Change</label>
+                            <label><input type="checkbox" id="chk-share-read" checked> Read</label>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="okSharePerms()" class="primary-btn">OK</button>
+                        <button onclick="closeWindow('share-perms-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Security Edit Modal -->
+                <div id="sec-edit-window" class="window">
+                    <div class="title-bar"><span>Permissions for Software (Security)</span><span class="close-btn" onclick="closeWindow('sec-edit-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                            <span style="font-weight:600;">Group or user names:</span>
+                            <button onclick="openAddUserModal()" class="primary-btn">Add...</button>
+                        </div>
+                        <div id="sec-edit-list" style="border:1px solid #ccc; padding:8px; height:85px; overflow:auto; margin-bottom:10px; background:#fafafa;">
+                            <div>👤 SYSTEM</div>
+                            <div>👥 Administrators</div>
+                        </div>
+                        <div style="font-weight:600; margin-bottom:6px;">Permissions for Everyone (Allow):</div>
+                        <div style="border:1px solid #ccc; padding:10px; display:flex; flex-direction:column; gap:6px;">
+                            <label style="cursor:pointer;"><input type="checkbox" id="chk-ntfs-full" disabled> <strong>Full control</strong></label>
+                            <label><input type="checkbox" id="chk-ntfs-read" disabled> Read &amp; execute</label>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="okSecEdit()" class="primary-btn">OK</button>
+                        <button onclick="closeWindow('sec-edit-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Add User/Group Modal (Type Everyone) -->
+                <div id="add-user-window" class="window">
+                    <div class="title-bar"><span>Select Users, Computers, Service Accounts, or Groups</span><span class="close-btn" onclick="closeWindow('add-user-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <label style="display:block; margin-bottom:6px; font-weight:600;">Enter the object names to select (type <code>Everyone</code>):</label>
+                        <input type="text" id="add-user-input" placeholder="Everyone" style="width:100%;" onkeypress="if(event.key==='Enter') confirmAddEveryone()">
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="confirmAddEveryone()" class="primary-btn">OK</button>
+                        <button onclick="closeWindow('add-user-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server Run Window -->
+                <div id="server-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('server-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <div style="font-size:34px; color:var(--win-blue); line-height:1;">🪟</div>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type the name of a program, folder, document, or Internet resource.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="server-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeServerRun()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeServerRun()">OK</button>
+                        <button onclick="closeWindow('server-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Group Policy Management (gpmc.msc) -->
+                <div id="gpm-window" class="window">
+                    <div class="title-bar"><span>Group Policy Management</span><span class="close-btn" onclick="handleGPMClose()">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 45%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder" onclick="toggleTree(this, event)">Forest: smec.com
+                                    <ul>
+                                        <li class="icon-folder" onclick="toggleTree(this, event)">Domains
+                                            <ul>
+                                                <li class="icon-domain" onclick="toggleTree(this, event)">smec.com
+                                                    <ul>
+                                                        <li class="icon-gpo">Default Domain Policy</li>
+                                                        <li class="icon-ou">Domain Controllers</li>
+                                                        <li class="icon-ou" oncontextmenu="showContext('ctx-sales-ou', event)">Sales
+                                                            <ul id="sales-gpo-list"></ul>
+                                                        </li>
+                                                    </ul>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="padding: 16px; width: 55%; background:#f9f9f9; font-size:12.5px;">
+                            <h4 style="margin:0 0 8px 0; color:#005a9e;">Group Policy Management</h4>
+                            <p style="color:#444; line-height:1.5;">Right-click the <b>Sales</b> OU &rarr; <b>Create a GPO in this domain, and Link it here...</b> &rarr; Name it <code>Install_Chrome</code>.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create GPO Modal -->
+                <div id="create-gpo-window" class="window">
+                    <div class="title-bar"><span>New GPO</span><span class="close-btn" onclick="closeWindow('create-gpo-window')">X</span></div>
+                    <div class="content" style="background:#fff;">
+                        <label style="display:block; margin-bottom:6px; font-weight:600;">Name:</label>
+                        <input type="text" id="gpo-name" style="width:100%;" placeholder="Install_Chrome" onkeypress="if(event.key==='Enter') createGPO()">
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="createGPO()">OK</button>
+                        <button onclick="closeWindow('create-gpo-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- GPME Window -->
+                <div id="gpme-window" class="window">
+                    <div class="title-bar"><span>Group Policy Management Editor - [Install_Chrome]</span><span class="close-btn" onclick="handleGPMEclose()">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 44%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder" onclick="toggleTree(this, event)">Computer Configuration</li>
+                                <li class="icon-folder" onclick="toggleTree(this, event)">User Configuration
+                                    <ul>
+                                        <li class="icon-folder" onclick="toggleTree(this, event)">Policies
+                                            <ul>
+                                                <li class="icon-folder" onclick="toggleTree(this, event)">Software Settings
+                                                    <ul>
+                                                        <li class="icon-pkg selectable" id="sw-install-node" onclick="selectSwInstall(this, event)" oncontextmenu="showContext('ctx-sw-install', event)">Software installation</li>
+                                                    </ul>
+                                                </li>
+                                                <li class="icon-folder">Windows Settings</li>
+                                                <li class="icon-folder">Administrative Templates</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 56%; padding: 12px; overflow:auto;">
+                            <div id="sw-placeholder" style="color:#555; font-size:12.5px; padding:10px; line-height:1.55;">
+                                1. Right-click <b>Software installation</b> &rarr; <b>Properties</b> to set the <b>Default package location</b> (<code>\\SMEC-DC1\Software</code>) and select <b>Assign</b>.<br><br>
+                                2. Then right-click <b>Software installation</b> &rarr; <b>New &rarr; Package...</b> to add Google Chrome MSI.
+                            </div>
+                            <table id="sw-pkg-table" class="mmc-table" style="display:none;">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Version</th>
+                                    <th>Deployment state</th>
+                                    <th>Source</th>
+                                </tr>
+                                <tr>
+                                    <td><strong>🌐 Google Chrome</strong></td>
+                                    <td>131.0</td>
+                                    <td style="color:#15803d; font-weight:700;">Assigned</td>
+                                    <td style="font-family:Consolas, monospace; font-size:11px;">\\SMEC-DC1\Software\GoogleChromeStandaloneEnterprise64.msi</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Software installation Properties Window (Default package location + Assign) -->
+                <div id="sw-props-window" class="window">
+                    <div class="title-bar"><span>Software installation Properties</span><span class="close-btn" onclick="closeWindow('sw-props-window')">X</span></div>
+                    <div class="tab-bar">
+                        <div class="tab-btn active">General</div>
+                        <div class="tab-btn" style="color:#888; cursor:default;">Advanced</div>
+                        <div class="tab-btn" style="color:#888; cursor:default;">File Extensions</div>
+                    </div>
+                    <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:14px;">
+                        <div style="border:1px solid #d4d4d4; padding:12px; border-radius:4px;">
+                            <label style="display:block; font-weight:600; margin-bottom:6px;">Default package location:</label>
+                            <div style="display:flex; gap:8px;">
+                                <input type="text" id="sw-default-path-input" placeholder="Paste \\SMEC-DC1\Software here..." oncontextmenu="showContext('ctx-sw-paste', event)" style="flex:1; font-family:Consolas, monospace;">
+                                <button onclick="browseDefaultLocation()">Browse...</button>
+                            </div>
+                        </div>
+                        <div style="border:1px solid #d4d4d4; padding:12px; border-radius:4px;">
+                            <div style="font-weight:600; margin-bottom:8px;">New packages:</div>
+                            <div style="display:flex; flex-direction:column; gap:7px; padding-left:6px;">
+                                <label><input type="radio" name="sw-default-mode" value="dialog" checked> Display the Deploy Software dialog box</label>
+                                <label><input type="radio" name="sw-default-mode" value="publish"> Publish</label>
+                                <label style="font-weight:700; color:#005a9e;"><input type="radio" name="sw-default-mode" id="radio-sw-prop-assign" value="assign"> Assign</label>
+                                <label><input type="radio" name="sw-default-mode" value="advanced"> Advanced publish or assign</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="applySwProps()">Apply</button>
+                        <button onclick="okSwProps()" class="primary-btn">OK</button>
+                        <button onclick="closeWindow('sw-props-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Open Package Dialog (Auto-opens at \\SMEC-DC1\Software after Properties configured!) -->
+                <div id="open-pkg-window" class="window">
+                    <div class="title-bar"><span>Open</span><span class="close-btn" onclick="closeWindow('open-pkg-window')">X</span></div>
+                    <div class="content" style="background:#fff; display:flex; flex-direction:column; gap:10px;">
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <label style="font-weight:600; font-size:12px;">Address:</label>
+                            <input type="text" id="pkg-unc-display" value="\\SMEC-DC1\Software" readonly style="flex:1; font-family:Consolas, monospace; background:#f8fafc;">
+                        </div>
+                        <div id="pkg-file-list" style="flex:1; border:1px solid #ccc; border-radius:4px; padding:10px; background:#fafafa; min-height:150px;">
+                            <div id="msi-row-select" onclick="selectMsiRow()" style="padding:9px 10px; border:1px solid #d4d4d4; background:#fff; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:10px;">
+                                <span style="font-size:22px;">📦</span>
+                                <span><strong>GoogleChromeStandaloneEnterprise64.msi</strong> <span style="color:#666; font-size:11px;">(Windows Installer Package)</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button id="btn-open-msi-file" onclick="openSelectedMsi()" disabled class="primary-btn">Open</button>
+                        <button onclick="closeWindow('open-pkg-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server CMD Window -->
+                <div id="server-cmd-window" class="window">
+                    <div class="title-bar">
+                        <span style="display:flex; align-items:center; gap:6px;"><span style="background:#000; color:#fff; font-size:10px; padding:1px 4px; font-family:Consolas;">C:\_</span> Command Prompt</span>
+                        <span class="close-btn" onclick="closeWindow('server-cmd-window')">X</span>
+                    </div>
+                    <div class="content" id="server-cmd-content" style="background:#0c0c0c; color:#e2e8f0; cursor:text; font-family:Consolas, monospace; font-size:13px;" onclick="document.getElementById('server-cmd-input').focus()">
+                        Microsoft Windows [Version 10.0.26100.1]<br>
+                        (c) Microsoft Corporation. All rights reserved.<br><br>
+                        <div id="server-cmd-output" style="white-space:pre-wrap;"></div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span>C:\Users\Administrator&gt;</span>
+                            <input type="text" id="server-cmd-input" style="background:transparent; border:none; color:#fff; font-family:Consolas, monospace; outline:none; flex:1; padding:0;" onkeypress="handleServerCmd(event)" autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== CLIENT PC ==================== -->
+            <div class="pc-container" id="client-pc">
+                <div id="client-login-screen">
+                    <div class="login-domain-info">
+                        💻 Client PC (PC-ARUN)
+                        <span>Domain Joined: smec.com | Password: Password123</span>
+                    </div>
+                    <div class="login-avatar">👤</div>
+                    <h2 style="margin:6px 0 2px 0; font-weight:500;">Arun</h2>
+                    <p style="margin:0; opacity:0.85; font-size:12.5px;">Sales Department (smec\arun)</p>
+                    <div class="password-row">
+                        <input type="password" id="client-password-input" placeholder="Password (Password123)" autocomplete="off" onkeypress="if(event.key==='Enter') clientSignIn()">
+                        <button onclick="clientSignIn()">&rarr;</button>
+                    </div>
+                </div>
+
+                <div id="client-installing-overlay">
+                    <div style="font-size:40px;">⚙️</div>
+                    <h3 style="margin:0;">Applying Group Policy: Install_Chrome...</h3>
+                    <p style="margin:0; font-size:13px; color:#bae6fd;">Installing managed software Google Chrome from \\SMEC-DC1\Software...</p>
+                </div>
+
+                <div class="pc-label">
+                    PC-ARUN (Client)
+                    <span>IP: 192.168.1.101 | User: Arun</span>
+                </div>
+
+                <!-- Client Desktop Icons -->
+                <div class="desktop-icons">
+                    <div class="d-icon"><div class="ico">💻</div><span>This PC</span></div>
+                    <div class="d-icon" id="client-chrome-icon" style="display:none;" onclick="openClientChrome()">
+                        <div class="ico">🌐</div><span><strong>Google Chrome</strong></span>
+                    </div>
+                </div>
+
+                <!-- Client Chrome Verification Window -->
+                <div id="client-chrome-window" class="window">
+                    <div class="title-bar"><span>🌐 Google Chrome (Deployed via GPO)</span><span class="close-btn" onclick="closeWindow('client-chrome-window')">X</span></div>
+                    <div class="content" style="background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px;">
+                        <div style="font-size:54px; margin-bottom:10px;">🌐</div>
+                        <h2 style="margin:0 0 8px 0; color:#15803d;">Google Chrome Installed Successfully!</h2>
+                        <p style="margin:0; color:#374151; max-width:460px; line-height:1.55;">
+                            Deployed automatically to <b>Arun (Sales OU)</b> on <b>PC-ARUN</b> via Group Policy Object <b>Install_Chrome</b> from <code>\\SMEC-DC1\Software</code>.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('client-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="client-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (Client)</h4>
+                    <div class="app-grid">
+                        <div class="app"><div class="app-icon">📁</div><span style="font-size:11.5px; font-weight:600;">Explorer</span></div>
+                        <div class="app" id="client-start-chrome" style="display:none;" onclick="openClientChrome(); document.getElementById('client-start-menu').style.display='none';">
+                            <div class="app-icon">🌐</div><span style="font-size:11.5px; font-weight:700; color:#005a9e;">Chrome</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Dedicated Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 16</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Global Context Menus -->
+    <div id="ctx-desktop-msi" class="context-menu">
+        <div onclick="copyMsiFile()">📋 Copy</div>
+    </div>
+    <div id="ctx-cdrive-empty" class="context-menu">
+        <div onclick="startCreateNewFolder()">📁 New &rarr; Folder</div>
+    </div>
+    <div id="ctx-software-empty" class="context-menu">
+        <div onclick="pasteMsiIntoSoftware()">📋 Paste</div>
+    </div>
+    <div id="ctx-software-folder" class="context-menu">
+        <div onclick="openExplorer('software')">📂 Open</div>
+        <div onclick="openFolderProperties()"><strong>⚙️ Properties</strong></div>
+    </div>
+    <div id="ctx-unc-copy" class="context-menu">
+        <div onclick="copyUncViaContext(event)">📋 Copy (\\SMEC-DC1\Software)</div>
+    </div>
+    <div id="ctx-sw-paste" class="context-menu">
+        <div onclick="pasteUncToSwProps(event)">📋 Paste</div>
+    </div>
+    <div id="ctx-sales-ou" class="context-menu">
+        <div onclick="openCreateGPO(event)">Create a GPO in this domain, and Link it here...</div>
+    </div>
+    <div id="ctx-gpo-item" class="context-menu">
+        <div onclick="openGPME(event)"><strong>Edit...</strong></div>
+    </div>
+    <div id="ctx-sw-install" class="context-menu">
+        <div onclick="openNewPackageDialog(event)">New &rarr; Package...</div>
+        <div onclick="openSwProperties(event)"><strong>Properties</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 'server';
+        let msiCopied = false;
+        let creatingFolderInline = false;
+        let softwareFolderCreated = false;
+        let msiPasted = false;
+        let shareConfigured = false;
+        let securityConfigured = false;
+        let uncCopied = false;
+        let swPropsConfigured = false;
+        let msiSelectedInDialog = false;
+        let packageDeployed = false;
+        let currentExplorerView = 'this-pc';
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 2600);
+        }
+
+        function switchMachine(machine) {
+            activeMachine = machine;
+            document.getElementById('server-pc').classList.toggle('active-pc', machine === 'server');
+            document.getElementById('client-pc').classList.toggle('active-pc', machine === 'client');
+            document.getElementById('btn-switch-server').classList.toggle('active', machine === 'server');
+            document.getElementById('btn-switch-client').classList.toggle('active', machine === 'client');
+            updateSidebarAttention();
+            if (machine === 'client' && step === 15) {
+                setTimeout(() => document.getElementById('client-password-input').focus(), 100);
+            }
+        }
+
+        function updateSidebarAttention() {
+            const srv = document.getElementById('btn-switch-server');
+            const cli = document.getElementById('btn-switch-client');
+            srv.classList.remove('attention');
+            cli.classList.remove('attention');
+            if (step >= 15 && step <= 16 && activeMachine !== 'client') cli.classList.add('attention');
+            if (step < 15 && activeMachine !== 'server') srv.classList.add('attention');
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+
+        function toggleTree(el, e) {
+            e.stopPropagation();
+            el.classList.toggle('expanded');
+            if (el.classList.contains('icon-folder')) { el.classList.remove('icon-folder'); el.classList.add('icon-folder-open'); }
+            else if (el.classList.contains('icon-folder-open')) { el.classList.remove('icon-folder-open'); el.classList.add('icon-folder'); }
+        }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.context-menu').forEach(el => el.style.display = 'none');
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 240) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 16)} / 16`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER:</strong> Right-click <b>GoogleChromeStandaloneEnterprise64.msi</b> on the Desktop and click <b>Copy</b>."; break;
+                case 2: text = "<strong>SERVER:</strong> Click <b>This PC</b> on Desktop (or Start &rarr; File Explorer) and double-click <b>Local Disk (C:)</b>."; break;
+                case 3: text = "<strong>SERVER:</strong> Right-click empty white space inside <b>C:\\</b> &rarr; <b>New &rarr; Folder</b> &rarr; type <code>Software</code> and press <b>Enter</b>."; break;
+                case 4: text = "<strong>SERVER:</strong> Double-click the <b>Software</b> folder &rarr; right-click empty space inside <b>C:\\Software</b> &rarr; click <b>Paste</b>."; break;
+                case 5: text = "<strong>SERVER:</strong> Go back to <b>Local Disk (C:)</b>, right-click the <b>Software</b> folder, and select <b>Properties</b>."; break;
+                case 6: text = "<strong>SERVER (Sharing):</strong> In <b>Sharing</b> tab &rarr; <b>Advanced Sharing...</b> &rarr; check <b>Share this folder</b> &rarr; <b>Permissions</b> &rarr; allow <b>Full Control</b> for <b>Everyone</b> &rarr; OK twice."; break;
+                case 7: text = "<strong>SERVER (Security):</strong> Switch to <b>Security</b> tab &rarr; <b>Edit...</b> &rarr; <b>Add...</b> &rarr; type <code>Everyone</code> &rarr; allow <b>Full control</b> &rarr; click <b>OK</b>, then click <b>Close</b> on Software Properties."; break;
+                case 8: text = "<strong>SERVER (Copy Path):</strong> Right-click the <b>Software</b> folder again &rarr; select <b>Properties</b> &rarr; on the <b>Sharing</b> tab, copy the <b>Network Path</b> (<code>\\\\SMEC-DC1\\Software</code>) using <b>Ctrl+C</b> or right-click &rarr; <b>Copy</b>, then close Properties &amp; Explorer."; break;
+                case 9: text = "<strong>SERVER:</strong> Click <b>Start &rarr; Run</b>, type <code>gpmc.msc</code>, and click <b>OK</b>."; break;
+                case 10: text = "<strong>SERVER:</strong> Expand <b>Forest: smec.com &gt; Domains &gt; smec.com</b>. Right-click <b>Sales</b> OU &rarr; <b>Create a GPO...</b> &rarr; name it <code>Install_Chrome</code> &rarr; OK."; break;
+                case 11: text = "<strong>SERVER:</strong> Right-click <b>Install_Chrome</b> and click <b>Edit...</b>"; break;
+                case 12: text = "<strong>SERVER (Properties):</strong> Navigate to <b>User Configuration &gt; Policies &gt; Software Settings &gt; Software installation</b>. Right-click it and select <b>Properties</b>."; break;
+                case 13: text = "<strong>SERVER (Set Path &amp; Assign):</strong> Paste <code>\\\\SMEC-DC1\\Software</code> into <b>Default package location</b> (or click Browse), select <b>Assign</b> under New packages, and click <b>Apply</b> &amp; <b>OK</b>."; break;
+                case 14: text = "<strong>SERVER (New Package):</strong> Right-click <b>Software installation</b> &rarr; <b>New &rarr; Package...</b> &rarr; select <b>GoogleChromeStandaloneEnterprise64.msi</b> &rarr; click <b>Open</b>. Then close GPME/GPMC, open <code>cmd</code>, and run <code>gpupdate /force</code>."; break;
+                case 15: text = "<strong>CLIENT:</strong> Switch to <b>💻 Client</b> on the left sidebar and sign in as <b>Arun</b> using password <code>Password123</code>."; break;
+                case 16: text = "<strong>CLIENT:</strong> Google Chrome was deployed automatically! Click <b>🌐 Google Chrome</b> on the Client Desktop to verify."; break;
+                case 17:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> Authentic Folder Creation, Share + NTFS Permissions, Software Installation Properties (Default Path + Assign), New Package, and Client Deployment verified!";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        // --- STEP 1-4: AUTHENTIC FILE EXPLORER WORKFLOW ---
+        function copyDesktopMsiHint() {
+            if (step === 1) showToast("Right-click GoogleChromeStandaloneEnterprise64.msi and click Copy.");
+        }
+        function copyMsiFile() {
+            msiCopied = true;
+            showToast("Copied GoogleChromeStandaloneEnterprise64.msi to clipboard");
+            if (step === 1) { step = 2; updateGuide(); }
+        }
+
+        function navigateUpExplorer() {
+            if (currentExplorerView === 'software') openExplorer('c-drive');
+            else if (currentExplorerView === 'c-drive') openExplorer('this-pc');
+        }
+
+        function openExplorer(view) {
+            currentExplorerView = view;
+            document.getElementById('explorer-window').style.display = 'flex';
+            document.querySelectorAll('.exp-nav-item').forEach(x => x.classList.remove('active'));
+            const main = document.getElementById('exp-main-content');
+
+            if (view === 'this-pc') {
+                document.getElementById('nav-thispc').classList.add('active');
+                document.getElementById('exp-path-bar').value = 'This PC';
+                main.innerHTML = `
+                    <div style="font-weight:600; color:#555; font-size:12px; margin-bottom:8px;">Devices and drives</div>
+                    <div class="drive-card" ondblclick="openExplorer('c-drive')" onclick="openExplorer('c-drive')">
+                        <div style="font-size:34px;">💽</div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600; font-size:12.5px;">Local Disk (C:)</div>
+                            <div class="drive-bar"><div class="drive-bar-fill"></div></div>
+                            <div style="font-size:10.5px; color:#666; margin-top:3px;">145 GB free of 250 GB</div>
+                        </div>
+                    </div>`;
+            } else if (view === 'c-drive') {
+                document.getElementById('nav-cdrive').classList.add('active');
+                document.getElementById('exp-path-bar').value = 'C:\\';
+                if (step === 2 && msiCopied) { step = 3; updateGuide(); }
+                let html = `<div class="exp-item"><div class="e-ico">📁</div><span>Windows</span></div>
+                            <div class="exp-item"><div class="e-ico">📁</div><span>Program Files</span></div>`;
+                if (creatingFolderInline && !softwareFolderCreated) {
+                    html += `<div class="exp-item" style="background:#e5f1fb; border-color:#99d1ff;">
+                                <div class="e-ico">📁</div>
+                                <input type="text" id="inline-folder-name" value="New folder" style="width:105px; text-align:center; padding:2px 4px; font-size:11.5px;" onkeypress="if(event.key==='Enter') finalizeNewFolder()">
+                             </div>`;
+                } else if (softwareFolderCreated) {
+                    html += `<div class="exp-item" ondblclick="openExplorer('software')" oncontextmenu="showContext('ctx-software-folder', event)">
+                                <div class="e-ico">📁</div><span><strong>Software</strong>${shareConfigured ? ' (Shared)' : ''}</span>
+                             </div>`;
+                }
+                main.innerHTML = html;
+                if (creatingFolderInline && !softwareFolderCreated) {
+                    const inp = document.getElementById('inline-folder-name');
+                    if (inp) { inp.focus(); inp.select(); }
+                }
+            } else if (view === 'software') {
+                document.getElementById('nav-software').classList.add('active');
+                document.getElementById('exp-path-bar').value = 'C:\\Software';
+                main.innerHTML = msiPasted
+                    ? `<div class="exp-item"><div class="e-ico">📦</div><span>GoogleChromeStandaloneEnterprise64.msi</span></div>`
+                    : `<p style="color:#777; font-size:12px;">This folder is empty. Right-click here and click <b>Paste</b>.</p>`;
+            } else if (view === 'desktop') {
+                document.getElementById('nav-desktop').classList.add('active');
+                document.getElementById('exp-path-bar').value = 'Desktop';
+                main.innerHTML = `<div class="exp-item" oncontextmenu="showContext('ctx-desktop-msi', event)"><div class="e-ico">📦</div><span>GoogleChromeStandaloneEnterprise64.msi</span></div>`;
+            }
+        }
+
+        function handleExplorerRightClick(e) {
+            if (e.target.closest('.exp-item')) return;
+            if (currentExplorerView === 'c-drive' && !softwareFolderCreated) {
+                showContext('ctx-cdrive-empty', e);
+            } else if (currentExplorerView === 'software' && !msiPasted) {
+                showContext('ctx-software-empty', e);
+            } else {
+                e.preventDefault();
+            }
+        }
+
+        function startCreateNewFolder() {
+            if (!msiCopied) { alert("First right-click GoogleChromeStandaloneEnterprise64.msi on the Desktop and click Copy!"); return; }
+            creatingFolderInline = true;
+            openExplorer('c-drive');
+        }
+
+        function finalizeNewFolder() {
+            const inp = document.getElementById('inline-folder-name');
+            if (!inp) return;
+            const name = inp.value.trim();
+            if (name.toLowerCase() !== 'software') {
+                alert("Please name the folder 'Software' and press Enter.");
+                inp.focus(); inp.select();
+                return;
+            }
+            creatingFolderInline = false;
+            softwareFolderCreated = true;
+            document.getElementById('nav-software').style.display = 'block';
+            openExplorer('c-drive');
+            if (step === 3) { step = 4; updateGuide(); }
+        }
+
+        function pasteMsiIntoSoftware() {
+            if (!msiCopied) { alert("Please copy GoogleChromeStandaloneEnterprise64.msi from the Desktop first!"); return; }
+            msiPasted = true;
+            openExplorer('software');
+            showToast("Pasted GoogleChromeStandaloneEnterprise64.msi into C:\\Software");
+            if (step === 4) { step = 5; updateGuide(); }
+        }
+
+        // --- STEP 5-8: SHARING + SECURITY + AUTHENTIC COPY NETWORK PATH ---
+        function openFolderProperties() {
+            if (!msiPasted) { alert("Please paste GoogleChromeStandaloneEnterprise64.msi inside C:\\Software first!"); return; }
+            document.getElementById('folder-props-window').style.display = 'flex';
+            switchFolderPropTab('sharing');
+            if (step === 5) { step = 6; updateGuide(); }
+        }
+
+        function switchFolderPropTab(tab) {
+            document.getElementById('fp-pane-sharing').style.display = tab === 'sharing' ? 'block' : 'none';
+            document.getElementById('fp-pane-security').style.display = tab === 'security' ? 'block' : 'none';
+            document.getElementById('fp-tab-sharing').classList.toggle('active', tab === 'sharing');
+            document.getElementById('fp-tab-security').classList.toggle('active', tab === 'security');
+            if (tab === 'sharing' && shareConfigured) {
+                setTimeout(() => {
+                    const f = document.getElementById('unc-path-field');
+                    if (f) { f.focus(); f.select(); }
+                }, 40);
+            }
+        }
+
+        function openAdvSharing() { document.getElementById('adv-sharing-window').style.display = 'flex'; }
+        function toggleShareFolderChk() {
+            const c = document.getElementById('chk-share-folder').checked;
+            document.getElementById('share-name-input').disabled = !c;
+            document.getElementById('btn-share-perms').disabled = !c;
+        }
+        function openSharePerms() { document.getElementById('share-perms-window').style.display = 'flex'; }
+        function okSharePerms() {
+            if (!document.getElementById('chk-share-full').checked) { alert("Please check 'Full Control' for Everyone!"); return; }
+            closeWindow('share-perms-window');
+        }
+        function okAdvSharing() {
+            if (!document.getElementById('chk-share-folder').checked || !document.getElementById('chk-share-full').checked) {
+                alert("Check 'Share this folder' and set Permissions -> Everyone -> Full Control first!");
+                return;
+            }
+            shareConfigured = true;
+            closeWindow('adv-sharing-window');
+            document.getElementById('unc-path-field').value = '\\\\SMEC-DC1\\Software';
+            document.getElementById('unc-copy-hint').style.display = 'block';
+            if (step === 6) { step = 7; updateGuide(); }
+        }
+
+        function openSecEdit() { document.getElementById('sec-edit-window').style.display = 'flex'; }
+        function openAddUserModal() {
+            document.getElementById('add-user-window').style.display = 'flex';
+            document.getElementById('add-user-input').value = '';
+            document.getElementById('add-user-input').focus();
+        }
+        function confirmAddEveryone() {
+            const val = document.getElementById('add-user-input').value.trim().toLowerCase();
+            if (val !== 'everyone') { alert("Please type 'Everyone' and click OK."); return; }
+            closeWindow('add-user-window');
+            document.getElementById('sec-edit-list').innerHTML += `<div style="background:#e5f1fb; font-weight:700;">👥 Everyone</div>`;
+            document.getElementById('chk-ntfs-full').disabled = false;
+            document.getElementById('chk-ntfs-read').disabled = false;
+            document.getElementById('chk-ntfs-read').checked = true;
+        }
+        function okSecEdit() {
+            if (!document.getElementById('chk-ntfs-full').checked) {
+                alert("Please add 'Everyone' and check 'Full control' under NTFS Security Permissions!");
+                return;
+            }
+            securityConfigured = true;
+            closeWindow('sec-edit-window');
+            document.getElementById('sec-users-list').innerHTML += `<div style="font-weight:700; color:#15803d;">👥 Everyone (Full control)</div>`;
+            document.getElementById('sec-status-text').innerHTML = '<span style="color:#15803d; font-weight:700;">Everyone added with Full control ✓</span>';
+            showToast("NTFS Security saved! Now click Close on Software Properties.");
+        }
+
+        let simulatedClipboard = '';
+
+        function selectUncField() {
+            if (!shareConfigured) return;
+            const f = document.getElementById('unc-path-field');
+            if (f) f.select();
+        }
+        function handleUncKeydown(e) {
+            if (!shareConfigured) return;
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+                e.preventDefault();
+                performUncCopy();
+            }
+        }
+        function showUncCopyContext(e) {
+            if (!shareConfigured) return;
+            const f = document.getElementById('unc-path-field');
+            f.focus();
+            f.select();
+            showContext('ctx-unc-copy', e);
+        }
+        function copyUncViaContext(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-unc-copy').style.display = 'none';
+            performUncCopy();
+        }
+        function performUncCopy() {
+            const pathStr = '\\\\SMEC-DC1\\Software';
+            simulatedClipboard = pathStr;
+            const f = document.getElementById('unc-path-field');
+            f.focus();
+            f.select();
+            try { document.execCommand('copy'); } catch (err) {}
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(pathStr).catch(() => {});
+            }
+            onUncPathCopied();
+        }
+        function onUncPathCopied() {
+            if (!shareConfigured) return;
+            simulatedClipboard = '\\\\SMEC-DC1\\Software';
+            uncCopied = true;
+            showToast("Copied Network Path: \\\\SMEC-DC1\\Software — Now close Properties & Explorer!");
+            if ((step === 7 || step === 8) && shareConfigured && securityConfigured) { step = 9; updateGuide(); }
+        }
+        function pasteUncToSwProps(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-sw-paste').style.display = 'none';
+            const inp = document.getElementById('sw-default-path-input');
+            inp.value = simulatedClipboard || '\\\\SMEC-DC1\\Software';
+            inp.focus();
+            showToast("Pasted: " + inp.value);
+        }
+        function closeFolderProps() {
+            closeWindow('folder-props-window');
+            if (step === 7 && shareConfigured && securityConfigured) {
+                step = 8;
+                updateGuide();
+                showToast("Now right-click the Software folder again -> Properties -> Sharing tab to copy the Network Path.");
+            }
+        }
+
+        // --- STEP 9-14: GPMC -> SOFTWARE INSTALLATION PROPERTIES -> NEW PACKAGE -> GPUPDATE ---
+        function openServerRun(e) {
+            e.stopPropagation();
+            document.getElementById('server-start-menu').style.display = 'none';
+            if (step < 9) { alert("Please complete Sharing, Security, and copy \\\\SMEC-DC1\\Software first!"); return; }
+            document.getElementById('server-run-window').style.display = 'flex';
+            document.getElementById('server-run-input').value = '';
+            document.getElementById('server-run-input').focus();
+        }
+
+        function executeServerRun() {
+            const cmd = document.getElementById('server-run-input').value.toLowerCase().trim();
+            closeWindow('server-run-window');
+            if (cmd === 'gpmc.msc') {
+                document.getElementById('gpm-window').style.display = 'flex';
+                if (step === 9) { step = 10; updateGuide(); }
+            } else if (cmd === 'cmd') {
+                if (!packageDeployed) { alert("Please finish deploying the Chrome MSI package in GPO first!"); return; }
+                document.getElementById('server-cmd-window').style.display = 'flex';
+                document.getElementById('server-cmd-input').focus();
+            } else if (cmd !== '') {
+                alert(`Windows cannot find '${cmd}'.`);
+            }
+        }
+
+        function openCreateGPO(e) {
+            e.stopPropagation();
+            document.getElementById('ctx-sales-ou').style.display = 'none';
+            document.getElementById('create-gpo-window').style.display = 'flex';
+            document.getElementById('gpo-name').focus();
+        }
+        function createGPO() {
+            const name = document.getElementById('gpo-name').value.trim();
+            if (name.toLowerCase() !== 'install_chrome') { alert("Please name the GPO 'Install_Chrome'."); return; }
+            closeWindow('create-gpo-window');
+            const ul = document.getElementById('sales-gpo-list');
+            ul.innerHTML = `<li class="icon-gpo" oncontextmenu="showContext('ctx-gpo-item', event)">${name}</li>`;
+            ul.parentElement.classList.add('expanded');
+            if (step === 10) { step = 11; updateGuide(); }
+        }
+
+        function openGPME(e) {
+            e.stopPropagation();
+            document.getElementById('ctx-gpo-item').style.display = 'none';
+            document.getElementById('gpme-window').style.display = 'flex';
+            if (step === 11) { step = 12; updateGuide(); }
+        }
+
+        function selectSwInstall(el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('#gpme-window .selectable').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        // Software installation -> Properties (Default package location + Assign)
+        function openSwProperties(e) {
+            e.stopPropagation();
+            document.getElementById('ctx-sw-install').style.display = 'none';
+            document.getElementById('sw-props-window').style.display = 'flex';
+            document.getElementById('sw-default-path-input').focus();
+            if (step === 12) { step = 13; updateGuide(); }
+        }
+
+        function browseDefaultLocation() {
+            document.getElementById('sw-default-path-input').value = '\\\\SMEC-DC1\\Software';
+            showToast("Selected default package location: \\\\SMEC-DC1\\Software");
+        }
+
+        function validateSwProps() {
+            const pathVal = document.getElementById('sw-default-path-input').value.trim().toLowerCase();
+            const assignChecked = document.getElementById('radio-sw-prop-assign').checked;
+            if (pathVal !== '\\\\smec-dc1\\software' && pathVal !== '\\\\smec-dc1\\software\\') {
+                alert("Please paste '\\\\SMEC-DC1\\Software' into Default package location (or click Browse...).");
+                return false;
+            }
+            if (!assignChecked) {
+                alert("Please select 'Assign' under New packages.");
+                return false;
+            }
+            swPropsConfigured = true;
+            return true;
+        }
+
+        function applySwProps() {
+            if (validateSwProps()) showToast("Software installation Properties applied!");
+        }
+
+        function okSwProps() {
+            if (!validateSwProps()) return;
+            closeWindow('sw-props-window');
+            if (step === 13) { step = 14; updateGuide(); }
+        }
+
+        // Software installation -> New -> Package... (Auto-opens at \\SMEC-DC1\Software & auto-assigns!)
+        function openNewPackageDialog(e) {
+            e.stopPropagation();
+            document.getElementById('ctx-sw-install').style.display = 'none';
+            if (!swPropsConfigured) {
+                alert("First right-click 'Software installation' -> Properties to set Default package location (\\\\SMEC-DC1\\Software) and select 'Assign'!");
+                return;
+            }
+            document.getElementById('open-pkg-window').style.display = 'flex';
+        }
+
+        function selectMsiRow() {
+            msiSelectedInDialog = true;
+            const row = document.getElementById('msi-row-select');
+            row.style.background = '#e5f1fb';
+            row.style.borderColor = '#0078d7';
+            document.getElementById('btn-open-msi-file').disabled = false;
+        }
+
+        function openSelectedMsi() {
+            if (!msiSelectedInDialog) return;
+            packageDeployed = true;
+            closeWindow('open-pkg-window');
+            document.getElementById('sw-placeholder').style.display = 'none';
+            document.getElementById('sw-pkg-table').style.display = 'table';
+            showToast("Google Chrome MSI automatically Assigned! Now close GPO windows & run gpupdate /force.");
+        }
+
+        function handleGPMEclose() { closeWindow('gpme-window'); }
+        function handleGPMClose() { closeWindow('gpm-window'); }
+
+        function handleServerCmd(e) {
+            if (e.key === 'Enter') {
+                const inp = document.getElementById('server-cmd-input');
+                const val = inp.value.trim();
+                const out = document.getElementById('server-cmd-output');
+                let res = `C:\\Users\\Administrator> ${val}\n`;
+                if (val.toLowerCase() === 'gpupdate /force') {
+                    res += "Updating policy...\n\nComputer Policy update has completed successfully.\nUser Policy update has completed successfully.\n\n";
+                    if (step === 14 && packageDeployed) { step = 15; updateGuide(); }
+                } else if (val !== '') {
+                    res += `'${val}' is not recognized as an internal or external command.\n\n`;
+                }
+                out.textContent += res;
+                inp.value = '';
+                document.getElementById('server-cmd-content').scrollTop = document.getElementById('server-cmd-content').scrollHeight;
+            }
+        }
+
+        // --- STEP 15-16: CLIENT SIGN-IN & CHROME VERIFICATION ---
+        function clientSignIn() {
+            if (step < 15) { alert("Please complete GPO Software Installation and gpupdate /force on Server first!"); return; }
+            const pwd = document.getElementById('client-password-input').value;
+            if (pwd !== 'Password123') { alert("Incorrect password! Use Password123"); return; }
+            document.getElementById('client-login-screen').style.display = 'none';
+            document.getElementById('client-installing-overlay').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('client-installing-overlay').style.display = 'none';
+                document.getElementById('client-chrome-icon').style.display = 'flex';
+                document.getElementById('client-start-chrome').style.display = 'flex';
+                if (step === 15) { step = 16; updateGuide(); }
+            }, 1800);
+        }
+
+        function openClientChrome() {
+            document.getElementById('client-chrome-window').style.display = 'flex';
+            if (step === 16) { step = 17; updateGuide(); }
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
