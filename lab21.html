@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: IIS FTP Server Hosting with Authentication (Arun) - smec.com</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea, select { user-select: text; }
+
+        /* ==================== LEFT MACHINE SELECTOR SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .machine-btn:hover { background: #273549; border-color: #60a5fa; }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+        .machine-btn-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .machine-btn-sub { font-size: 10.5px; opacity: 0.88; }
+        .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+
+        .status-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            color: #cbd5e1;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .status-row:last-child { border-bottom: none; }
+        .s-badge {
+            font-family: Consolas, monospace;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .s-pending { background: #334155; color: #94a3b8; }
+        .s-done { background: #14532d; color: #86efac; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc { display: block; }
+
+        #srv-pc { background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%); }
+        #cli-pc { background: radial-gradient(circle at 75% 20%, #1d4e89 0%, #0d2b4e 60%, #061426 100%); }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 104px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 7px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 28px; margin-bottom: 3px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 390px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 10px 6px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 24px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 16px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], input[type="password"], textarea, select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus, textarea:focus, select:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #srv-run-window, #cli-run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10030; }
+        #srv-aduc-window { width: 84%; height: 76%; top: 48px; left: 8%; z-index: 10005; }
+        #srv-exp-window, #cli-exp-window { width: 84%; height: 78%; top: 44px; left: 8%; z-index: 10008; }
+        #srv-iis-window { width: 90%; height: 82%; top: 34px; left: 5%; z-index: 10012; }
+        #addftp-window { width: 570px; height: 445px; top: 46px; left: 50%; transform: translateX(-50%); z-index: 10028; }
+        #cli-ncpa-window { width: 620px; height: 380px; top: 60px; left: 50%; transform: translateX(-50%); z-index: 10004; }
+        #cli-eth-window { width: 410px; height: 370px; top: 80px; left: 50%; transform: translateX(-50%); z-index: 10014; }
+        #cli-ipv4-window { width: 420px; height: 430px; top: 52px; left: 50%; transform: translateX(-50%); z-index: 10024; }
+        #ftp-login-window { width: 420px; height: 290px; top: 115px; left: 50%; transform: translateX(-50%); z-index: 10040; }
+        #cli-preview-window { width: 500px; height: 330px; top: 90px; left: 50%; transform: translateX(-50%); z-index: 10045; }
+        #cli-browser-window { width: 84%; height: 76%; top: 48px; left: 8%; z-index: 10016; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 215px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 18px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .icon-domain::before { content: '🏢 '; }
+        .icon-ou::before { content: '🗂️ '; }
+        .icon-user::before { content: '👤 '; }
+        .icon-srv::before { content: '🖥️ '; }
+        .icon-folder::before { content: '📁 '; }
+        .icon-site::before { content: '🌍 '; }
+        .icon-ftp::before { content: '📂 '; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 10px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 10px; border-bottom: 1px solid #efefef; }
+
+        /* File Explorer */
+        .exp-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #fafafa;
+            border-bottom: 1px solid #d4d4d4;
+        }
+        .exp-path-input {
+            flex: 1;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 12.5px;
+            color: #0f172a;
+        }
+        .exp-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .exp-item:hover { background: #e5f1fb; border-color: #93c5fd; }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>📂 IIS FTP Server Lab</h2>
+            <span>Authenticated FTP Hosting</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Machine</div>
+
+        <button id="btn-switch-srv" class="machine-btn active" onclick="switchMachine('srv')">
+            <div class="machine-btn-header"><span>🖥️ Server (SMEC-DC1)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">IP: 192.168.1.1 | smec.com</div>
+            <div class="machine-btn-sub" id="srv-side-sub">AD DS · DNS · IIS + FTP</div>
+        </button>
+
+        <button id="btn-switch-cli" class="machine-btn" onclick="switchMachine('cli')">
+            <div class="machine-btn-header"><span>💻 Client PC (Win 11)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub" id="cli-side-ip">IP: DHCP (Not Set)</div>
+            <div class="machine-btn-sub" id="cli-side-sub">FTP Client Access</div>
+        </button>
+
+        <!-- Live Progress Checklist -->
+        <div class="status-card">
+            <div style="font-weight:700; color:#f8fafc; margin-bottom:5px;">📊 Lab Progress</div>
+            <div class="status-row"><span>1. Verify AD User (Arun)</span><span id="st-ad" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>2. Create C:\FTP &amp; Files</span><span id="st-files" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>3. Add FTP Site (No SSL)</span><span id="st-ftp" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>4. Client IP (192.168.1.x)</span><span id="st-cliip" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>5. FTP Login (Arun)</span><span id="st-login" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>6. Access Server File</span><span id="st-access" class="s-badge s-pending">Pending</span></div>
+        </div>
+
+        <div class="lab-info-card">
+            <div><strong>Domain:</strong> <code>smec.com</code></div>
+            <div><strong>AD User (Tech OU):</strong> <code>Arun</code></div>
+            <div><strong>Password:</strong> <code>password123</code></div>
+            <div><strong>Server IP / Port:</strong> <code>192.168.1.1:21</code></div>
+            <div><strong>FTP Folder:</strong> <code>C:\FTP</code></div>
+            <div><strong>Client IP Range:</strong> <code>192.168.1.10</code></div>
+            <div><strong>Client URL:</strong> <code>ftp://192.168.1.1</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <!-- ==================== MACHINE 1: SERVER (SMEC-DC1) ==================== -->
+            <div class="pc-container active-pc" id="srv-pc">
+                <div class="pc-label">
+                    SMEC-DC1 (AD DS · IIS + FTP Server)
+                    <span id="srv-top-sub">IP: 192.168.1.1 | Domain: smec.com | FTP Site: Pending</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openAduc()">
+                        <div class="ico">👥</div>
+                        <span>AD Users &amp; Computers</span>
+                    </div>
+                    <div class="d-icon" onclick="openSrvExplorer('root')">
+                        <div class="ico">📁</div>
+                        <span>File Explorer</span>
+                    </div>
+                    <div class="d-icon" onclick="openIisManager()">
+                        <div class="ico">⚙️</div>
+                        <span>IIS Manager</span>
+                    </div>
+                </div>
+
+                <!-- Server Run Window -->
+                <div id="srv-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('srv-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>dsa.msc</code> (ADUC), <code>inetmgr</code> (IIS Manager), or <code>explorer</code>.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="srv-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun('srv')">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeRun('srv')">OK</button>
+                        <button onclick="closeWindow('srv-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server ADUC (dsa.msc) -->
+                <div id="srv-aduc-window" class="window">
+                    <div class="title-bar"><span>Active Directory Users and Computers [SMEC-DC1.smec.com]</span><span class="close-btn" onclick="closeWindow('srv-aduc-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 40%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded" onclick="toggleTree(this, event)">Active Directory Users and Computers
+                                    <ul>
+                                        <li class="icon-domain expanded" onclick="toggleTree(this, event)">smec.com
+                                            <ul>
+                                                <li class="icon-folder">Builtin</li>
+                                                <li class="icon-folder">Computers</li>
+                                                <li class="icon-ou">Domain Controllers</li>
+                                                <li class="icon-ou" onclick="selectTechOu(this, event)" style="color:#005a9e; font-weight:700;">Tech</li>
+                                                <li class="icon-folder">Users</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 60%; padding: 12px; overflow:auto;" id="aduc-right">
+                            <div style="color:#555; font-size:12.5px; padding:10px;">
+                                Click the <b>Tech</b> OU under <b>smec.com</b> to confirm AD user <b>Arun</b> exists for FTP authentication.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server File Explorer (C:\ -> Right-click New Folder FTP -> Right-click New Text Document) -->
+                <div id="srv-exp-window" class="window">
+                    <div class="title-bar"><span>File Explorer (SMEC-DC1)</span><span class="close-btn" onclick="closeWindow('srv-exp-window')">X</span></div>
+                    <div class="exp-toolbar">
+                        <button onclick="srvExpGoUp()">&#8593; Up</button>
+                        <div id="srv-exp-path" class="exp-path-input" style="background:#f8fafc;">Local Disk (C:\)</div>
+                        <span id="srv-exp-hint" style="font-size:11px; color:#005a9e; font-weight:600;"></span>
+                    </div>
+                    <div class="content" style="background:#fff; padding:14px;" id="srv-exp-body" oncontextmenu="handleSrvExpCtx(event)"></div>
+                </div>
+
+                <!-- Server IIS Manager (inetmgr) -->
+                <div id="srv-iis-window" class="window">
+                    <div class="title-bar"><span>Internet Information Services (IIS) Manager [SMEC-DC1]</span><span class="close-btn" onclick="closeWindow('srv-iis-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 30%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:6px;">Connections</div>
+                            <ul class="tree-view">
+                                <li class="icon-srv expanded" onclick="toggleTree(this, event)">SMEC-DC1 (SMEC\Administrator)
+                                    <ul>
+                                        <li class="icon-folder">Application Pools</li>
+                                        <li class="icon-folder expanded" onclick="selectIisSites(this, event)" oncontextmenu="showContext('ctx-iis-sites', event)" style="color:#005a9e; font-weight:700;">Sites
+                                            <ul id="iis-sites-list">
+                                                <li class="icon-site">Default Web Site</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 50%; padding: 14px; overflow-y: auto; border-right: 1px solid #e2e8f0;" id="iis-center">
+                            <h3 style="margin-top:0; color:#005a9e;">Sites</h3>
+                            <p style="font-size:12.5px; color:#475569;">Right-click <b>Sites</b> on the left pane (or click <b>Add FTP Site...</b> in Actions) to host <code>C:\FTP</code> for user <b>Arun</b>.</p>
+                        </div>
+                        <div style="width: 20%; background:#f8fafc; padding: 12px; font-size:12px;">
+                            <div style="font-weight:700; color:#0f172a; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:10px;">Actions</div>
+                            <div style="display:flex; flex-direction:column; gap:10px;">
+                                <a href="#" onclick="openAddFtpWizard(event)" style="color:#0078D7; font-weight:700; text-decoration:none;">📂 Add FTP Site...</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add FTP Site Wizard (3 Authentic Steps) -->
+                <div id="addftp-window" class="window">
+                    <div class="title-bar"><span>Add FTP Site</span><span class="close-btn" onclick="closeWindow('addftp-window')">X</span></div>
+                    <div class="content" id="ftp-wiz-pane" style="background:#fff; padding:18px; font-size:12.5px; line-height:1.55;"></div>
+                    <div class="dialog-footer">
+                        <button id="ftp-prev-btn" onclick="ftpWizPrev()" style="display:none;">&lt; Previous</button>
+                        <button id="ftp-next-btn" class="primary-btn" onclick="ftpWizNext()">Next &gt;</button>
+                        <button onclick="closeWindow('addftp-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('srv-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="srv-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openRun('srv', event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openAduc(); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">👥</div>
+                            <span style="font-size:11px; font-weight:600;">ADUC</span>
+                        </div>
+                        <div class="app" onclick="openSrvExplorer('root'); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">📁</div>
+                            <span style="font-size:11px; font-weight:600;">File Explorer</span>
+                        </div>
+                        <div class="app" onclick="openIisManager(); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">⚙️</div>
+                            <span style="font-size:11px; font-weight:600;">IIS Manager</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== MACHINE 2: CLIENT PC (Windows 11) ==================== -->
+            <div class="pc-container" id="cli-pc">
+                <div class="pc-label">
+                    CLIENT-PC (Windows 11)
+                    <span id="cli-top-sub">IP: DHCP (Not Configured) | FTP Status: Disconnected</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openCliExplorer()">
+                        <div class="ico">📁</div>
+                        <span>File Explorer (This PC)</span>
+                    </div>
+                    <div class="d-icon" onclick="openCliBrowser()">
+                        <svg width="30" height="30" viewBox="0 0 48 48" style="display:block; margin-bottom:3px;"><defs><linearGradient id="eg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0c59a4"/><stop offset="100%" stop-color="#114a8b"/></linearGradient><linearGradient id="eg2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1b9de2"/><stop offset="55%" stop-color="#35c1f1"/><stop offset="100%" stop-color="#50e6ff"/></linearGradient><linearGradient id="eg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#42e895"/><stop offset="100%" stop-color="#18a36e"/></linearGradient></defs><path d="M43.2 28.4c-1.8 1-4 1.6-6.3 1.6-7.7 0-13.5-5.6-13.5-12.1 0-3.2 1.6-6 4.1-7.6-7.6.3-13.7 6.5-13.7 14.2 0 7.8 6.4 14.2 14.2 14.2 6.8 0 12.6-4.7 14.1-11.1.3-.1.8.4 1.1.8z" fill="url(#eg1)"/><path d="M24 4C12.95 4 4 12.95 4 24c0 8.5 5.3 15.7 12.8 18.6-3.7-3.1-5.8-7.6-5.8-12.8 0-8.8 7.1-15.9 15.9-15.9 2.9 0 5.6.8 8 2.2 2.4 1.4 4.1 3.7 4.7 6.4.4 1.9-.6 3.7-2.4 4.4 3.9-.2 6.8-3.4 6.8-7.4C44 10.7 35.1 4 24 4z" fill="url(#eg2)"/><path d="M24 4C15.5 4 8.2 9.3 5.3 16.8c3.6-4.5 9.2-7.4 15.5-7.4 6.8 0 12.8 3.4 16.3 8.6 1.2 1.8 1.9 3.9 1.9 6.1 0 .6-.1 1.2-.2 1.8 2.9-1.9 4.9-5.1 5.1-8.8C43.4 9.7 34.6 4 24 4z" fill="url(#eg3)" opacity="0.88"/></svg>
+                        <span>Microsoft Edge</span>
+                    </div>
+                </div>
+
+                <!-- Client Run Window -->
+                <div id="cli-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('cli-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>ncpa.cpl</code> (Network Connections) or <code>explorer</code>.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="cli-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun('cli')">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeRun('cli')">OK</button>
+                        <button onclick="closeWindow('cli-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Client ncpa.cpl -->
+                <div id="cli-ncpa-window" class="window">
+                    <div class="title-bar"><span>Network Connections (Client PC)</span><span class="close-btn" onclick="closeWindow('cli-ncpa-window')">X</span></div>
+                    <div class="content" style="background:#fff; padding:18px;">
+                        <div oncontextmenu="showContext('ctx-cli-eth', event)" style="display:inline-flex; align-items:center; gap:12px; padding:12px 16px; border:1px solid #99d1ff; background:#e5f1fb; border-radius:5px; cursor:pointer;">
+                            <div style="font-size:32px;">🔌</div>
+                            <div>
+                                <div style="font-weight:700;">Ethernet</div>
+                                <div id="cli-eth-sub" style="font-size:11.5px; color:#475569;">Network (DHCP)</div>
+                            </div>
+                        </div>
+                        <p style="font-size:12px; color:#64748b; margin-top:16px;">Right-click <b>Ethernet</b> &rarr; <b>Properties</b> to assign an IP in the server's subnet (e.g. <code>192.168.1.10</code>).</p>
+                    </div>
+                </div>
+
+                <!-- Client Ethernet Properties -->
+                <div id="cli-eth-window" class="window">
+                    <div class="title-bar"><span>Ethernet Properties (Client PC)</span><span class="close-btn" onclick="closeWindow('cli-eth-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <p style="margin:0 0 8px 0;">This connection uses the following items:</p>
+                        <div style="border:1px solid #ccc; padding:6px; height:190px; background:#fafafa; display:flex; flex-direction:column; gap:4px;">
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> Client for Microsoft Networks</div>
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> Internet Protocol Version 6 (TCP/IPv6)</div>
+                            <div ondblclick="openCliIPv4()" style="padding:5px 6px; border-radius:3px; cursor:pointer; background:#cce8ff; font-weight:600;">
+                                <input type="checkbox" checked disabled> Internet Protocol Version 4 (TCP/IPv4)
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+                            <button class="primary-btn" onclick="openCliIPv4()">Properties</button>
+                        </div>
+                    </div>
+                    <div class="dialog-footer"><button onclick="closeWindow('cli-eth-window')">Close</button></div>
+                </div>
+
+                <!-- Client IPv4 Properties (NO AUTO-FILL!) -->
+                <div id="cli-ipv4-window" class="window">
+                    <div class="title-bar"><span>TCP/IPv4 Properties (Client PC)</span><span class="close-btn" onclick="closeWindow('cli-ipv4-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <div style="font-weight:600; margin-bottom:8px;">Use the following IP address:</div>
+                        <div style="display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; padding-left:14px; margin-bottom:14px;">
+                            <label>IP address:</label><input type="text" id="cli-ip-inp" placeholder="e.g. 192.168.1.10" autocomplete="off">
+                            <label>Subnet mask:</label><input type="text" id="cli-mask-inp" placeholder="e.g. 255.255.255.0" autocomplete="off">
+                        </div>
+                        <div style="font-weight:600; margin-bottom:8px;">Use the following DNS server addresses:</div>
+                        <div style="display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; padding-left:14px;">
+                            <label>Preferred DNS server:</label><input type="text" id="cli-dns-inp" placeholder="e.g. 192.168.1.1" autocomplete="off" onkeypress="if(event.key==='Enter') saveCliIPv4()">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="saveCliIPv4()">OK</button>
+                        <button onclick="closeWindow('cli-ipv4-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Client File Explorer (Type ftp://192.168.1.1 in Address Bar!) -->
+                <div id="cli-exp-window" class="window">
+                    <div class="title-bar"><span>File Explorer (CLIENT-PC)</span><span class="close-btn" onclick="closeWindow('cli-exp-window')">X</span></div>
+                    <div class="exp-toolbar">
+                        <button onclick="resetCliExplorer()">🏠 This PC</button>
+                        <input type="text" id="cli-exp-addr" class="exp-path-input" value="C:\" placeholder="Type ftp://192.168.1.1 and press Enter" autocomplete="off" onkeypress="if(event.key==='Enter') navigateCliExplorer()">
+                        <button class="primary-btn" onclick="navigateCliExplorer()">Go &rarr;</button>
+                    </div>
+                    <div class="content" style="background:#fff; padding:16px;" id="cli-exp-body"></div>
+                </div>
+
+                <!-- Authentic Windows "Log On As" FTP Credentials Modal -->
+                <div id="ftp-login-window" class="window">
+                    <div class="title-bar"><span>Log On As</span><span class="close-btn" onclick="closeWindow('ftp-login-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:10px; background:#eff6ff; border:1px solid #bfdbfe; padding:8px 10px; border-radius:4px;">
+                            <span style="font-size:24px;">🔐</span>
+                            <div><strong>FTP Server:</strong> <code>192.168.1.1</code><div style="font-size:11px; color:#475569;">Enter authorized AD user credentials to access FTP files.</div></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:90px 1fr; gap:8px; align-items:center;">
+                            <label style="font-weight:600;">User name:</label>
+                            <input type="text" id="ftp-login-user" placeholder="Arun (or smec\Arun)" autocomplete="off">
+                            <label style="font-weight:600;">Password:</label>
+                            <input type="password" id="ftp-login-pass" placeholder="password123" autocomplete="off" onkeypress="if(event.key==='Enter') submitFtpLogin()">
+                        </div>
+                        <div id="ftp-login-err" style="display:none; color:#b91c1c; font-size:11.5px; font-weight:600;"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="submitFtpLogin()">Log On</button>
+                        <button onclick="closeWindow('ftp-login-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Client File Preview Modal (Opens FTP text file) -->
+                <div id="cli-preview-window" class="window">
+                    <div class="title-bar"><span id="cli-prev-title">file.txt - Notepad (FTP)</span><span class="close-btn" onclick="closeWindow('cli-preview-window')">X</span></div>
+                    <div class="content" style="background:#fff; padding:16px; font-family:Consolas, monospace; font-size:13px; line-height:1.6;" id="cli-prev-body"></div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="closeWindow('cli-preview-window')">Close</button>
+                    </div>
+                </div>
+
+                <!-- Client Edge Browser (Redirects ftp://192.168.1.1 to File Explorer!) -->
+                <div id="cli-browser-window" class="window">
+                    <div class="title-bar"><span>Microsoft Edge (CLIENT-PC)</span><span class="close-btn" onclick="closeWindow('cli-browser-window')">X</span></div>
+                    <div class="exp-toolbar">
+                        <input type="text" id="cli-edge-url" class="exp-path-input" placeholder="ftp://192.168.1.1" autocomplete="off" onkeypress="if(event.key==='Enter') navigateCliEdge()">
+                        <button class="primary-btn" onclick="navigateCliEdge()">Go &rarr;</button>
+                    </div>
+                    <div class="content" style="background:#fff; padding:22px;" id="cli-edge-body">
+                        <div style="text-align:center; color:#64748b; margin-top:26px;">
+                            <p style="font-size:13px;">Type <code>ftp://192.168.1.1</code> above (or directly in <b>File Explorer</b> address bar) to connect to the FTP Server.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('cli-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="cli-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (CLIENT-PC)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openRun('cli', event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openCliExplorer(); document.getElementById('cli-start-menu').style.display='none';">
+                            <div class="app-icon">📁</div>
+                            <span style="font-size:11px; font-weight:600;">File Explorer</span>
+                        </div>
+                        <div class="app" onclick="openCliBrowser(); document.getElementById('cli-start-menu').style.display='none';">
+                            <svg width="24" height="24" viewBox="0 0 48 48" style="display:block; margin-bottom:3px;"><defs><linearGradient id="eg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0c59a4"/><stop offset="100%" stop-color="#114a8b"/></linearGradient><linearGradient id="eg2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1b9de2"/><stop offset="55%" stop-color="#35c1f1"/><stop offset="100%" stop-color="#50e6ff"/></linearGradient><linearGradient id="eg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#42e895"/><stop offset="100%" stop-color="#18a36e"/></linearGradient></defs><path d="M43.2 28.4c-1.8 1-4 1.6-6.3 1.6-7.7 0-13.5-5.6-13.5-12.1 0-3.2 1.6-6 4.1-7.6-7.6.3-13.7 6.5-13.7 14.2 0 7.8 6.4 14.2 14.2 14.2 6.8 0 12.6-4.7 14.1-11.1.3-.1.8.4 1.1.8z" fill="url(#eg1)"/><path d="M24 4C12.95 4 4 12.95 4 24c0 8.5 5.3 15.7 12.8 18.6-3.7-3.1-5.8-7.6-5.8-12.8 0-8.8 7.1-15.9 15.9-15.9 2.9 0 5.6.8 8 2.2 2.4 1.4 4.1 3.7 4.7 6.4.4 1.9-.6 3.7-2.4 4.4 3.9-.2 6.8-3.4 6.8-7.4C44 10.7 35.1 4 24 4z" fill="url(#eg2)"/><path d="M24 4C15.5 4 8.2 9.3 5.3 16.8c3.6-4.5 9.2-7.4 15.5-7.4 6.8 0 12.8 3.4 16.3 8.6 1.2 1.8 1.9 3.9 1.9 6.1 0 .6-.1 1.2-.2 1.8 2.9-1.9 4.9-5.1 5.1-8.8C43.4 9.7 34.6 4 24 4z" fill="url(#eg3)" opacity="0.88"/></svg>
+                            <span style="font-size:11px; font-weight:600;">Microsoft Edge</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 11</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Global Context Menus -->
+    <div id="ctx-srv-c" class="context-menu">
+        <div onclick="createFtpFolder(event)"><strong>📁 New &rarr; Folder</strong></div>
+    </div>
+    <div id="ctx-srv-ftp" class="context-menu">
+        <div onclick="createFtpTextFile(event)"><strong>📝 New &rarr; Text Document</strong></div>
+    </div>
+    <div id="ctx-iis-sites" class="context-menu">
+        <div onclick="openAddFtpWizard(event)"><strong>📂 Add FTP Site...</strong></div>
+    </div>
+    <div id="ctx-cli-eth" class="context-menu">
+        <div onclick="document.getElementById('cli-eth-window').style.display='flex'"><strong>Properties</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 'srv';
+
+        // Server states
+        let adVerified = false;
+        let srvExpPath = 'root'; // 'root' | 'ftp'
+        let ftpFolderCreated = false;
+        let ftpFiles = []; // { name, content }
+        let ftpSiteCreated = false;
+        let ftpSiteName = 'FTP';
+
+        // Add FTP Site Wizard state
+        let fwPage = 1;
+        let fwName = '', fwPath = '', fwIp = '192.168.1.1', fwPort = '21', fwSsl = 'allow';
+        let fwAuthBasic = false, fwAuthAnon = false, fwAllowMode = 'none', fwSpecUser = '', fwPermRead = false, fwPermWrite = false;
+
+        // Client states
+        let cliIpSet = false;
+        let cliIpVal = '';
+        let ftpLoggedIn = false;
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3100);
+        }
+
+        function markBadge(id) {
+            const el = document.getElementById(id);
+            el.innerText = 'Done ✓';
+            el.className = 's-badge s-done';
+        }
+
+        function switchMachine(m) {
+            activeMachine = m;
+            document.getElementById('srv-pc').classList.toggle('active-pc', m === 'srv');
+            document.getElementById('cli-pc').classList.toggle('active-pc', m === 'cli');
+            document.getElementById('btn-switch-srv').classList.toggle('active', m === 'srv');
+            document.getElementById('btn-switch-cli').classList.toggle('active', m === 'cli');
+            updateSidebarAttention();
+        }
+
+        function updateSidebarAttention() {
+            const b1 = document.getElementById('btn-switch-srv');
+            const b2 = document.getElementById('btn-switch-cli');
+            b1.classList.remove('attention');
+            b2.classList.remove('attention');
+            if (step <= 5 && activeMachine !== 'srv') b1.classList.add('attention');
+            if (step >= 6 && step <= 11 && activeMachine !== 'cli') b2.classList.add('attention');
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+        function toggleTree(el, e) { e.stopPropagation(); el.classList.toggle('expanded'); }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.context-menu').forEach(el => el.style.display = 'none');
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 225) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 11)} / 11`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER (Verify AD User):</strong> Open <b>AD Users &amp; Computers</b> (Desktop icon or <code>Start &rarr; Run &rarr; dsa.msc</code>) and click the <b>Tech</b> OU under <b>smec.com</b> to verify user <b>Arun</b>."; break;
+                case 2: text = "<strong>SERVER (Create C:\\FTP Folder):</strong> Open <b>File Explorer</b> &rarr; <b>Right-click</b> empty space in <code>C:\\</code> &rarr; <b>New &rarr; Folder</b> &rarr; name it <code>FTP</code>."; break;
+                case 3: text = "<strong>SERVER (Add Sample Files):</strong> Open <b>FTP</b> (<code>C:\\FTP</code>) &rarr; <b>Right-click</b> empty space &rarr; <b>New &rarr; Text Document</b> to create at least <b>2 text files</b> (e.g. <code>file1.txt</code>, <code>file2.txt</code>)."; break;
+                case 4: text = "<strong>SERVER (Open IIS Manager):</strong> Open <b>IIS Manager</b> (Desktop icon or <code>Start &rarr; Run &rarr; inetmgr</code>) &rarr; right-click <b>Sites</b> &rarr; click <b>Add FTP Site...</b>"; break;
+                case 5: text = "<strong>SERVER (Configure FTP Site):</strong> Name: <code>FTP</code>, Path: <code>C:\\FTP</code> &rarr; Next &rarr; IP: <code>192.168.1.1</code>, Port <code>21</code>, select <b>No SSL</b> &rarr; Next &rarr; check <b>Basic</b> Auth, Allow: <b>Specified users</b> &rarr; type <code>Arun</code>, check <b>Read</b> &amp; <b>Write</b> &rarr; <b>Finish</b>."; break;
+                case 6: text = "<strong>CLIENT PC (Switch &amp; Open Network):</strong> Switch to <b>💻 Client PC</b> on the left sidebar! Open <b>Start &rarr; Run</b>, type <code>ncpa.cpl</code> &rarr; right-click <b>Ethernet</b> &rarr; <b>Properties</b> &rarr; <b>IPv4</b>."; break;
+                case 7: text = "<strong>CLIENT PC (Set Static IP):</strong> Configure IP in the server's range (e.g. <code>192.168.1.10</code>), Subnet Mask <code>255.255.255.0</code>, Preferred DNS <code>192.168.1.1</code> &rarr; OK."; break;
+                case 8: text = "<strong>CLIENT PC (Open File Explorer):</strong> Open <b>File Explorer (This PC)</b> on the Client Desktop."; break;
+                case 9: text = "<strong>CLIENT PC (Connect to FTP):</strong> In the Client File Explorer address bar, type <code>ftp://192.168.1.1</code> and press <b>Enter</b> (or click Go)."; break;
+                case 10: text = "<strong>CLIENT PC (FTP Authentication):</strong> In the <b>Log On As</b> popup, enter User name <code>Arun</code> (or <code>smec\\Arun</code>) and Password <code>password123</code> &rarr; click <b>Log On</b>."; break;
+                case 11: text = "<strong>CLIENT PC (Access Server Files):</strong> Double-click any file inside <code>ftp://192.168.1.1</code> to open and verify you can read the hosted FTP files!"; break;
+                case 12:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> You hosted <code>C:\\FTP</code> on IIS FTP Server (No SSL, Basic Auth for AD user <b>Arun</b>), configured Client PC IP, logged in via <code>ftp://192.168.1.1</code>, and accessed the files!";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        // --- RUN DIALOGS ---
+        function openRun(m, e) {
+            e.stopPropagation();
+            document.getElementById(m + '-start-menu').style.display = 'none';
+            document.getElementById(m + '-run-window').style.display = 'flex';
+            const inp = document.getElementById(m + '-run-input');
+            inp.value = ''; inp.focus();
+        }
+
+        function executeRun(m) {
+            const cmd = document.getElementById(m + '-run-input').value.trim().toLowerCase();
+            closeWindow(m + '-run-window');
+            if (m === 'srv') {
+                if (cmd === 'dsa.msc') openAduc();
+                else if (cmd === 'inetmgr') openIisManager();
+                else if (cmd === 'explorer') openSrvExplorer('root');
+                else if (cmd !== '') alert(`Windows cannot find '${cmd}'.`);
+            } else {
+                if (cmd === 'ncpa.cpl') {
+                    if (!ftpSiteCreated) { alert("First finish creating the FTP Site on Server (SMEC-DC1)!"); return; }
+                    document.getElementById('cli-ncpa-window').style.display = 'flex';
+                    if (step === 6) { step = 7; updateGuide(); }
+                } else if (cmd === 'explorer') openCliExplorer();
+                else if (cmd !== '') alert(`Windows cannot find '${cmd}'.`);
+            }
+        }
+
+        // --- STEP 1: SERVER ADUC CHECK (Arun in Tech OU) ---
+        function openAduc() {
+            document.getElementById('srv-aduc-window').style.display = 'flex';
+        }
+        function selectTechOu(el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('#srv-aduc-window li').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('aduc-right').innerHTML = `
+                <div style="margin-bottom:10px; padding:8px 12px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; color:#15803d; font-size:12px;">
+                    <strong>✓ AD User Confirmed:</strong> <b>Arun</b> (<code>arun@smec.com</code>) is active in the <b>Tech</b> OU. We will authorize <b>Arun</b> on the FTP site!
+                </div>
+                <table class="mmc-table">
+                    <tr><th>Name</th><th>Type</th><th>User Logon Name</th><th>OU</th></tr>
+                    <tr style="background:#eff6ff;"><td><span class="icon-user"></span><strong>Arun</strong></td><td>User</td><td style="font-family:Consolas;">arun@smec.com</td><td>Tech</td></tr>
+                    <tr><td><span class="icon-user"></span><strong>User1</strong></td><td>User</td><td style="font-family:Consolas;">user1@smec.com</td><td>Tech</td></tr>
+                </table>`;
+            if (!adVerified) {
+                adVerified = true;
+                markBadge('st-ad');
+                showToast("User Arun verified in Tech OU! Now open File Explorer and create C:\\FTP.");
+                if (step === 1) { step = 2; updateGuide(); }
+            }
+        }
+
+        // --- STEP 2-3: SERVER FILE EXPLORER (C:\FTP + 2-3 Text Files) ---
+        function openSrvExplorer(path) {
+            if (!adVerified) { alert("First open AD Users & Computers (dsa.msc) and verify user Arun in the Tech OU!"); return; }
+            srvExpPath = path || 'root';
+            document.getElementById('srv-exp-window').style.display = 'flex';
+            renderSrvExplorer();
+        }
+
+        function srvExpGoUp() {
+            if (srvExpPath === 'ftp') { srvExpPath = 'root'; renderSrvExplorer(); }
+        }
+
+        function handleSrvExpCtx(e) {
+            if (srvExpPath === 'root') showContext('ctx-srv-c', e);
+            else if (srvExpPath === 'ftp') showContext('ctx-srv-ftp', e);
+        }
+
+        function renderSrvExplorer() {
+            const p = document.getElementById('srv-exp-path');
+            const body = document.getElementById('srv-exp-body');
+            const hint = document.getElementById('srv-exp-hint');
+
+            if (srvExpPath === 'root') {
+                p.innerText = 'Local Disk (C:\\)';
+                hint.innerText = 'Right-click empty space -> New -> Folder';
+                let ftpHtml = ftpFolderCreated
+                    ? `<div class="exp-item" style="background:#ecfdf5; border-color:#86efac;" ondblclick="openSrvExplorer('ftp')" onclick="openSrvExplorer('ftp')">
+                           <span style="font-size:24px;">📁</span>
+                           <div><strong style="color:#15803d;">FTP</strong><div style="font-size:11px; color:#15803d;">Click to open C:\\FTP (${ftpFiles.length} files)</div></div>
+                       </div>`
+                    : '';
+                body.innerHTML = `
+                    <div class="exp-item" style="opacity:0.65; cursor:default;"><span style="font-size:24px;">📁</span><div>inetpub</div></div>
+                    <div class="exp-item" style="opacity:0.65; cursor:default;"><span style="font-size:24px;">📁</span><div>Windows</div></div>
+                    ${ftpHtml}
+                    <div style="margin-top:16px; padding:10px 12px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12px;">
+                        💡 <b>Right-click</b> anywhere in this white area &rarr; click <b>New &rarr; Folder</b> to create <code>FTP</code>.
+                    </div>`;
+            } else if (srvExpPath === 'ftp') {
+                p.innerText = 'C:\\FTP';
+                hint.innerText = 'Right-click empty space -> New -> Text Document';
+                let filesHtml = ftpFiles.map(f =>
+                    `<div class="exp-item" style="background:#f8fafc; border-color:#cbd5e1; margin-bottom:6px;">
+                        <span style="font-size:24px;">📝</span>
+                        <div><strong>${f.name}</strong><div style="font-size:11px; color:#475569;">Text Document · Hosted in C:\\FTP</div></div>
+                    </div>`
+                ).join('');
+                body.innerHTML = `
+                    ${filesHtml || '<div style="color:#64748b; padding:10px;">This folder is empty.</div>'}
+                    <div style="margin-top:14px; padding:10px 12px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12px;">
+                        💡 <b>Right-click</b> empty space &rarr; <b>New &rarr; Text Document</b> (${ftpFiles.length} / 2+ files created).
+                    </div>`;
+            }
+        }
+
+        function createFtpFolder(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-srv-c').style.display = 'none';
+            if (ftpFolderCreated) { showToast("Folder C:\\FTP already exists!"); return; }
+            const name = prompt("Enter new folder name inside C:\\:", "FTP");
+            if (name === null) return;
+            if (name.trim().toLowerCase() !== 'ftp') { alert("Please name the folder: FTP"); return; }
+            ftpFolderCreated = true;
+            renderSrvExplorer();
+            showToast("Created C:\\FTP! Open it and create 2–3 text files.");
+            if (step === 2) { step = 3; updateGuide(); }
+        }
+
+        function createFtpTextFile(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-srv-ftp').style.display = 'none';
+            const defName = `file${ftpFiles.length + 1}.txt`;
+            const name = prompt("Enter text file name inside C:\\FTP:", defName);
+            if (name === null || !name.trim()) return;
+            const finalName = name.trim().endsWith('.txt') ? name.trim() : name.trim() + '.txt';
+            if (ftpFiles.some(f => f.name.toLowerCase() === finalName.toLowerCase())) {
+                alert("A file with that name already exists!"); return;
+            }
+            ftpFiles.push({
+                name: finalName,
+                content: `File: ${finalName}\nLocation: C:\\FTP\\${finalName}\nServer: SMEC-DC1 (192.168.1.1)\nAuthorized FTP User: SMEC\\Arun\n\nWelcome! This file was successfully accessed over FTP with Basic Authentication.`
+            });
+            renderSrvExplorer();
+            showToast(`Created C:\\FTP\\${finalName} (${ftpFiles.length} file${ftpFiles.length>1?'s':''})`);
+            if (ftpFiles.length >= 2) {
+                markBadge('st-files');
+                if (step === 3) {
+                    step = 4; updateGuide();
+                    showToast("Sample files ready in C:\\FTP! Now open IIS Manager (inetmgr).");
+                }
+            }
+        }
+
+        // --- STEP 4-5: IIS MANAGER & ADD FTP SITE WIZARD ---
+        function openIisManager() {
+            if (ftpFiles.length < 2) { alert("First create C:\\FTP and add at least 2 text files in File Explorer!"); return; }
+            document.getElementById('srv-iis-window').style.display = 'flex';
+        }
+
+        function selectIisSites(el, e) {
+            if (e) e.stopPropagation();
+            document.querySelectorAll('#srv-iis-window li').forEach(x => x.classList.remove('selected'));
+            if (el) el.classList.add('selected');
+        }
+
+        function openAddFtpWizard(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            document.getElementById('ctx-iis-sites').style.display = 'none';
+            if (ftpSiteCreated) { showToast("FTP Site is already configured!"); return; }
+            fwPage = 1;
+            fwName = ''; fwPath = ''; fwIp = '192.168.1.1'; fwPort = '21'; fwSsl = 'allow';
+            fwAuthBasic = false; fwAuthAnon = false; fwAllowMode = 'none'; fwSpecUser = ''; fwPermRead = false; fwPermWrite = false;
+            document.getElementById('addftp-window').style.display = 'flex';
+            renderFtpWiz();
+            if (step === 4) { step = 5; updateGuide(); }
+        }
+
+        function renderFtpWiz() {
+            const pane = document.getElementById('ftp-wiz-pane');
+            document.getElementById('ftp-prev-btn').style.display = fwPage > 1 ? 'inline-block' : 'none';
+            document.getElementById('ftp-next-btn').innerText = fwPage === 3 ? 'Finish' : 'Next >';
+
+            if (fwPage === 1) {
+                pane.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Site Information (Step 1 of 3)</h3>
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block; font-weight:600; margin-bottom:4px;">FTP site name:</label>
+                        <input type="text" id="fw-name" value="${fwName}" placeholder="FTP" style="width:100%;" oninput="fwName=this.value">
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:4px;">Physical path (Content Directory):</label>
+                        <div style="display:flex; gap:6px;">
+                            <input type="text" id="fw-path" value="${fwPath}" placeholder="C:\\FTP" style="flex:1; font-family:Consolas, monospace;" oninput="fwPath=this.value">
+                            <button onclick="fwPath='C:\\\\FTP'; document.getElementById('fw-path').value='C:\\\\FTP';">Browse...</button>
+                        </div>
+                    </div>`;
+                setTimeout(() => { const i = document.getElementById('fw-name'); if (i) i.focus(); }, 30);
+            } else if (fwPage === 2) {
+                pane.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Binding and SSL Settings (Step 2 of 3)</h3>
+                    <div style="border:1px solid #cbd5e1; padding:12px; border-radius:4px; background:#f8fafc; margin-bottom:14px;">
+                        <div style="font-weight:700; margin-bottom:8px;">Binding</div>
+                        <div style="display:grid; grid-template-columns:110px 1fr; gap:8px; align-items:center;">
+                            <label>IP Address:</label>
+                            <select id="fw-ip" onchange="fwIp=this.value">
+                                <option value="192.168.1.1" ${fwIp==='192.168.1.1'?'selected':''}>192.168.1.1</option>
+                                <option value="*" ${fwIp==='*'?'selected':''}>All Unassigned</option>
+                            </select>
+                            <label>Port:</label>
+                            <input type="text" id="fw-port" value="${fwPort}" oninput="fwPort=this.value" style="width:100px;">
+                        </div>
+                    </div>
+                    <div style="border:1px solid #cbd5e1; padding:12px; border-radius:4px; background:#f8fafc;">
+                        <div style="font-weight:700; margin-bottom:8px;">SSL</div>
+                        <label style="display:block; font-weight:700; color:#005a9e; margin-bottom:6px; cursor:pointer;"><input type="radio" name="fwssl" value="no" ${fwSsl==='no'?'checked':''} onchange="fwSsl='no'"> No SSL</label>
+                        <label style="display:block; color:#555; margin-bottom:6px;"><input type="radio" name="fwssl" value="allow" ${fwSsl==='allow'?'checked':''} onchange="fwSsl='allow'"> Allow SSL</label>
+                        <label style="display:block; color:#555;"><input type="radio" name="fwssl" value="require" ${fwSsl==='require'?'checked':''} onchange="fwSsl='require'"> Require SSL</label>
+                    </div>`;
+            } else if (fwPage === 3) {
+                pane.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Authentication and Authorization Information (Step 3 of 3)</h3>
+                    <div style="border:1px solid #cbd5e1; padding:10px 12px; border-radius:4px; background:#f8fafc; margin-bottom:12px;">
+                        <div style="font-weight:700; margin-bottom:6px;">Authentication</div>
+                        <label style="margin-right:20px; color:#555;"><input type="checkbox" ${fwAuthAnon?'checked':''} onchange="fwAuthAnon=this.checked"> Anonymous</label>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" ${fwAuthBasic?'checked':''} onchange="fwAuthBasic=this.checked"> Basic (Username &amp; Password)</label>
+                    </div>
+                    <div style="border:1px solid #cbd5e1; padding:10px 12px; border-radius:4px; background:#f8fafc;">
+                        <div style="font-weight:700; margin-bottom:8px;">Authorization</div>
+                        <div style="margin-bottom:8px;">
+                            <label style="display:block; margin-bottom:4px;">Allow access to:</label>
+                            <select id="fw-allow" onchange="fwAllowMode=this.value; renderFtpWiz();" style="width:100%;">
+                                <option value="none" ${fwAllowMode==='none'?'selected':''}>Not Selected</option>
+                                <option value="all" ${fwAllowMode==='all'?'selected':''}>All users</option>
+                                <option value="specified" ${fwAllowMode==='specified'?'selected':''}>Specified users</option>
+                            </select>
+                        </div>
+                        <div style="display:${fwAllowMode==='specified'?'block':'none'}; margin-bottom:10px;">
+                            <label style="display:block; font-weight:600; margin-bottom:4px;">Enter AD User name:</label>
+                            <input type="text" id="fw-user" value="${fwSpecUser}" placeholder="Arun" style="width:100%;" oninput="fwSpecUser=this.value">
+                        </div>
+                        <div style="font-weight:600; margin-bottom:4px;">Permissions:</div>
+                        <label style="margin-right:18px; cursor:pointer;"><input type="checkbox" ${fwPermRead?'checked':''} onchange="fwPermRead=this.checked"> Read</label>
+                        <label style="cursor:pointer;"><input type="checkbox" ${fwPermWrite?'checked':''} onchange="fwPermWrite=this.checked"> Write</label>
+                    </div>`;
+            }
+        }
+
+        function ftpWizPrev() { if (fwPage > 1) { fwPage--; renderFtpWiz(); } }
+        function ftpWizNext() {
+            if (fwPage === 1) {
+                if (!fwName.trim()) { alert("Please enter an FTP site name (e.g. FTP)."); return; }
+                if (fwPath.trim().toLowerCase() !== 'c:\\ftp') { alert("Please enter Physical path: C:\\FTP"); return; }
+            }
+            if (fwPage === 2) {
+                if (fwPort.trim() !== '21') { alert("Please keep FTP Port as 21."); return; }
+                if (fwSsl !== 'no') { alert("Please select 'No SSL' as requested!"); return; }
+            }
+            if (fwPage === 3) {
+                if (!fwAuthBasic) { alert("Please check 'Basic' authentication so FTP asks for Username & Password!"); return; }
+                if (fwAllowMode !== 'specified') { alert("Please select 'Specified users' under Allow access to!"); return; }
+                const u = fwSpecUser.trim().toLowerCase();
+                if (u !== 'arun' && u !== 'smec\\arun') { alert("Please enter AD username: Arun"); return; }
+                if (!fwPermRead) { alert("Please check at least 'Read' (and 'Write') permissions!"); return; }
+
+                ftpSiteCreated = true;
+                ftpSiteName = fwName.trim();
+                closeWindow('addftp-window');
+                document.getElementById('iis-sites-list').innerHTML += `<li class="icon-ftp" style="color:#15803d; font-weight:700;">${ftpSiteName} (Port 21 · Arun)</li>`;
+                document.getElementById('iis-center').innerHTML = `
+                    <h3 style="margin-top:0; color:#15803d;">📂 FTP Site Running: ${ftpSiteName}</h3>
+                    <table class="mmc-table">
+                        <tr><th>Setting</th><th>Value</th></tr>
+                        <tr><td>Physical Path</td><td style="font-family:Consolas;">C:\\FTP</td></tr>
+                        <tr><td>Binding</td><td style="font-family:Consolas;">ftp://${fwIp}:21 (No SSL)</td></tr>
+                        <tr><td>Authentication</td><td>Basic (Username &amp; Password)</td></tr>
+                        <tr><td>Authorized User</td><td style="color:#15803d; font-weight:700;">SMEC\\Arun (${fwPermRead?'Read':''}${fwPermWrite?', Write':''})</td></tr>
+                    </table>`;
+                document.getElementById('srv-top-sub').innerText = `IP: 192.168.1.1 | FTP Site: ${ftpSiteName} (Port 21 · Active ✓)`;
+                markBadge('st-ftp');
+                showToast("✓ FTP Site hosted for Arun! Now switch to Client PC on the left sidebar.");
+                if (step === 5) { step = 6; updateGuide(); }
+                return;
+            }
+            fwPage++;
+            renderFtpWiz();
+        }
+
+        // --- STEP 6-7: CLIENT PC IP CONFIGURATION ---
+        function openCliIPv4() {
+            document.getElementById('cli-ipv4-window').style.display = 'flex';
+            setTimeout(() => document.getElementById('cli-ip-inp').focus(), 40);
+        }
+
+        function saveCliIPv4() {
+            const ip = document.getElementById('cli-ip-inp').value.trim();
+            const mask = document.getElementById('cli-mask-inp').value.trim();
+            const dns = document.getElementById('cli-dns-inp').value.trim();
+            const ipMatch = /^192\.168\.1\.(\d+)$/.exec(ip);
+            if (!ipMatch || parseInt(ipMatch[1]) < 2 || parseInt(ipMatch[1]) > 254) {
+                alert("Enter a valid IP in the server's range (192.168.1.2 – 192.168.1.254, e.g. 192.168.1.10).");
+                return;
+            }
+            if (mask !== '255.255.255.0') { alert("Please set Subnet mask to 255.255.255.0"); return; }
+            if (dns !== '192.168.1.1') { alert("Please set Preferred DNS server to 192.168.1.1"); return; }
+
+            cliIpSet = true;
+            cliIpVal = ip;
+            closeWindow('cli-ipv4-window');
+            closeWindow('cli-eth-window');
+            closeWindow('cli-ncpa-window');
+            document.getElementById('cli-eth-sub').innerText = `IP: ${ip} | DNS: 192.168.1.1`;
+            document.getElementById('cli-side-ip').innerText = `IP: ${ip}`;
+            document.getElementById('cli-top-sub').innerText = `IP: ${ip} | Subnet: 255.255.255.0 | DNS: 192.168.1.1`;
+            markBadge('st-cliip');
+            showToast(`Client IP ${ip} configured! Now open File Explorer and connect to ftp://192.168.1.1`);
+            if (step === 6 || step === 7) { step = 8; updateGuide(); }
+        }
+
+        // --- STEP 8-11: CLIENT FILE EXPLORER -> ftp://192.168.1.1 -> LOG ON AS ARUN -> ACCESS FILES ---
+        function openCliExplorer() {
+            if (!cliIpSet) { alert("First configure the Client PC IP address (e.g. 192.168.1.10) in ncpa.cpl!"); return; }
+            document.getElementById('cli-exp-window').style.display = 'flex';
+            if (!ftpLoggedIn) resetCliExplorer();
+            else renderCliFtpFiles();
+            if (step === 8) { step = 9; updateGuide(); }
+            setTimeout(() => {
+                const addr = document.getElementById('cli-exp-addr');
+                addr.focus(); addr.select();
+            }, 40);
+        }
+
+        function resetCliExplorer() {
+            document.getElementById('cli-exp-addr').value = 'C:\\';
+            document.getElementById('cli-exp-body').innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div class="exp-item" style="background:#f8fafc; border-color:#e2e8f0;"><span style="font-size:24px;">💾</span><div><strong>Local Disk (C:)</strong><div style="font-size:11px; color:#64748b;">Client PC Local Drive</div></div></div>
+                    <div style="margin-top:12px; padding:12px 14px; background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; color:#1e40af; font-size:12.5px;">
+                        💡 Click the <b>address bar above</b> (where it says <code>C:\\</code>), type <code>ftp://192.168.1.1</code>, and press <b>Enter</b> to connect to the FTP Server!
+                    </div>
+                </div>`;
+        }
+
+        function navigateCliExplorer() {
+            const addr = document.getElementById('cli-exp-addr').value.trim().toLowerCase().replace(/\/$/, '');
+            if (addr === 'ftp://192.168.1.1' || addr === 'ftp://192.168.1.1:21') {
+                if (!ftpSiteCreated) { alert("FTP Site is not running on 192.168.1.1 yet!"); return; }
+                if (ftpLoggedIn) { renderCliFtpFiles(); return; }
+                document.getElementById('ftp-login-window').style.display = 'flex';
+                document.getElementById('ftp-login-user').value = '';
+                document.getElementById('ftp-login-pass').value = '';
+                document.getElementById('ftp-login-err').style.display = 'none';
+                setTimeout(() => document.getElementById('ftp-login-user').focus(), 40);
+                if (step === 9) { step = 10; updateGuide(); }
+            } else {
+                alert("To access the hosted FTP server, type: ftp://192.168.1.1");
+            }
+        }
+
+        function submitFtpLogin() {
+            const u = document.getElementById('ftp-login-user').value.trim().toLowerCase();
+            const p = document.getElementById('ftp-login-pass').value;
+            const err = document.getElementById('ftp-login-err');
+
+            if ((u !== 'arun' && u !== 'smec\\arun' && u !== 'arun@smec.com') || p !== 'password123') {
+                err.innerText = '530 User cannot log in. Use authorized AD user: Arun / password123';
+                err.style.display = 'block';
+                return;
+            }
+            err.style.display = 'none';
+            ftpLoggedIn = true;
+            closeWindow('ftp-login-window');
+            document.getElementById('cli-exp-addr').value = 'ftp://192.168.1.1/';
+            document.getElementById('cli-side-sub').innerText = 'FTP Connected (Arun) ✓';
+            document.getElementById('cli-top-sub').innerText = `IP: ${cliIpVal} | Connected to ftp://192.168.1.1 as Arun ✓`;
+            markBadge('st-login');
+            renderCliFtpFiles();
+            showToast("✓ Logged on to ftp://192.168.1.1 as Arun! Double-click a file to open it.");
+            if (step === 10) { step = 11; updateGuide(); }
+        }
+
+        function renderCliFtpFiles() {
+            const body = document.getElementById('cli-exp-body');
+            const rows = ftpFiles.map((f, i) => `
+                <div class="exp-item" ondblclick="openCliFtpFile(${i})" onclick="openCliFtpFile(${i})" style="background:#f0fdf4; border-color:#86efac; margin-bottom:8px;">
+                    <span style="font-size:26px;">📝</span>
+                    <div>
+                        <strong style="color:#15803d;">${f.name}</strong>
+                        <div style="font-size:11px; color:#166534;">FTP File on 192.168.1.1 (C:\\FTP) · Click to open</div>
+                    </div>
+                </div>`).join('');
+            body.innerHTML = `
+                <div style="margin-bottom:12px; padding:8px 12px; background:#ecfdf5; border:1px solid #16a34a; border-radius:5px; color:#15803d; font-size:12px;">
+                    <strong>✓ Connected to ftp://192.168.1.1</strong> (Authenticated as <code>SMEC\\Arun</code>)
+                </div>
+                ${rows}`;
+        }
+
+        function openCliFtpFile(idx) {
+            const f = ftpFiles[idx];
+            if (!f) return;
+            document.getElementById('cli-prev-title').innerText = `${f.name} (ftp://192.168.1.1/${f.name})`;
+            document.getElementById('cli-prev-body').innerText = f.content;
+            document.getElementById('cli-preview-window').style.display = 'flex';
+            markBadge('st-access');
+            if (step === 11) {
+                step = 12;
+                updateGuide();
+                showToast("🎉 FTP Hosting & Client Access Lab Complete!");
+            }
+        }
+
+        // --- OPTIONAL CLIENT EDGE BROWSER (Forwards ftp://192.168.1.1 to File Explorer) ---
+        function openCliBrowser() {
+            if (!cliIpSet) { alert("First configure the Client PC IP address (e.g. 192.168.1.10) in ncpa.cpl!"); return; }
+            document.getElementById('cli-browser-window').style.display = 'flex';
+            setTimeout(() => document.getElementById('cli-edge-url').focus(), 40);
+        }
+
+        function navigateCliEdge() {
+            const url = document.getElementById('cli-edge-url').value.trim().toLowerCase().replace(/\/$/, '');
+            if (url === 'ftp://192.168.1.1' || url === 'ftp://192.168.1.1:21') {
+                document.getElementById('cli-edge-body').innerHTML = `
+                    <div style="max-width:460px; margin:20px auto; border:1px solid #cbd5e1; border-radius:8px; padding:18px; background:#f8fafc; text-align:center;">
+                        <h3 style="margin-top:0; color:#0f172a;">Open Windows File Explorer?</h3>
+                        <p style="font-size:12.5px; color:#475569;">Modern browsers hand off <code>ftp://192.168.1.1</code> directly to <b>Windows File Explorer</b> for authenticated FTP access.</p>
+                        <button class="primary-btn" onclick="closeWindow('cli-browser-window'); openCliExplorer(); document.getElementById('cli-exp-addr').value='ftp://192.168.1.1'; navigateCliExplorer();">Open in File Explorer &rarr;</button>
+                    </div>`;
+            } else {
+                document.getElementById('cli-edge-body').innerHTML = `<p style="color:#555;">Enter <code>ftp://192.168.1.1</code> to connect to the FTP server.</p>`;
+            }
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
