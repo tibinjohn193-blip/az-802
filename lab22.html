@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: Volume Shadow Copy (VSS) Backup &amp; Recovery - smec.com</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea, select { user-select: text; }
+
+        /* ==================== LEFT SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 265px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .server-card {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border: 2px solid #93c5fd;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .server-card-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .server-card-sub { font-size: 10.5px; opacity: 0.9; margin-top: 2px; }
+        .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; }
+
+        .status-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            color: #cbd5e1;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3.5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .status-row:last-child { border-bottom: none; }
+        .s-badge {
+            font-family: Consolas, monospace;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .s-pending { background: #334155; color: #94a3b8; }
+        .s-done { background: #14532d; color: #86efac; }
+        .s-warn { background: #7f1d1d; color: #fca5a5; }
+
+        .warning-card {
+            background: #422006;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.5;
+            color: #fef3c7;
+        }
+        .warning-card strong { color: #fcd34d; }
+
+        .concept-card {
+            background: #1e1b4b;
+            border: 1px solid #6366f1;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.5;
+            color: #e0e7ff;
+        }
+        .concept-card strong { color: #a5b4fc; }
+        .concept-card code {
+            background: rgba(0,0,0,0.35);
+            color: #fff;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%);
+        }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 106px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 30px; margin-bottom: 4px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 380px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 10px 6px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 24px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 15px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button.danger-btn { background: #dc2626; color: #fff; border-color: #991b1b; font-weight: 600; }
+        button.danger-btn:hover { background: #b91c1c; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus, select:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10030; }
+        #explorer-window { width: 84%; height: 78%; top: 44px; left: 8%; z-index: 10005; }
+        #drive-props-window { width: 520px; height: 470px; top: 36px; left: 50%; transform: translateX(-50%); z-index: 10018; }
+        #enable-vss-confirm { width: 460px; height: 220px; top: 145px; left: 50%; transform: translateX(-50%); z-index: 10035; }
+        #vss-settings-window { width: 450px; height: 340px; top: 85px; left: 50%; transform: translateX(-50%); z-index: 10032; }
+        #vss-schedule-window { width: 460px; height: 330px; top: 105px; left: 50%; transform: translateX(-50%); z-index: 10042; }
+        #delete-warn-window { width: 470px; height: 245px; top: 135px; left: 50%; transform: translateX(-50%); z-index: 10045; }
+        #folder-props-window { width: 500px; height: 440px; top: 48px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #restore-confirm-window { width: 460px; height: 215px; top: 145px; left: 50%; transform: translateX(-50%); z-index: 10045; }
+        #file-preview-window { width: 490px; height: 310px; top: 100px; left: 50%; transform: translateX(-50%); z-index: 10048; }
+
+        /* Tabs */
+        .tab-bar { display: flex; gap: 4px; padding: 8px 12px 0; background: #e9e9e9; border-bottom: 1px solid #ccc; }
+        .tab-btn {
+            padding: 6px 14px;
+            background: #dfdfdf;
+            border: 1px solid #bbb;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .tab-btn.active { background: #fff; font-weight: 600; color: var(--win-blue); }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 215px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+
+        /* File Explorer */
+        .exp-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #fafafa;
+            border-bottom: 1px solid #d4d4d4;
+        }
+        .exp-path {
+            flex: 1;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            color: #0f172a;
+        }
+        .exp-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 11px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            margin-bottom: 6px;
+        }
+        .exp-item:hover { background: #e5f1fb; border-color: #93c5fd; }
+
+        .drive-bar-bg { width: 180px; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+        .drive-bar-fill { width: 38%; height: 100%; background: #0078D7; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 6px 9px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 6px 9px; border-bottom: 1px solid #efefef; }
+        .mmc-table tr.selected-row { background: #cce8ff; font-weight: 600; }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🕒 Volume Shadow Copy</h2>
+            <span>Windows Server 2025 (VSS)</span>
+        </div>
+
+        <div class="server-card">
+            <div class="server-card-header"><span>🖥️ SMEC-DC1</span><span class="status-dot"></span></div>
+            <div class="server-card-sub">IP: 192.168.1.1 | Domain: smec.com</div>
+            <div class="server-card-sub" id="side-vss-lbl">Shadow Copies (C:): Disabled</div>
+        </div>
+
+        <!-- Live Progress Checklist -->
+        <div class="status-card">
+            <div style="font-weight:700; color:#f8fafc; margin-bottom:5px;">📊 Lab Progress</div>
+            <div class="status-row"><span>1. Create C:\Data &amp; Files</span><span id="st-files" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>2. Enable Shadow Copies</span><span id="st-enable" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>3. Schedule &amp; Create Now</span><span id="st-snap" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>4. Simulate File Deletion</span><span id="st-del" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>5. Restore Previous Version</span><span id="st-restore" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>6. Verify Recovered File</span><span id="st-verify" class="s-badge s-pending">Pending</span></div>
+        </div>
+
+        <div class="warning-card">
+            <strong>⚠️ Production Warning:</strong><br>
+            In a live production server, <b>NEVER</b> manually delete real files! We delete a test file here <b>only</b> to simulate accidental deletion and verify Shadow Copy recovery.
+        </div>
+
+        <div class="concept-card">
+            <strong>What is Shadow Copy (VSS)?</strong><br>
+            Takes point-in-time snapshots of a volume (e.g. <code>C:\</code>) on a schedule (e.g. 7:00 AM &amp; 12:00 PM) or on-demand (<b>Create Now</b>), letting admins recover accidentally deleted or modified files via <b>Previous Versions</b>.
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <div class="pc-label">
+                SMEC-DC1 (Windows Server 2025)
+                <span id="top-sub">Domain: smec.com | Volume C: Shadow Copies Disabled</span>
+            </div>
+
+            <!-- Desktop Icons -->
+            <div class="desktop-icons">
+                <div class="d-icon" onclick="openExplorer('thispc')">
+                    <div class="ico">💻</div>
+                    <span>This PC (File Explorer)</span>
+                </div>
+            </div>
+
+            <!-- Run Window -->
+            <div id="run-window" class="window">
+                <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('run-window')">X</span></div>
+                <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                    <div style="flex:1;">
+                        <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>explorer</code> to open This PC / File Explorer.</p>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label style="font-weight:600;">Open:</label>
+                            <input type="text" id="run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun()">
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="executeRun()">OK</button>
+                    <button onclick="closeWindow('run-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- File Explorer (This PC -> C:\ -> C:\Data) -->
+            <div id="explorer-window" class="window">
+                <div class="title-bar"><span>File Explorer (SMEC-DC1)</span><span class="close-btn" onclick="closeWindow('explorer-window')">X</span></div>
+                <div class="exp-toolbar">
+                    <button onclick="expGoUp()">&#8593; Up</button>
+                    <button onclick="openExplorer('thispc')">💻 This PC</button>
+                    <div id="exp-path-bar" class="exp-path">This PC</div>
+                    <span id="exp-hint-lbl" style="font-size:11px; color:#005a9e; font-weight:600;"></span>
+                </div>
+                <div class="content" style="background:#fff; padding:16px;" id="exp-body" oncontextmenu="handleExpCtx(event)"></div>
+            </div>
+
+            <!-- Local Disk (C:) Properties -> Shadow Copies Tab -->
+            <div id="drive-props-window" class="window">
+                <div class="title-bar"><span>Local Disk (C:) Properties</span><span class="close-btn" onclick="closeWindow('drive-props-window')">X</span></div>
+                <div class="tab-bar">
+                    <div class="tab-btn" id="dp-tab-gen" onclick="switchDriveTab('gen')">General</div>
+                    <div class="tab-btn" id="dp-tab-sec" onclick="switchDriveTab('sec')">Security</div>
+                    <div class="tab-btn active" id="dp-tab-vss" onclick="switchDriveTab('vss')">Shadow Copies</div>
+                </div>
+                <div class="content" style="background:#fff; font-size:12.5px;">
+                    <div id="dp-pane-gen" style="display:none; line-height:1.8;">
+                        <div><strong>Volume:</strong> Local Disk (C:)</div>
+                        <div><strong>File system:</strong> NTFS</div>
+                        <div><strong>Capacity:</strong> 100 GB (62 GB free)</div>
+                        <p style="font-size:12px; color:#475569;">Click the <b>Shadow Copies</b> tab above to configure VSS snapshots.</p>
+                    </div>
+                    <div id="dp-pane-sec" style="display:none; line-height:1.8;">
+                        <div><strong>Group or user names:</strong> SYSTEM, Administrators, Users</div>
+                    </div>
+                    <div id="dp-pane-vss">
+                        <div style="font-weight:600; margin-bottom:6px;">Select a volume:</div>
+                        <div style="border:1px solid #cbd5e1; border-radius:4px; overflow:hidden; margin-bottom:10px;">
+                            <table class="mmc-table">
+                                <tr><th>Volume</th><th>Next Run Time</th><th>Used</th></tr>
+                                <tr class="selected-row">
+                                    <td>💾 C:\</td>
+                                    <td id="vss-next-run">Disabled</td>
+                                    <td id="vss-used">0 MB</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div style="display:flex; gap:8px; margin-bottom:14px;">
+                            <button id="btn-vss-enable" class="primary-btn" onclick="promptEnableVss()">Enable</button>
+                            <button id="btn-vss-disable" disabled>Disable</button>
+                            <button id="btn-vss-settings" onclick="openVssSettings()" disabled>Settings...</button>
+                            <button id="btn-vss-createnow" class="primary-btn" onclick="createShadowCopyNow()" disabled>Create Now</button>
+                        </div>
+                        <div style="font-weight:600; margin-bottom:6px;">Shadow copies of selected volume:</div>
+                        <div style="border:1px solid #cbd5e1; border-radius:4px; height:145px; overflow-y:auto; background:#fafafa;">
+                            <table class="mmc-table" id="vss-snap-table">
+                                <tr><th>Snapshot Date &amp; Time</th><th>Trigger</th><th>Files Captured</th></tr>
+                                <tr id="vss-empty-row"><td colspan="3" style="color:#64748b; font-style:italic;">No shadow copies exist yet. Click Enable to activate Shadow Copies.</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="closeDriveProps()">OK</button>
+                    <button onclick="closeWindow('drive-props-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Enable Shadow Copies Confirmation Popup -->
+            <div id="enable-vss-confirm" class="window">
+                <div class="title-bar"><span>Enable Shadow Copies</span><span class="close-btn" onclick="closeWindow('enable-vss-confirm')">X</span></div>
+                <div class="content" style="background:#fff; display:flex; align-items:flex-start; gap:14px; padding:16px;">
+                    <div style="width:36px; height:36px; border-radius:50%; background:#0078D7; color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; flex-shrink:0;">i</div>
+                    <div style="font-size:12.5px; line-height:1.55; color:#1f2937;">
+                        <strong>Are you sure you want to enable Shadow Copies on C:\?</strong><br><br>
+                        Windows will immediately create the first shadow copy and apply the default schedule (<b>7:00 AM</b> and <b>12:00 PM</b>, Mon–Fri). You can customize this in <b>Settings... &rarr; Schedule...</b>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="confirmEnableVss()">Yes</button>
+                    <button onclick="closeWindow('enable-vss-confirm')">No</button>
+                </div>
+            </div>
+
+            <!-- Shadow Copy Settings Dialog -->
+            <div id="vss-settings-window" class="window">
+                <div class="title-bar"><span>Settings (C:\)</span><span class="close-btn" onclick="closeWindow('vss-settings-window')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:12px;">
+                    <div><strong>Volume:</strong> Local Disk (C:)</div>
+                    <div style="border:1px solid #cbd5e1; padding:10px; border-radius:4px; background:#f8fafc;">
+                        <div style="font-weight:700; margin-bottom:6px;">Storage area</div>
+                        <div style="margin-bottom:6px;">Located on this volume: <strong>C:\</strong></div>
+                        <label style="display:block; margin-bottom:4px;"><input type="radio" name="vss-lim" checked> Use limit: <input type="text" value="10240" style="width:75px;"> MB (Maximum size)</label>
+                        <label style="display:block; color:#64748b;"><input type="radio" name="vss-lim"> No limit</label>
+                    </div>
+                    <div style="border:1px solid #cbd5e1; padding:10px; border-radius:4px; background:#f8fafc; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:700;">Automatic Backup Schedule</div>
+                            <div id="vss-sched-summary" style="font-size:11.5px; color:#005a9e; margin-top:2px;">Weekly: Mon–Fri at 7:00 AM &amp; 12:00 PM</div>
+                        </div>
+                        <button class="primary-btn" onclick="openVssSchedule()">Schedule...</button>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="closeWindow('vss-settings-window')">OK</button>
+                    <button onclick="closeWindow('vss-settings-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Shadow Copy Schedule Dialog -->
+            <div id="vss-schedule-window" class="window">
+                <div class="title-bar"><span>Schedule (C:\ Shadow Copies)</span><span class="close-btn" onclick="closeWindow('vss-schedule-window')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:11px;">
+                    <div style="padding:8px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; font-size:12px; color:#1e40af;">
+                        Configure when Windows Server automatically takes scheduled Shadow Copy snapshots (since we can't wait for the clock in a lab, you can also click <b>Create Now</b> right after!).
+                    </div>
+                    <div style="display:grid; grid-template-columns:120px 1fr; gap:8px; align-items:center;">
+                        <label style="font-weight:600;">Schedule Task:</label>
+                        <select id="sched-freq">
+                            <option value="Weekly (Mon–Fri)">Weekly (Mon–Fri)</option>
+                            <option value="Daily">Daily</option>
+                            <option value="Monthly">Monthly</option>
+                        </select>
+                        <label style="font-weight:600;">Start Time:</label>
+                        <select id="sched-time">
+                            <option value="7:00 AM &amp; 12:00 PM">7:00 AM &amp; 12:00 PM (Default)</option>
+                            <option value="9:00 AM &amp; 5:00 PM">9:00 AM &amp; 5:00 PM</option>
+                            <option value="11:00 PM (Nightly)">11:00 PM (Nightly)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="saveVssSchedule()">OK</button>
+                    <button onclick="closeWindow('vss-schedule-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Delete File Production Warning Modal -->
+            <div id="delete-warn-window" class="window">
+                <div class="title-bar"><span>⚠️ Delete File (Lab Simulation Warning)</span><span class="close-btn" onclick="closeWindow('delete-warn-window')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px; line-height:1.55;">
+                    <div style="padding:10px 12px; background:#fef2f2; border:1px solid #ef4444; border-radius:5px; color:#991b1b; margin-bottom:10px;">
+                        <strong>⚠️ PRODUCTION ENVIRONMENT WARNING:</strong><br>
+                        In a live production server, <b>NEVER</b> manually delete real user files! We are deleting <code id="del-target-name"></code> here <b>only</b> to simulate accidental deletion and test Shadow Copy recovery.
+                    </div>
+                    <p style="margin:0; color:#334155;">Click <b>Delete (Simulate Accident)</b> to permanently remove this file from <code>C:\Data</code>.</p>
+                </div>
+                <div class="dialog-footer">
+                    <button class="danger-btn" onclick="confirmDeleteFile()">Delete (Simulate Accident)</button>
+                    <button onclick="closeWindow('delete-warn-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- C:\Data Folder Properties -> Previous Versions Tab -->
+            <div id="folder-props-window" class="window">
+                <div class="title-bar"><span>Data Properties</span><span class="close-btn" onclick="closeWindow('folder-props-window')">X</span></div>
+                <div class="tab-bar">
+                    <div class="tab-btn" id="fp-tab-gen" onclick="switchFolderTab('gen')">General</div>
+                    <div class="tab-btn" id="fp-tab-share" onclick="switchFolderTab('share')">Sharing</div>
+                    <div class="tab-btn active" id="fp-tab-pv" onclick="switchFolderTab('pv')">Previous Versions</div>
+                </div>
+                <div class="content" style="background:#fff; font-size:12.5px;">
+                    <div id="fp-pane-gen" style="display:none; line-height:1.8;">
+                        <div><strong>Folder:</strong> Data</div>
+                        <div><strong>Location:</strong> <code>C:\</code></div>
+                        <div><strong>Current Files:</strong> <span id="fp-gen-count"></span></div>
+                    </div>
+                    <div id="fp-pane-share" style="display:none; line-height:1.8;">
+                        <div><strong>Network Path:</strong> <code>\\SMEC-DC1\Data</code></div>
+                    </div>
+                    <div id="fp-pane-pv">
+                        <p style="margin:0 0 8px 0; color:#334155; font-size:12px;">Previous versions come from Shadow Copies (VSS). Select a snapshot below to restore deleted files in <code>C:\Data</code>:</p>
+                        <div style="font-weight:600; margin-bottom:6px;">Folder versions:</div>
+                        <div style="border:1px solid #cbd5e1; border-radius:4px; height:175px; overflow-y:auto; background:#fafafa; margin-bottom:12px;">
+                            <table class="mmc-table" id="pv-table">
+                                <tr><th>Name</th><th>Date Modified (Shadow Copy)</th><th>Files in Snapshot</th></tr>
+                            </table>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:8px;">
+                            <button id="btn-pv-open" onclick="openSelectedPv()" disabled>Open</button>
+                            <button id="btn-pv-restore" class="primary-btn" onclick="promptRestorePv()" disabled>Restore...</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="closeWindow('folder-props-window')">OK</button>
+                    <button onclick="closeWindow('folder-props-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Restore Previous Version Confirmation -->
+            <div id="restore-confirm-window" class="window">
+                <div class="title-bar"><span>Restore Previous Version</span><span class="close-btn" onclick="closeWindow('restore-confirm-window')">X</span></div>
+                <div class="content" style="background:#fff; display:flex; align-items:flex-start; gap:14px; padding:16px;">
+                    <div style="width:36px; height:36px; border-radius:50%; background:#16a34a; color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; flex-shrink:0;">↺</div>
+                    <div style="font-size:12.5px; line-height:1.55; color:#1f2937;">
+                        <strong>Are you sure you want to restore <code>C:\Data</code> to this Shadow Copy version?</strong><br><br>
+                        All files captured in the selected snapshot (including any accidentally deleted files) will be restored immediately!
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="executeRestorePv()">Restore</button>
+                    <button onclick="closeWindow('restore-confirm-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Recovered File Preview Modal -->
+            <div id="file-preview-window" class="window">
+                <div class="title-bar"><span id="prev-title">file.txt - Notepad</span><span class="close-btn" onclick="closeWindow('file-preview-window')">X</span></div>
+                <div class="content" style="background:#fff; padding:16px; font-family:Consolas, monospace; font-size:13px; line-height:1.6;" id="prev-body"></div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="closeWindow('file-preview-window')">Close</button>
+                </div>
+            </div>
+
+            <!-- Taskbar & Start Menu -->
+            <div class="taskbar">
+                <div class="start-btn" onclick="toggleMenu('start-menu', event)" title="Start">
+                    <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                </div>
+            </div>
+
+            <div id="start-menu" class="start-menu">
+                <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                <div class="app-grid">
+                    <div class="app" onclick="openRun(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                        <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                    </div>
+                    <div class="app" onclick="openExplorer('thispc'); document.getElementById('start-menu').style.display='none';">
+                        <div class="app-icon">💻</div>
+                        <span style="font-size:11px; font-weight:600;">This PC</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 10</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Global Context Menus -->
+    <div id="ctx-drive-c" class="context-menu">
+        <div onclick="openExplorer('c')">Open</div>
+        <div onclick="openDriveProperties(event)"><strong>Properties (Configure Shadow Copies)</strong></div>
+    </div>
+    <div id="ctx-c-empty" class="context-menu">
+        <div onclick="createDataFolder(event)"><strong>📁 New &rarr; Folder</strong></div>
+    </div>
+    <div id="ctx-data-folder" class="context-menu">
+        <div onclick="openExplorer('data')">Open</div>
+        <div onclick="openFolderPropsPv(event)"><strong>🕒 Restore previous versions / Properties</strong></div>
+    </div>
+    <div id="ctx-data-empty" class="context-menu">
+        <div onclick="createSampleFile(event)"><strong>📝 New &rarr; Text Document</strong></div>
+    </div>
+    <div id="ctx-file-item" class="context-menu">
+        <div onclick="previewSelectedFile(event)">Open</div>
+        <div onclick="promptDeleteSelectedFile(event)" style="color:#dc2626; font-weight:700;">🗑️ Delete</div>
+    </div>
+
+    <script>
+        let step = 1;
+        let currentExpPath = 'thispc'; // 'thispc' | 'c' | 'data'
+        let dataFolderCreated = false;
+        let currentFiles = []; // { name, content, restored? }
+        let vssEnabled = false;
+        let vssScheduleText = 'Weekly (Mon–Fri) at 7:00 AM & 12:00 PM';
+        let scheduleReviewed = false;
+        let manualSnapTaken = false;
+        let snapshots = []; // { time, trigger, files: [...] }
+        let deletedFileName = '';
+        let fileDeleted = false;
+        let selectedFileIdx = -1;
+        let selectedPvIdx = -1;
+        let folderRestored = false;
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3200);
+        }
+
+        function setBadge(id, text, cls) {
+            const el = document.getElementById(id);
+            el.innerText = text;
+            el.className = 's-badge ' + cls;
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.context-menu').forEach(el => el.style.display = 'none');
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 245) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+        }
+
+        function getTimestamp() {
+            const now = new Date();
+            return now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 10)} / 10`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>OPEN THIS PC:</strong> Click <b>This PC (File Explorer)</b> on the Desktop (or <code>Start &rarr; Run &rarr; explorer</code>)."; break;
+                case 2: text = "<strong>CREATE FOLDER:</strong> Open <b>Local Disk (C:)</b> &rarr; <b>Right-click</b> empty space &rarr; <b>New &rarr; Folder</b> &rarr; name it <code>Data</code>."; break;
+                case 3: text = "<strong>ADD SAMPLE FILES:</strong> Open <b>Data</b> (<code>C:\\Data</code>) &rarr; <b>Right-click</b> empty space &rarr; <b>New &rarr; Text Document</b> to create at least <b>2 files</b> (e.g., <code>report.txt</code>, <code>accounts.txt</code>)."; break;
+                case 4: text = "<strong>OPEN SHADOW COPIES:</strong> Click <b>💻 This PC</b> in the toolbar &rarr; <b>Right-click Local Disk (C:)</b> &rarr; <b>Properties</b> &rarr; click the <b>Shadow Copies</b> tab."; break;
+                case 5: text = "<strong>ENABLE SHADOW COPIES:</strong> Click <b>Enable</b> &rarr; click <b>Yes</b> on the prompt. Windows immediately takes the first Shadow Copy snapshot and enables the default schedule!"; break;
+                case 6: text = "<strong>CHECK SCHEDULE &amp; CREATE NOW:</strong> Click <b>Settings... &rarr; Schedule...</b> to review/set the automatic backup schedule &rarr; OK &rarr; OK, then click <b>Create Now</b> for an on-demand snapshot &rarr; click <b>OK</b>."; break;
+                case 7: text = "<strong>SIMULATE ACCIDENTAL DELETE:</strong> Open <code>C:\\Data</code> &rarr; <b>Right-click</b> any file &rarr; click <b>🗑️ Delete</b> (Remember: never delete live files in production — this is a recovery test!)."; break;
+                case 8: text = "<strong>OPEN PREVIOUS VERSIONS:</strong> Click <b>&#8593; Up</b> to <code>C:\\</code> &rarr; <b>Right-click</b> the <b>Data</b> folder &rarr; click <b>Restore previous versions / Properties</b>."; break;
+                case 9: text = "<strong>RESTORE FROM SHADOW COPY:</strong> In the <b>Previous Versions</b> tab, click a Shadow Copy snapshot row &rarr; click <b>Restore...</b> &rarr; confirm <b>Restore</b> &rarr; click <b>OK</b>."; break;
+                case 10: text = "<strong>VERIFY RECOVERED FILE:</strong> Open <code>C:\\Data</code> in File Explorer and click the recovered file to verify your data is safely back!"; break;
+                case 11:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> You configured <b>Volume Shadow Copies (VSS)</b> with an automatic schedule &amp; on-demand snapshot, simulated accidental deletion, and successfully recovered the deleted file via <b>Previous Versions</b>!";
+                    break;
+            }
+            guide.innerHTML = text;
+        }
+
+        // --- RUN DIALOG ---
+        function openRun(e) {
+            e.stopPropagation();
+            document.getElementById('start-menu').style.display = 'none';
+            document.getElementById('run-window').style.display = 'flex';
+            const inp = document.getElementById('run-input');
+            inp.value = ''; inp.focus();
+        }
+        function executeRun() {
+            const cmd = document.getElementById('run-input').value.trim().toLowerCase();
+            closeWindow('run-window');
+            if (cmd === 'explorer') openExplorer('thispc');
+            else if (cmd !== '') alert(`Windows cannot find '${cmd}'. Type explorer.`);
+        }
+
+        // --- FILE EXPLORER ---
+        function openExplorer(path) {
+            currentExpPath = path || 'thispc';
+            document.getElementById('explorer-window').style.display = 'flex';
+            renderExplorer();
+            if (step === 1) { step = 2; updateGuide(); }
+        }
+
+        function expGoUp() {
+            if (currentExpPath === 'data') currentExpPath = 'c';
+            else if (currentExpPath === 'c') currentExpPath = 'thispc';
+            renderExplorer();
+        }
+
+        function handleExpCtx(e) {
+            if (currentExpPath === 'c') showContext('ctx-c-empty', e);
+            else if (currentExpPath === 'data') showContext('ctx-data-empty', e);
+        }
+
+        function renderExplorer() {
+            const p = document.getElementById('exp-path-bar');
+            const body = document.getElementById('exp-body');
+            const hint = document.getElementById('exp-hint-lbl');
+
+            if (currentExpPath === 'thispc') {
+                p.innerText = 'This PC';
+                hint.innerText = vssEnabled ? 'Shadow Copies Active on C: ✓' : 'Right-click Local Disk (C:) -> Properties for Shadow Copies';
+                body.innerHTML = `
+                    <div style="font-size:11.5px; font-weight:700; color:#64748b; margin-bottom:10px;">Devices and drives</div>
+                    <div class="exp-item" style="border:1px solid #cbd5e1; background:#f8fafc; max-width:340px;" ondblclick="openExplorer('c')" onclick="openExplorer('c')" oncontextmenu="showContext('ctx-drive-c', event)">
+                        <span style="font-size:32px;">💾</span>
+                        <div>
+                            <strong>Local Disk (C:)</strong>
+                            <div class="drive-bar-bg"><div class="drive-bar-fill"></div></div>
+                            <div style="font-size:11px; color:#475569; margin-top:3px;">62.0 GB free of 100 GB · ${vssEnabled ? '<span style="color:#15803d; font-weight:700;">VSS Enabled ✓</span>' : 'VSS Disabled'}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:16px; padding:10px 12px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12px;">
+                        💡 <b>Click</b> Local Disk (C:) to open it, or <b>Right-click Local Disk (C:) &rarr; Properties</b> to configure <b>Shadow Copies</b>.
+                    </div>`;
+            } else if (currentExpPath === 'c') {
+                p.innerText = 'Local Disk (C:\\)';
+                hint.innerText = dataFolderCreated ? 'Right-click Data -> Restore previous versions' : 'Right-click empty space -> New -> Folder';
+                let dataHtml = dataFolderCreated
+                    ? `<div class="exp-item" style="background:${folderRestored?'#ecfdf5':'#eff6ff'}; border-color:${folderRestored?'#86efac':'#93c5fd'};" ondblclick="openExplorer('data')" onclick="openExplorer('data')" oncontextmenu="showContext('ctx-data-folder', event)">
+                           <span style="font-size:26px;">📁</span>
+                           <div>
+                               <strong style="color:${folderRestored?'#15803d':'#005a9e'};">Data</strong>
+                               <div style="font-size:11px; color:#475569;">${currentFiles.length} file(s) · Click to open | <b>Right-click for Previous Versions</b></div>
+                           </div>
+                       </div>`
+                    : '';
+                body.innerHTML = `
+                    <div class="exp-item" style="opacity:0.6; cursor:default;"><span style="font-size:24px;">📁</span><div>Windows</div></div>
+                    <div class="exp-item" style="opacity:0.6; cursor:default;"><span style="font-size:24px;">📁</span><div>Users</div></div>
+                    ${dataHtml}
+                    <div style="margin-top:14px; padding:10px 12px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12px;">
+                        💡 ${dataFolderCreated ? '<b>Right-click Data</b> &rarr; <b>Restore previous versions / Properties</b> to recover deleted files.' : '<b>Right-click</b> empty space &rarr; <b>New &rarr; Folder</b> to create <code>Data</code>.'}
+                    </div>`;
+            } else if (currentExpPath === 'data') {
+                p.innerText = 'C:\\Data';
+                hint.innerText = 'Right-click empty space -> New -> Text Document | Right-click a file -> Delete';
+                let filesHtml = currentFiles.map((f, idx) => `
+                    <div class="exp-item" style="background:${f.restored?'#ecfdf5':'#f8fafc'}; border-color:${f.restored?'#86efac':'#cbd5e1'};" onclick="openFilePreview(${idx})" oncontextmenu="selectFileForCtx(${idx}, event)">
+                        <span style="font-size:25px;">📝</span>
+                        <div>
+                            <strong style="color:${f.restored?'#15803d':'#0f172a'};">${f.name} ${f.restored ? '(Restored ✓)' : ''}</strong>
+                            <div style="font-size:11px; color:#475569;">Text Document · Click to view | Right-click to Delete</div>
+                        </div>
+                    </div>`).join('');
+                body.innerHTML = `
+                    ${filesHtml || '<div style="color:#64748b; padding:10px;">This folder is empty. Right-click &rarr; New &rarr; Text Document.</div>'}
+                    <div style="margin-top:14px; padding:10px 12px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12px;">
+                        💡 ${!vssEnabled ? 'Right-click empty space &rarr; <b>New &rarr; Text Document</b> (create at least 2 files).' : (!fileDeleted ? 'Right-click any file &rarr; <b>🗑️ Delete</b> to simulate accidental deletion.' : 'Click the restored file to verify its contents!')}
+                    </div>`;
+            }
+        }
+
+        function createDataFolder(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-c-empty').style.display = 'none';
+            if (dataFolderCreated) { showToast("Folder C:\\Data already exists!"); return; }
+            const name = prompt("Enter new folder name inside C:\\:", "Data");
+            if (name === null) return;
+            if (name.trim().toLowerCase() !== 'data') { alert("Please name the folder: Data"); return; }
+            dataFolderCreated = true;
+            renderExplorer();
+            showToast("Created C:\\Data! Open Data and create 2–3 text files.");
+            if (step === 2) { step = 3; updateGuide(); }
+        }
+
+        function createSampleFile(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-data-empty').style.display = 'none';
+            const defaults = ['report.txt', 'accounts.txt', 'notes.txt'];
+            const defName = defaults[currentFiles.length] || `file${currentFiles.length + 1}.txt`;
+            const name = prompt("Enter text file name inside C:\\Data:", defName);
+            if (name === null || !name.trim()) return;
+            const finalName = name.trim().endsWith('.txt') ? name.trim() : name.trim() + '.txt';
+            if (currentFiles.some(f => f.name.toLowerCase() === finalName.toLowerCase())) {
+                alert("A file with that name already exists!"); return;
+            }
+            currentFiles.push({
+                name: finalName,
+                content: `Document: ${finalName}\nFolder: C:\\Data\nServer: SMEC-DC1 (smec.com)\n\nImportant company data protected by Volume Shadow Copy (VSS).`,
+                restored: false
+            });
+            renderExplorer();
+            showToast(`Created C:\\Data\\${finalName} (${currentFiles.length} file${currentFiles.length>1?'s':''})`);
+            if (currentFiles.length >= 2) {
+                setBadge('st-files', 'Done ✓', 's-done');
+                if (step === 3) {
+                    step = 4; updateGuide();
+                    showToast("Files ready! Click 'This PC' -> right-click Local Disk (C:) -> Properties -> Shadow Copies.");
+                }
+            }
+        }
+
+        // --- STEP 4-6: SHADOW COPIES CONFIGURATION, SCHEDULE & CREATE NOW ---
+        function openDriveProperties(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-drive-c').style.display = 'none';
+            if (currentFiles.length < 2) { alert("First create C:\\Data and add at least 2 files before enabling Shadow Copies!"); return; }
+            document.getElementById('drive-props-window').style.display = 'flex';
+            switchDriveTab('vss');
+            if (step === 4) { step = 5; updateGuide(); }
+        }
+
+        function switchDriveTab(t) {
+            ['gen', 'sec', 'vss'].forEach(k => {
+                document.getElementById('dp-pane-' + k).style.display = k === t ? 'block' : 'none';
+                document.getElementById('dp-tab-' + k).classList.toggle('active', k === t);
+            });
+        }
+
+        function promptEnableVss() {
+            document.getElementById('enable-vss-confirm').style.display = 'flex';
+        }
+
+        function confirmEnableVss() {
+            closeWindow('enable-vss-confirm');
+            vssEnabled = true;
+            document.getElementById('btn-vss-enable').disabled = true;
+            document.getElementById('btn-vss-disable').disabled = false;
+            document.getElementById('btn-vss-settings').disabled = false;
+            document.getElementById('btn-vss-createnow').disabled = false;
+            document.getElementById('vss-next-run').innerText = 'Tomorrow 7:00 AM';
+            document.getElementById('side-vss-lbl').innerText = 'Shadow Copies (C:): Enabled ✓';
+            document.getElementById('top-sub').innerText = 'Domain: smec.com | Volume C: Shadow Copies Enabled ✓';
+
+            // Automatically creates the initial shadow copy when Enable is clicked (just like real Windows Server!)
+            addSnapshotRecord('Initial (On Enable)');
+            setBadge('st-enable', 'Enabled ✓', 's-done');
+            renderExplorer();
+            showToast("Shadow Copies enabled & first snapshot created! Now check Settings -> Schedule and click Create Now.");
+            if (step === 5) { step = 6; updateGuide(); }
+        }
+
+        function addSnapshotRecord(trigger) {
+            const snap = {
+                time: getTimestamp(),
+                trigger: trigger,
+                files: currentFiles.map(f => ({ name: f.name, content: f.content }))
+            };
+            snapshots.unshift(snap);
+            const emptyRow = document.getElementById('vss-empty-row');
+            if (emptyRow) emptyRow.remove();
+            document.getElementById('vss-used').innerText = `${snapshots.length * 320} MB`;
+            const tbl = document.getElementById('vss-snap-table');
+            tbl.innerHTML = `<tr><th>Snapshot Date &amp; Time</th><th>Trigger</th><th>Files Captured</th></tr>` +
+                snapshots.map(s => `<tr style="background:#ecfdf5;">
+                    <td style="font-family:Consolas;">${s.time}</td>
+                    <td><strong>${s.trigger}</strong></td>
+                    <td>${s.files.map(x => x.name).join(', ')}</td>
+                </tr>`).join('');
+        }
+
+        function openVssSettings() {
+            document.getElementById('vss-settings-window').style.display = 'flex';
+        }
+
+        function openVssSchedule() {
+            document.getElementById('vss-schedule-window').style.display = 'flex';
+        }
+
+        function saveVssSchedule() {
+            const freq = document.getElementById('sched-freq').value;
+            const time = document.getElementById('sched-time').value;
+            vssScheduleText = `${freq} at ${time}`;
+            scheduleReviewed = true;
+            document.getElementById('vss-sched-summary').innerText = vssScheduleText;
+            document.getElementById('vss-next-run').innerText = `${freq.split(' ')[0]} ${time.split('&')[0].trim()}`;
+            closeWindow('vss-schedule-window');
+            showToast("Shadow Copy schedule saved! Now click OK, then click 'Create Now'.");
+        }
+
+        function createShadowCopyNow() {
+            addSnapshotRecord('Manual (Create Now)');
+            manualSnapTaken = true;
+            setBadge('st-snap', `${snapshots.length} Snaps ✓`, 's-done');
+            showToast("✓ On-demand Shadow Copy created! Click OK, then open C:\\Data to test deletion & recovery.");
+            if (step === 6) { step = 7; updateGuide(); }
+        }
+
+        function closeDriveProps() {
+            closeWindow('drive-props-window');
+            if (vssEnabled && !manualSnapTaken && step === 6) {
+                // Allow continuing even if they relied on the initial snapshot
+                setBadge('st-snap', `${snapshots.length} Snap ✓`, 's-done');
+                step = 7; updateGuide();
+            }
+        }
+
+        // --- STEP 7: SIMULATE ACCIDENTAL FILE DELETION ---
+        function selectFileForCtx(idx, e) {
+            selectedFileIdx = idx;
+            showContext('ctx-file-item', e);
+        }
+
+        function promptDeleteSelectedFile(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-file-item').style.display = 'none';
+            if (!vssEnabled || snapshots.length === 0) {
+                alert("First enable Shadow Copies on Local Disk (C:) before testing file deletion!");
+                return;
+            }
+            const f = currentFiles[selectedFileIdx];
+            if (!f) return;
+            document.getElementById('del-target-name').innerText = f.name;
+            document.getElementById('delete-warn-window').style.display = 'flex';
+        }
+
+        function confirmDeleteFile() {
+            const f = currentFiles[selectedFileIdx];
+            if (!f) return;
+            deletedFileName = f.name;
+            currentFiles.splice(selectedFileIdx, 1);
+            fileDeleted = true;
+            closeWindow('delete-warn-window');
+            renderExplorer();
+            setBadge('st-del', 'Deleted!', 's-warn');
+            showToast(`Deleted ${deletedFileName}! Now go Up to C:\\ -> Right-click Data -> Restore previous versions.`);
+            if (step === 7) { step = 8; updateGuide(); }
+        }
+
+        // --- STEP 8-9: RESTORE PREVIOUS VERSIONS ---
+        function openFolderPropsPv(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-data-folder').style.display = 'none';
+            if (!fileDeleted) {
+                alert("First open C:\\Data and delete a file to simulate accidental deletion!");
+                return;
+            }
+            selectedPvIdx = -1;
+            document.getElementById('btn-pv-open').disabled = true;
+            document.getElementById('btn-pv-restore').disabled = true;
+            document.getElementById('fp-gen-count').innerText = `${currentFiles.length} file(s)`;
+
+            const tbl = document.getElementById('pv-table');
+            tbl.innerHTML = `<tr><th>Name</th><th>Date Modified (Shadow Copy)</th><th>Files in Snapshot</th></tr>` +
+                snapshots.map((s, idx) => `<tr id="pv-row-${idx}" onclick="selectPvRow(${idx})" style="cursor:pointer;">
+                    <td>📁 Data</td>
+                    <td style="font-family:Consolas;">${s.time}</td>
+                    <td>${s.files.map(x => x.name).join(', ')}</td>
+                </tr>`).join('');
+
+            document.getElementById('folder-props-window').style.display = 'flex';
+            switchFolderTab('pv');
+            if (step === 8) { step = 9; updateGuide(); }
+        }
+
+        function switchFolderTab(t) {
+            ['gen', 'share', 'pv'].forEach(k => {
+                document.getElementById('fp-pane-' + k).style.display = k === t ? 'block' : 'none';
+                document.getElementById('fp-tab-' + k).classList.toggle('active', k === t);
+            });
+        }
+
+        function selectPvRow(idx) {
+            selectedPvIdx = idx;
+            snapshots.forEach((_, i) => {
+                const r = document.getElementById('pv-row-' + i);
+                if (r) r.classList.toggle('selected-row', i === idx);
+            });
+            document.getElementById('btn-pv-open').disabled = false;
+            document.getElementById('btn-pv-restore').disabled = false;
+        }
+
+        function openSelectedPv() {
+            if (selectedPvIdx < 0) return;
+            const s = snapshots[selectedPvIdx];
+            alert(`Snapshot (${s.time}) contains:\n\n` + s.files.map(f => `• ${f.name}`).join('\n') + `\n\nClick 'Restore...' to recover deleted files back into C:\\Data!`);
+        }
+
+        function promptRestorePv() {
+            if (selectedPvIdx < 0) return;
+            document.getElementById('restore-confirm-window').style.display = 'flex';
+        }
+
+        function executeRestorePv() {
+            const s = snapshots[selectedPvIdx];
+            if (!s) return;
+            currentFiles = s.files.map(f => ({
+                name: f.name,
+                content: f.content,
+                restored: (f.name === deletedFileName)
+            }));
+            folderRestored = true;
+            closeWindow('restore-confirm-window');
+            closeWindow('folder-props-window');
+            setBadge('st-restore', 'Restored ✓', 's-done');
+            renderExplorer();
+            alert(`The folder C:\\Data has been successfully restored to its previous version (${s.time})!\n\nRecovered file: ${deletedFileName}`);
+            showToast(`✓ ${deletedFileName} recovered! Open C:\\Data and click the restored file to verify.`);
+            if (step === 9) { step = 10; updateGuide(); }
+        }
+
+        // --- STEP 10: VERIFY RECOVERED FILE ---
+        function previewSelectedFile(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-file-item').style.display = 'none';
+            openFilePreview(selectedFileIdx);
+        }
+
+        function openFilePreview(idx) {
+            const f = currentFiles[idx];
+            if (!f) return;
+            document.getElementById('prev-title').innerText = `${f.name} - Notepad`;
+            document.getElementById('prev-body').innerText = f.content;
+            document.getElementById('file-preview-window').style.display = 'flex';
+            if (folderRestored && step === 10) {
+                setBadge('st-verify', 'Verified ✓', 's-done');
+                step = 11;
+                updateGuide();
+                showToast("🎉 Volume Shadow Copy Backup & Recovery Lab Complete!");
+            }
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
