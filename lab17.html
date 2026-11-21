@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: Convert Secondary DNS to Primary DNS (Failover) - tech.com</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea { user-select: text; }
+
+        /* ==================== LEFT MACHINE SELECTOR SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .machine-btn:hover { background: #273549; border-color: #60a5fa; }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+        .machine-btn-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .machine-btn-sub { font-size: 10.5px; opacity: 0.88; }
+        .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+        .status-dot.offline { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+
+        .status-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            color: #cbd5e1;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3.5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .status-row:last-child { border-bottom: none; }
+        .s-badge {
+            font-family: Consolas, monospace;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .s-pending { background: #334155; color: #94a3b8; }
+        .s-done { background: #14532d; color: #86efac; }
+        .s-fail { background: #7f1d1d; color: #fca5a5; }
+
+        .concept-card {
+            background: #422006;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.5;
+            color: #fef3c7;
+        }
+        .concept-card strong { color: #fcd34d; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.55;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc { display: block; }
+
+        #s1-pc { background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%); }
+        #s2-pc { background: radial-gradient(circle at 75% 20%, #0f4c5c 0%, #0a2e38 60%, #05181e 100%); }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 104px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 30px; margin-bottom: 4px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 390px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 16px 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 10px 8px;
+            border-radius: 6px;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 26px; margin-bottom: 4px; }
+
+        .start-footer {
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid #d4d4d4;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #333;
+        }
+        .power-btn {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #b91c1c;
+            font-weight: 700;
+            padding: 5px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .power-btn:hover { background: #dc2626; color: #fff; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 16px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #s1-sm-window, #s2-sm-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10001; }
+        #s1-dns-window, #s2-dns-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10005; }
+        #s1-run-window, #s2-run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10008; }
+        #s1-zoneprops-window, #s2-zoneprops-window { width: 480px; height: 400px; top: 65px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #s2-changezone-window { width: 450px; height: 310px; top: 105px; left: 50%; transform: translateX(-50%); z-index: 10035; }
+        #s2-confirm-primary-window { width: 450px; height: 210px; top: 150px; left: 50%; transform: translateX(-50%); z-index: 10050; }
+        #s2-newhost-window { width: 430px; height: 320px; top: 85px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #s2-cmd-window { width: 82%; height: 74%; top: 52px; left: 9%; background: #0c0c0c; color: #e5e5e5; font-family: Consolas, monospace; z-index: 10010; }
+        #s1-shutdown-confirm { width: 440px; height: 225px; top: 140px; left: 50%; transform: translateX(-50%); z-index: 10045; }
+
+        /* Server Manager Tools Dropdown */
+        .sm-header {
+            background: #005a9e;
+            color: #fff;
+            padding: 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12.5px;
+        }
+        .sm-tools-btn {
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.16);
+            font-weight: 700;
+            position: relative;
+        }
+        .sm-tools-btn:hover { background: rgba(255,255,255,0.28); }
+        .sm-tools-dropdown {
+            display: none;
+            position: absolute;
+            top: 72px;
+            right: 16px;
+            width: 240px;
+            background: #fff;
+            border: 1px solid #999;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 10050;
+            padding: 4px;
+            color: #222;
+            font-size: 12.5px;
+        }
+        .sm-tools-dropdown div { padding: 7px 12px; cursor: pointer; border-radius: 3px; }
+        .sm-tools-dropdown div:hover { background: var(--win-blue); color: #fff; }
+        .sm-tools-dropdown div.muted { color: #888; cursor: default; }
+        .sm-tools-dropdown div.muted:hover { background: transparent; color: #888; }
+
+        /* Tabs */
+        .tab-bar { display: flex; gap: 4px; padding: 8px 12px 0; background: #e9e9e9; border-bottom: 1px solid #ccc; }
+        .tab-btn {
+            padding: 6px 14px;
+            background: #dfdfdf;
+            border: 1px solid #bbb;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .tab-btn.active { background: #fff; font-weight: 600; color: var(--win-blue); }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 215px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+        .context-menu div.disabled-item { color: #9ca3af; cursor: not-allowed; }
+        .context-menu div.disabled-item:hover { background: transparent; color: #9ca3af; }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 18px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .icon-srv::before { content: '🖥️ '; }
+        .icon-folder::before { content: '📁 '; }
+        .icon-zone::before { content: '🌐 '; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 10px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 10px; border-bottom: 1px solid #efefef; }
+
+        /* Server 1 Offline / Powered Off Overlay */
+        #s1-offline-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, #1e1b24 0%, #09090b 100%);
+            z-index: 99998;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            text-align: center;
+            padding: 24px;
+        }
+
+        /* CMD */
+        .cmd-body {
+            flex: 1;
+            background: #0c0c0c;
+            color: #e5e5e5;
+            padding: 12px 14px;
+            overflow-y: auto;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            cursor: text;
+            user-select: text;
+        }
+        .cmd-output { white-space: pre-wrap; word-break: break-word; }
+        .cmd-input-line { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+        .cmd-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #38bdf8;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            outline: none;
+            padding: 0;
+        }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🔄 Secondary &rarr; Primary DNS</h2>
+            <span>DNS Failover Lab (tech.com)</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Server</div>
+
+        <button id="btn-switch-s1" class="machine-btn active" onclick="switchMachine('s1')">
+            <div class="machine-btn-header"><span>🖥️ Server 1 (Primary)</span><span id="dot-s1" class="status-dot"></span></div>
+            <div class="machine-btn-sub">SMEC-DC1 (192.168.1.1)</div>
+            <div class="machine-btn-sub" id="s1-side-sub">tech.com: Primary (Online)</div>
+        </button>
+
+        <button id="btn-switch-s2" class="machine-btn" onclick="switchMachine('s2')">
+            <div class="machine-btn-header"><span>🖥️ Server 2 (Secondary)</span><span id="dot-s2" class="status-dot"></span></div>
+            <div class="machine-btn-sub">SMEC-DNS2 (192.168.1.22)</div>
+            <div class="machine-btn-sub" id="s2-side-sub">tech.com: Secondary (Read-Only)</div>
+        </button>
+
+        <!-- Live Failover Status -->
+        <div class="status-card">
+            <div style="font-weight:700; color:#f8fafc; margin-bottom:5px;">📊 Failover Checklist</div>
+            <div class="status-row"><span>1. Verify Primary on S1</span><span id="st-s1check" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>2. Primary Server Failure</span><span id="st-s1down" class="s-badge s-pending">Online</span></div>
+            <div class="status-row"><span>3. Convert S2 to Primary</span><span id="st-convert" class="s-badge s-pending">Secondary</span></div>
+            <div class="status-row"><span>4. Test Writable &amp; Ping</span><span id="st-verify" class="s-badge s-pending">Pending</span></div>
+        </div>
+
+        <div class="concept-card">
+            <strong>⚠️ Important Real-World Note:</strong><br>
+            In production, you <b>never</b> manually shut down a healthy Primary DNS server. You only convert Secondary to Primary when the Primary server <b>crashes / fails</b>. Here we shut down Server 1 only to simulate a failure!
+        </div>
+
+        <div class="lab-info-card">
+            <div><strong>Domain:</strong> <code>smec.com</code></div>
+            <div><strong>Zone:</strong> <code>tech.com</code></div>
+            <div><strong>Existing Host:</strong> <code>www</code> &rarr; <code>192.168.1.1</code></div>
+            <div><strong>New Test Host:</strong> <code>mail</code> &rarr; <code>192.168.1.22</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <!-- ==================== SERVER 1: SMEC-DC1 (Main / Primary DNS) ==================== -->
+            <div class="pc-container active-pc" id="s1-pc">
+                <div class="pc-label">
+                    SMEC-DC1 (Main Server · Primary DNS)
+                    <span>IP: 192.168.1.1 | Domain: smec.com | Zone: tech.com (Primary)</span>
+                </div>
+
+                <!-- Offline / Failure Overlay -->
+                <div id="s1-offline-overlay">
+                    <div style="font-size:54px; margin-bottom:10px;">⏻</div>
+                    <h2 style="margin:0 0 8px 0; color:#f87171;">SMEC-DC1 is Powered Off (Simulated Failure)</h2>
+                    <p style="margin:0 0 18px 0; max-width:460px; font-size:13px; color:#cbd5e1; line-height:1.6;">
+                        Primary DNS Server (<code>192.168.1.1</code>) is currently <b>OFFLINE</b>.<br>
+                        Now switch to <b>🖥️ Server 2 (SMEC-DNS2)</b> on the left sidebar to convert the Secondary Zone <code>tech.com</code> into a Writable <b>Primary Zone</b>!
+                    </p>
+                    <button class="primary-btn" onclick="switchMachine('s2')" style="padding:9px 20px; font-size:13px;">Switch to Server 2 (SMEC-DNS2) &rarr;</button>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openS1ServerManager()">
+                        <div class="ico">🗄️</div>
+                        <span>Server Manager</span>
+                    </div>
+                </div>
+
+                <!-- S1 Server Manager (Tools -> DNS) -->
+                <div id="s1-sm-window" class="window">
+                    <div class="title-bar"><span>Server Manager - SMEC-DC1</span><span class="close-btn" onclick="closeWindow('s1-sm-window')">X</span></div>
+                    <div class="sm-header">
+                        <div style="font-weight:700;">Dashboard · Server Manager (SMEC-DC1)</div>
+                        <div class="sm-tools-btn" onclick="toggleToolsMenu('s1-tools-menu', event)">🔧 Tools &#9662;</div>
+                    </div>
+                    <div id="s1-tools-menu" class="sm-tools-dropdown">
+                        <div class="muted">Active Directory Users and Computers</div>
+                        <div onclick="openS1Dns(event)"><strong>🌐 DNS</strong></div>
+                        <div class="muted">Group Policy Management</div>
+                    </div>
+                    <div class="content" style="background:#f8fafc; padding:18px;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:16px;">
+                            <h3 style="margin:0 0 6px 0; color:#0f172a;">SMEC-DC1 (Primary DNS Server)</h3>
+                            <p style="margin:0; font-size:12.5px; color:#475569;">Click <b>🔧 Tools &rarr; 🌐 DNS</b> in the top-right bar to verify that <code>tech.com</code> is currently hosted here as a <b>Primary Zone</b>.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- S1 DNS Manager -->
+                <div id="s1-dns-window" class="window">
+                    <div class="title-bar"><span>DNS Manager [SMEC-DC1.smec.com]</span><span class="close-btn" onclick="closeWindow('s1-dns-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 40%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded" onclick="toggleTree(this, event)">DNS
+                                    <ul>
+                                        <li class="icon-srv expanded" onclick="toggleTree(this, event)">SMEC-DC1
+                                            <ul>
+                                                <li class="icon-folder expanded" onclick="toggleTree(this, event)" style="font-weight:600; color:#005a9e;">Forward Lookup Zones
+                                                    <ul>
+                                                        <li class="icon-zone" onclick="selectS1Zone('smec.com', this, event)">smec.com</li>
+                                                        <li class="icon-zone" onclick="selectS1Zone('tech.com', this, event)" oncontextmenu="showContext('ctx-s1-tech', event)" style="color:#15803d; font-weight:700;">tech.com (Primary)</li>
+                                                    </ul>
+                                                </li>
+                                                <li class="icon-folder">Reverse Lookup Zones</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 60%; padding: 12px; overflow:auto;" id="s1-dns-right">
+                            <div style="color:#555; font-size:12.5px; padding:10px;">
+                                Click <b>tech.com (Primary)</b> under Forward Lookup Zones to inspect its records and confirm it is the Primary Zone.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- S1 tech.com Properties (Shows Type: Primary) -->
+                <div id="s1-zoneprops-window" class="window">
+                    <div class="title-bar"><span>tech.com Properties (Server 1)</span><span class="close-btn" onclick="closeWindow('s1-zoneprops-window')">X</span></div>
+                    <div class="tab-bar">
+                        <div class="tab-btn active">General</div>
+                        <div class="tab-btn" style="color:#888;">Zone Transfers</div>
+                    </div>
+                    <div class="content" style="background:#fff; font-size:12.5px; line-height:1.9;">
+                        <div><strong>Status:</strong> Running</div>
+                        <div style="padding:8px 10px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; margin:8px 0;">
+                            <strong>Type:</strong> <span style="color:#15803d; font-weight:700;">Primary</span> (Writable Master Copy)
+                        </div>
+                        <div><strong>Zone file name:</strong> <code>tech.com.dns</code></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="closeWindow('s1-zoneprops-window')">OK</button>
+                    </div>
+                </div>
+
+                <!-- S1 Shutdown Confirmation Modal (Explains Simulated Failure) -->
+                <div id="s1-shutdown-confirm" class="window">
+                    <div class="title-bar"><span>Simulate Primary DNS Server Failure</span><span class="close-btn" onclick="closeWindow('s1-shutdown-confirm')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px; line-height:1.55;">
+                        <p style="margin:0 0 8px 0; color:#b91c1c; font-weight:700;">⚠️ Lab Simulation: Shutting down SMEC-DC1 (192.168.1.1)</p>
+                        <p style="margin:0; color:#334155;">In a real production network, we do <b>not</b> shut down the Primary Server manually. We only promote a Secondary DNS Server to Primary if the Primary Server <b>fails unexpectedly</b>. Click <b>Shut Down Now</b> to simulate a Primary Server outage.</p>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" style="background:#dc2626; border-color:#991b1b;" onclick="executeS1Shutdown()">Shut Down Now</button>
+                        <button onclick="closeWindow('s1-shutdown-confirm')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- S1 Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('s1-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="s1-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openS1ServerManager(); document.getElementById('s1-start-menu').style.display='none';">
+                            <div class="app-icon">🗄️</div>
+                            <span style="font-size:11px; font-weight:600; text-align:center;">Server<br>Manager</span>
+                        </div>
+                        <div class="app" onclick="openS1Dns(); document.getElementById('s1-start-menu').style.display='none';">
+                            <div class="app-icon">🌐</div>
+                            <span style="font-size:11px; font-weight:600; text-align:center;">DNS Manager</span>
+                        </div>
+                    </div>
+                    <div class="start-footer">
+                        <span>👤 SMEC\Administrator</span>
+                        <button class="power-btn" onclick="promptS1Shutdown(event)">⏻ Shut down (Simulate Failure)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== SERVER 2: SMEC-DNS2 (Secondary -> Primary DNS) ==================== -->
+            <div class="pc-container" id="s2-pc">
+                <div class="pc-label" id="s2-top-label">
+                    SMEC-DNS2 (Secondary DNS Server)
+                    <span id="s2-top-sub">IP: 192.168.1.22 | Zone: tech.com (Secondary - Read-Only)</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openS2ServerManager()">
+                        <div class="ico">🗄️</div>
+                        <span>Server Manager</span>
+                    </div>
+                    <div class="d-icon" onclick="openCmd('s2')">
+                        <div class="ico">💻</div>
+                        <span>Command Prompt</span>
+                    </div>
+                </div>
+
+                <!-- S2 Server Manager (Tools -> DNS) -->
+                <div id="s2-sm-window" class="window">
+                    <div class="title-bar"><span>Server Manager - SMEC-DNS2</span><span class="close-btn" onclick="closeWindow('s2-sm-window')">X</span></div>
+                    <div class="sm-header">
+                        <div style="font-weight:700;">Dashboard · Server Manager (SMEC-DNS2)</div>
+                        <div class="sm-tools-btn" onclick="toggleToolsMenu('s2-tools-menu', event)">🔧 Tools &#9662;</div>
+                    </div>
+                    <div id="s2-tools-menu" class="sm-tools-dropdown">
+                        <div onclick="openS2Dns(event)"><strong>🌐 DNS</strong></div>
+                        <div class="muted">Event Viewer</div>
+                    </div>
+                    <div class="content" style="background:#f8fafc; padding:18px;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:16px;">
+                            <h3 style="margin:0 0 6px 0; color:#0f172a;">SMEC-DNS2 (192.168.1.22)</h3>
+                            <p style="margin:0; font-size:12.5px; color:#475569;">Click <b>🔧 Tools &rarr; 🌐 DNS</b> to open DNS Manager and convert <code>tech.com</code> from Secondary to Primary.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- S2 Run Window -->
+                <div id="s2-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('s2-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>dnsmgmt.msc</code> or <code>cmd</code>.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="s2-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeS2Run()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeS2Run()">OK</button>
+                        <button onclick="closeWindow('s2-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- S2 DNS Manager -->
+                <div id="s2-dns-window" class="window">
+                    <div class="title-bar"><span>DNS Manager [SMEC-DNS2]</span><span class="close-btn" onclick="closeWindow('s2-dns-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 40%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded" onclick="toggleTree(this, event)">DNS
+                                    <ul>
+                                        <li class="icon-srv expanded" onclick="toggleTree(this, event)">SMEC-DNS2
+                                            <ul>
+                                                <li class="icon-folder expanded" onclick="toggleTree(this, event)" style="font-weight:600; color:#005a9e;">Forward Lookup Zones
+                                                    <ul>
+                                                        <li class="icon-zone" id="s2-tech-node" onclick="selectS2Tech(this, event)" oncontextmenu="showS2TechContext(event)" style="color:#b45309; font-weight:700;">tech.com (Secondary)</li>
+                                                    </ul>
+                                                </li>
+                                                <li class="icon-folder">Reverse Lookup Zones</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 60%; padding: 12px; overflow:auto;" id="s2-dns-right" oncontextmenu="if(s2TechSelected) showS2TechContext(event)">
+                            <div style="color:#555; font-size:12.5px; padding:10px;">
+                                Click <b>tech.com (Secondary)</b> under Forward Lookup Zones, then right-click it &rarr; <b>Properties</b>.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- S2 tech.com Properties (General Tab -> Change... button) -->
+                <div id="s2-zoneprops-window" class="window">
+                    <div class="title-bar"><span>tech.com Properties (Server 2)</span><span class="close-btn" onclick="closeWindow('s2-zoneprops-window')">X</span></div>
+                    <div class="tab-bar">
+                        <div class="tab-btn active">General</div>
+                        <div class="tab-btn" style="color:#888; cursor:default;">Start of Authority (SOA)</div>
+                        <div class="tab-btn" style="color:#888; cursor:default;">Name Servers</div>
+                        <div class="tab-btn" style="color:#888; cursor:default;">Zone Transfers</div>
+                    </div>
+                    <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
+                            <div><strong>Status:</strong> Running</div>
+                            <button disabled>Pause</button>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
+                            <div>
+                                <strong>Type:</strong> <span id="s2-prop-type-lbl" style="color:#b45309; font-weight:700;">Secondary</span>
+                                <div id="s2-prop-type-desc" style="font-size:11px; color:#64748b; margin-top:2px;">Read-only copy (Cannot add/edit DNS records)</div>
+                            </div>
+                            <button id="btn-change-zone-type" class="primary-btn" onclick="openChangeZoneModal()">Change...</button>
+                        </div>
+                        <div>
+                            <div style="font-weight:600; margin-bottom:4px;">Zone file name:</div>
+                            <input type="text" value="tech.com.dns" readonly style="width:100%; background:#f8fafc; font-family:Consolas, monospace;">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="applyS2ZoneProps()">Apply</button>
+                        <button class="primary-btn" onclick="okS2ZoneProps()">OK</button>
+                        <button onclick="closeWindow('s2-zoneprops-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Authentic Windows "Change Zone Type" Modal -->
+                <div id="s2-changezone-window" class="window">
+                    <div class="title-bar"><span>Change Zone Type</span><span class="close-btn" onclick="closeWindow('s2-changezone-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:10px;">
+                        <p style="margin:0; color:#333;">Select the type of zone you want to change <b>tech.com</b> to:</p>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer; padding:6px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:4px;">
+                            <input type="radio" name="cz-type" id="radio-cz-primary" value="primary"> Primary zone
+                            <div style="font-weight:400; font-size:11px; color:#475569; padding-left:20px;">Creates a writable copy of the zone directly on this server.</div>
+                        </label>
+                        <label style="color:#555; padding:4px 6px;">
+                            <input type="radio" name="cz-type" id="radio-cz-secondary" value="secondary" checked> Secondary zone
+                        </label>
+                        <label style="color:#555; padding:4px 6px;">
+                            <input type="radio" name="cz-type" id="radio-cz-stub" value="stub"> Stub zone
+                        </label>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="submitChangeZoneType()">OK</button>
+                        <button onclick="closeWindow('s2-changezone-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Windows Confirmation Popup: Are you sure you want to change to Primary? -->
+                <div id="s2-confirm-primary-window" class="window">
+                    <div class="title-bar"><span>DNS</span><span class="close-btn" onclick="closeWindow('s2-confirm-primary-window')">X</span></div>
+                    <div class="content" style="background:#fff; display:flex; align-items:flex-start; gap:14px; padding:18px;">
+                        <div style="width:36px; height:36px; border-radius:50%; background:#f59e0b; color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; flex-shrink:0;">!</div>
+                        <div style="font-size:12.5px; line-height:1.55; color:#1f2937;">
+                            Are you sure you want to change the zone type of <b>tech.com</b> to <b>Primary</b>?<br><br>
+                            This server (<b>SMEC-DNS2</b>) will become the authoritative writable Primary DNS server for <code>tech.com</code>.
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="confirmChangeToPrimary()">Yes</button>
+                        <button onclick="closeWindow('s2-confirm-primary-window')">No</button>
+                    </div>
+                </div>
+
+                <!-- S2 New Host (A) Modal (Only works AFTER converting to Primary!) -->
+                <div id="s2-newhost-window" class="window">
+                    <div class="title-bar"><span>New Host (Writable Primary Zone)</span><span class="close-btn" onclick="closeWindow('s2-newhost-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:10px;">
+                        <div>
+                            <label style="display:block; font-weight:600; margin-bottom:4px;">Name:</label>
+                            <input type="text" id="s2-host-name" placeholder="mail" style="width:100%;" oninput="updateS2Fqdn()" autocomplete="off">
+                        </div>
+                        <div>
+                            <label style="display:block; font-weight:600; margin-bottom:4px;">FQDN:</label>
+                            <input type="text" id="s2-host-fqdn" value="tech.com" readonly style="width:100%; background:#f8fafc; font-family:Consolas, monospace;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-weight:600; margin-bottom:4px;">IP address:</label>
+                            <input type="text" id="s2-host-ip" placeholder="192.168.1.22" style="width:100%;" autocomplete="off" onkeypress="if(event.key==='Enter') addS2HostRecord()">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="addS2HostRecord()">Add Host</button>
+                        <button onclick="closeWindow('s2-newhost-window')">Done</button>
+                    </div>
+                </div>
+
+                <!-- S2 CMD -->
+                <div id="s2-cmd-window" class="window">
+                    <div class="title-bar">
+                        <span style="display:flex; align-items:center; gap:6px;"><span style="background:#000; color:#fff; font-size:10px; padding:1px 4px; font-family:Consolas;">C:\_</span> Command Prompt (SMEC-DNS2)</span>
+                        <span class="close-btn" onclick="closeWindow('s2-cmd-window')">X</span>
+                    </div>
+                    <div class="cmd-body" id="s2-cmd-body" onclick="document.getElementById('s2-cmd-input').focus()">
+                        <div id="s2-cmd-output" class="cmd-output">Microsoft Windows [Version 10.0.26100.1]
+(c) Microsoft Corporation. All rights reserved.
+
+</div>
+                        <div class="cmd-input-line">
+                            <span style="color:#f8fafc; font-weight:700;">C:\Users\Administrator&gt;</span>
+                            <input type="text" id="s2-cmd-input" class="cmd-input" autocomplete="off" onkeypress="if(event.key==='Enter') runS2Cmd()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- S2 Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('s2-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="s2-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DNS2)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openS2Run(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:5px;">Run</span>
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openS2ServerManager(); document.getElementById('s2-start-menu').style.display='none';">
+                            <div class="app-icon">🗄️</div>
+                            <span style="font-size:11px; font-weight:600; text-align:center;">Server<br>Manager</span>
+                        </div>
+                        <div class="app" onclick="openCmd('s2'); document.getElementById('s2-start-menu').style.display='none';">
+                            <div class="app-icon">💻</div>
+                            <span style="font-size:11px; font-weight:600;">CMD</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Dedicated Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 10</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Context Menus -->
+    <div id="ctx-s1-tech" class="context-menu">
+        <div onclick="document.getElementById('s1-zoneprops-window').style.display='flex'"><strong>Properties</strong></div>
+    </div>
+    <div id="ctx-s2-tech" class="context-menu">
+        <div id="ctx-s2-newhost-item" class="disabled-item" onclick="handleS2NewHostClick(event)">New Host (A or AAAA)...</div>
+        <div onclick="openS2ZoneProps(event)"><strong>Properties</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 's1';
+        let s1Verified = false;
+        let s1Offline = false;
+        let s2TechSelected = false;
+        let pendingPrimaryChange = false;
+        let s2ConvertedToPrimary = false;
+        let s2NewHostAdded = false;
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu, .sm-tools-dropdown').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3000);
+        }
+
+        function setBadge(id, text, cls) {
+            const el = document.getElementById(id);
+            el.innerText = text;
+            el.className = 's-badge ' + cls;
+        }
+
+        function switchMachine(m) {
+            activeMachine = m;
+            document.getElementById('s1-pc').classList.toggle('active-pc', m === 's1');
+            document.getElementById('s2-pc').classList.toggle('active-pc', m === 's2');
+            document.getElementById('btn-switch-s1').classList.toggle('active', m === 's1');
+            document.getElementById('btn-switch-s2').classList.toggle('active', m === 's2');
+            updateSidebarAttention();
+        }
+
+        function updateSidebarAttention() {
+            const b1 = document.getElementById('btn-switch-s1');
+            const b2 = document.getElementById('btn-switch-s2');
+            b1.classList.remove('attention');
+            b2.classList.remove('attention');
+            if (step <= 3 && activeMachine !== 's1') b1.classList.add('attention');
+            if (step >= 4 && step <= 10 && activeMachine !== 's2') b2.classList.add('attention');
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu, .sm-tools-dropdown').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleToolsMenu(id, e) {
+            e.stopPropagation();
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+        function toggleTree(el, e) { e.stopPropagation(); el.classList.toggle('expanded'); }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.context-menu').forEach(el => el.style.display = 'none');
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 225) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 10)} / 10`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER 1 (Verify Primary DNS):</strong> Open <b>Server Manager</b> &rarr; click <b>🔧 Tools &rarr; 🌐 DNS</b> to check the current Primary Zone on <b>SMEC-DC1</b>."; break;
+                case 2: text = "<strong>SERVER 1 (Verify Primary Zone):</strong> Click <b>tech.com (Primary)</b> under Forward Lookup Zones to confirm <code>tech.com</code> is hosted here as the <b>Primary</b> zone with <code>www.tech.com</code>."; break;
+                case 3: text = "<strong>SERVER 1 (Simulate Failure):</strong> Click <b>Start &rarr; ⏻ Shut down (Simulate Failure)</b> to simulate a Primary Server outage (in production, you only convert Secondary to Primary if the Primary Server fails!)."; break;
+                case 4: text = "<strong>SERVER 2 (Open DNS Manager):</strong> Switch to <b>🖥️ Server 2 (SMEC-DNS2)</b> on the left sidebar! Open <b>Server Manager &rarr; 🔧 Tools &rarr; 🌐 DNS</b> (or <code>Start &rarr; Run &rarr; dnsmgmt.msc</code>)."; break;
+                case 5: text = "<strong>SERVER 2 (Inspect Secondary Zone):</strong> Click <b>tech.com (Secondary)</b> under Forward Lookup Zones, then right-click <b>tech.com</b> and select <b>Properties</b>."; break;
+                case 6: text = "<strong>SERVER 2 (Change Zone Type):</strong> On the <b>General</b> tab (currently <code>Type: Secondary</code>), click the <b>Change...</b> button."; break;
+                case 7: text = "<strong>SERVER 2 (Select Primary Zone):</strong> Select <b>Primary zone</b> in the Change Zone Type window &rarr; click <b>OK</b> &rarr; click <b>Yes</b> on the confirmation popup."; break;
+                case 8: text = "<strong>SERVER 2 (Apply &amp; Save):</strong> Verify <code>Type: Primary</code> on the General tab and click <b>Apply</b> &amp; <b>OK</b> to finish converting <code>tech.com</code> to Primary!"; break;
+                case 9: text = "<strong>SERVER 2 (Test Writable Primary):</strong> Prove the zone is now writable! Right-click <b>tech.com (Primary)</b> &rarr; <b>New Host (A or AAAA)...</b> &rarr; add <code>mail</code> with IP <code>192.168.1.22</code> &rarr; Add Host &rarr; Done."; break;
+                case 10: text = "<strong>SERVER 2 (Verify Resolution):</strong> Open <b>Command Prompt</b> (<code>cmd</code>) on Server 2 and run <code>ping mail.tech.com</code> (or <code>ping www.tech.com</code>) while Server 1 is still offline!"; break;
+                case 11:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Failover Lab Complete!</strong> After Primary DNS (<code>SMEC-DC1</code>) failed, you promoted Secondary Zone <code>tech.com</code> on <b>SMEC-DNS2</b> to a writable <b>Primary Zone</b> and verified new record creation &amp; DNS resolution!";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        // --- SERVER 1: VERIFY PRIMARY & SIMULATE FAILURE ---
+        function openS1ServerManager() {
+            if (s1Offline) return;
+            document.getElementById('s1-sm-window').style.display = 'flex';
+        }
+
+        function openS1Dns(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('s1-tools-menu').style.display = 'none';
+            document.getElementById('s1-dns-window').style.display = 'flex';
+            if (step === 1) { step = 2; updateGuide(); }
+        }
+
+        function selectS1Zone(zone, el, e) {
+            if (e) e.stopPropagation();
+            document.querySelectorAll('#s1-dns-window li').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            const right = document.getElementById('s1-dns-right');
+            if (zone === 'tech.com') {
+                right.innerHTML = `
+                    <div style="margin-bottom:10px; padding:8px 12px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; color:#15803d; font-size:12px;">
+                        <strong>✓ Primary Zone Confirmed:</strong> <code>tech.com</code> is currently hosted on <b>SMEC-DC1 (192.168.1.1)</b> as a writable <b>Primary Zone</b>.
+                    </div>
+                    <table class="mmc-table">
+                        <tr><th>Name</th><th>Type</th><th>Data</th></tr>
+                        <tr><td>(same as parent folder)</td><td>Start of Authority (SOA)</td><td>[2], smec-dc1.smec.com., hostmaster.smec.com.</td></tr>
+                        <tr><td>(same as parent folder)</td><td>Name Server (NS)</td><td>smec-dc1.smec.com.</td></tr>
+                        <tr style="background:#eff6ff;"><td><strong>www</strong></td><td>Host (A)</td><td style="font-family:Consolas, monospace; font-weight:700;">192.168.1.1</td></tr>
+                    </table>`;
+                if (!s1Verified) {
+                    s1Verified = true;
+                    setBadge('st-s1check', 'Done ✓', 's-done');
+                    showToast("Primary Zone tech.com verified on SMEC-DC1! Now click Start -> Shut down to simulate failure.");
+                    if (step === 2) { step = 3; updateGuide(); }
+                }
+            } else {
+                right.innerHTML = `<table class="mmc-table"><tr><th>Name</th><th>Type</th><th>Data</th></tr><tr><td>smec-dc1</td><td>Host (A)</td><td>192.168.1.1</td></tr></table>`;
+            }
+        }
+
+        function promptS1Shutdown(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('s1-start-menu').style.display = 'none';
+            if (!s1Verified) { alert("First open Server Manager -> Tools -> DNS and click tech.com to verify it is Primary on SMEC-DC1!"); return; }
+            document.getElementById('s1-shutdown-confirm').style.display = 'flex';
+        }
+
+        function executeS1Shutdown() {
+            closeWindow('s1-shutdown-confirm');
+            closeWindow('s1-dns-window');
+            closeWindow('s1-sm-window');
+            s1Offline = true;
+            document.getElementById('s1-offline-overlay').style.display = 'flex';
+            document.getElementById('dot-s1').classList.add('offline');
+            document.getElementById('s1-side-sub').innerText = 'OFFLINE (Failed)';
+            setBadge('st-s1down', 'Failed ✕', 's-fail');
+            showToast("SMEC-DC1 is now OFFLINE! Switch to Server 2 (SMEC-DNS2) to promote Secondary DNS to Primary.");
+            if (step === 3) { step = 4; updateGuide(); }
+        }
+
+        // --- SERVER 2: CONVERT SECONDARY ZONE -> PRIMARY ZONE ---
+        function openS2ServerManager() {
+            if (!s1Offline) { alert("First verify Primary DNS on Server 1 and simulate its failure (Start -> Shut down)!"); return; }
+            document.getElementById('s2-sm-window').style.display = 'flex';
+        }
+
+        function openS2Run(e) {
+            e.stopPropagation();
+            document.getElementById('s2-start-menu').style.display = 'none';
+            document.getElementById('s2-run-window').style.display = 'flex';
+            const inp = document.getElementById('s2-run-input');
+            inp.value = ''; inp.focus();
+        }
+
+        function executeS2Run() {
+            const cmd = document.getElementById('s2-run-input').value.trim().toLowerCase();
+            closeWindow('s2-run-window');
+            if (cmd === 'dnsmgmt.msc') openS2Dns();
+            else if (cmd === 'cmd') openCmd('s2');
+            else if (cmd !== '') alert(`Windows cannot find '${cmd}'.`);
+        }
+
+        function openS2Dns(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('s2-tools-menu').style.display = 'none';
+            if (!s1Offline) { alert("First simulate Primary Server failure on Server 1!"); return; }
+            document.getElementById('s2-dns-window').style.display = 'flex';
+            if (step === 4) { step = 5; updateGuide(); }
+        }
+
+        function selectS2Tech(el, e) {
+            if (e) e.stopPropagation();
+            s2TechSelected = true;
+            document.querySelectorAll('#s2-dns-window li').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            renderS2DnsRight();
+        }
+
+        function renderS2DnsRight() {
+            const right = document.getElementById('s2-dns-right');
+            const banner = s2ConvertedToPrimary
+                ? `<div style="margin-bottom:10px; padding:8px 12px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; color:#15803d; font-size:12px;">
+                       <strong>✓ Converted to Primary Zone:</strong> <code>tech.com</code> is now writable on <b>SMEC-DNS2</b>! Right-click <b>tech.com &rarr; New Host (A)...</b> to add a new record.
+                   </div>`
+                : `<div style="margin-bottom:10px; padding:8px 12px; background:#fffbeb; border:1px solid #f59e0b; border-radius:4px; color:#92400e; font-size:12px;">
+                       <strong>🔒 Secondary Zone (Read-Only):</strong> Primary Server <code>192.168.1.1</code> is offline. Right-click <b>tech.com &rarr; Properties &rarr; General &rarr; Change...</b> to convert to <b>Primary</b>.
+                   </div>`;
+
+            const newHostRow = s2NewHostAdded
+                ? `<tr style="background:#ecfdf5;"><td><strong>mail</strong></td><td>Host (A)</td><td style="font-family:Consolas, monospace; font-weight:700; color:#15803d;">192.168.1.22</td></tr>`
+                : '';
+
+            right.innerHTML = `${banner}
+                <table class="mmc-table">
+                    <tr><th>Name</th><th>Type</th><th>Data</th></tr>
+                    <tr><td>(same as parent folder)</td><td>Start of Authority (SOA)</td><td>[${s2ConvertedToPrimary ? '3], smec-dns2.smec.com.' : '2], smec-dc1.smec.com.'}, hostmaster.smec.com.</td></tr>
+                    <tr><td>(same as parent folder)</td><td>Name Server (NS)</td><td>${s2ConvertedToPrimary ? 'smec-dns2.smec.com.' : 'smec-dc1.smec.com.'}</td></tr>
+                    <tr><td><strong>www</strong></td><td>Host (A)</td><td style="font-family:Consolas, monospace;">192.168.1.1</td></tr>
+                    ${newHostRow}
+                </table>`;
+        }
+
+        function showS2TechContext(e) {
+            const item = document.getElementById('ctx-s2-newhost-item');
+            if (s2ConvertedToPrimary) {
+                item.classList.remove('disabled-item');
+                item.innerHTML = '<strong>New Host (A or AAAA)...</strong>';
+            } else {
+                item.classList.add('disabled-item');
+                item.innerHTML = 'New Host (A or AAAA)... (Read-Only)';
+            }
+            showContext('ctx-s2-tech', e);
+        }
+
+        function handleS2NewHostClick(e) {
+            e.stopPropagation();
+            document.getElementById('ctx-s2-tech').style.display = 'none';
+            if (!s2ConvertedToPrimary) {
+                alert("Cannot add records! tech.com is currently a Read-Only Secondary Zone.\n\nRight-click tech.com -> Properties -> General -> Change... -> Primary zone first.");
+                return;
+            }
+            document.getElementById('s2-newhost-window').style.display = 'flex';
+            document.getElementById('s2-host-name').value = '';
+            document.getElementById('s2-host-ip').value = '';
+            document.getElementById('s2-host-fqdn').value = 'tech.com';
+            document.getElementById('s2-host-name').focus();
+        }
+
+        function openS2ZoneProps(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-s2-tech').style.display = 'none';
+            document.getElementById('s2-zoneprops-window').style.display = 'flex';
+            if (step === 5) { step = 6; updateGuide(); }
+        }
+
+        function openChangeZoneModal() {
+            document.getElementById('s2-changezone-window').style.display = 'flex';
+            if (step === 6) { step = 7; updateGuide(); }
+        }
+
+        function submitChangeZoneType() {
+            if (!document.getElementById('radio-cz-primary').checked) {
+                alert("Please select 'Primary zone' to convert the Secondary DNS zone to Primary!");
+                return;
+            }
+            document.getElementById('s2-confirm-primary-window').style.display = 'flex';
+        }
+
+        function confirmChangeToPrimary() {
+            pendingPrimaryChange = true;
+            closeWindow('s2-confirm-primary-window');
+            closeWindow('s2-changezone-window');
+            document.getElementById('s2-prop-type-lbl').innerText = 'Primary';
+            document.getElementById('s2-prop-type-lbl').style.color = '#15803d';
+            document.getElementById('s2-prop-type-desc').innerText = 'Writable Primary Zone (Click Apply & OK to save)';
+            if (step === 7) { step = 8; updateGuide(); }
+        }
+
+        function applyS2ZoneProps() {
+            if (!pendingPrimaryChange && !s2ConvertedToPrimary) {
+                alert("Click 'Change...' first and select 'Primary zone'!");
+                return false;
+            }
+            s2ConvertedToPrimary = true;
+            document.getElementById('s2-tech-node').innerText = 'tech.com (Primary ✓)';
+            document.getElementById('s2-tech-node').style.color = '#15803d';
+            document.getElementById('s2-side-sub').innerText = 'tech.com: Primary (Promoted ✓)';
+            document.getElementById('s2-top-label').childNodes[0].nodeValue = 'SMEC-DNS2 (Promoted Primary DNS) ';
+            document.getElementById('s2-top-sub').innerText = 'IP: 192.168.1.22 | Zone: tech.com (Primary - Writable)';
+            setBadge('st-convert', 'Primary ✓', 's-done');
+            renderS2DnsRight();
+            showToast("✓ tech.com converted from Secondary to Primary Zone!");
+            if (step === 8) { step = 9; updateGuide(); }
+            return true;
+        }
+
+        function okS2ZoneProps() {
+            if (applyS2ZoneProps()) closeWindow('s2-zoneprops-window');
+        }
+
+        // --- STEP 9: ADD NEW HOST RECORD ON PROMOTED PRIMARY ZONE ---
+        function updateS2Fqdn() {
+            const n = document.getElementById('s2-host-name').value.trim();
+            document.getElementById('s2-host-fqdn').value = n ? `${n}.tech.com` : 'tech.com';
+        }
+
+        function addS2HostRecord() {
+            const n = document.getElementById('s2-host-name').value.trim().toLowerCase();
+            const ip = document.getElementById('s2-host-ip').value.trim();
+            if (n !== 'mail') { alert("Please enter Host Name: mail"); return; }
+            if (ip !== '192.168.1.22') { alert("Please enter IP address: 192.168.1.22"); return; }
+            s2NewHostAdded = true;
+            alert("The host record mail.tech.com was successfully created on the newly promoted Primary DNS!");
+            closeWindow('s2-newhost-window');
+            renderS2DnsRight();
+            showToast("✓ Writable Primary verified! Now open CMD and run ping mail.tech.com.");
+            if (step === 9) { step = 10; updateGuide(); }
+        }
+
+        // --- STEP 10: CMD PING TEST ---
+        function openCmd(m) {
+            document.getElementById(m + '-cmd-window').style.display = 'flex';
+            setTimeout(() => document.getElementById(m + '-cmd-input').focus(), 40);
+        }
+
+        function runS2Cmd() {
+            const inp = document.getElementById('s2-cmd-input');
+            const out = document.getElementById('s2-cmd-output');
+            const raw = inp.value.trim();
+            const cmd = raw.toLowerCase().replace(/\s+/g, ' ');
+            inp.value = '';
+            let res = `C:\\Users\\Administrator> ${raw}\n`;
+
+            if (cmd === 'cls') { out.textContent = ''; return; }
+            if (cmd === 'ping mail.tech.com') {
+                if (!s2NewHostAdded) {
+                    res += `Ping request could not find host mail.tech.com. Convert tech.com to Primary and add Host 'mail' first.\n\n`;
+                } else {
+                    res += `\nPinging mail.tech.com [192.168.1.22] with 32 bytes of data:\nReply from 192.168.1.22: bytes=32 time<1ms TTL=128\nReply from 192.168.1.22: bytes=32 time<1ms TTL=128\nReply from 192.168.1.22: bytes=32 time<1ms TTL=128\nReply from 192.168.1.22: bytes=32 time<1ms TTL=128\n\nPing statistics for 192.168.1.22:\n    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss)\n\n`;
+                    setBadge('st-verify', 'Done ✓', 's-done');
+                    if (step === 10) { step = 11; updateGuide(); showToast("🎉 DNS Failover Lab Complete!"); }
+                }
+            } else if (cmd === 'ping www.tech.com') {
+                res += `\nPinging www.tech.com [192.168.1.1] with 32 bytes of data:\nRequest timed out. (DNS resolved 192.168.1.1 from SMEC-DNS2, host 192.168.1.1 is offline)\n\n`;
+                if (s2NewHostAdded && step === 10) {
+                    setBadge('st-verify', 'Done ✓', 's-done');
+                    step = 11; updateGuide();
+                    showToast("🎉 DNS Failover Lab Complete!");
+                }
+            } else if (cmd !== '') {
+                res += `'${raw}' is not recognized. Try 'ping mail.tech.com' or 'ping www.tech.com'.\n\n`;
+            }
+
+            out.textContent += res;
+            document.getElementById('s2-cmd-body').scrollTop = document.getElementById('s2-cmd-body').scrollHeight;
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
