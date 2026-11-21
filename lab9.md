@@ -2,6 +2,15 @@
 
 An interactive, single-file web-based **Windows Server 2025 & Domain-Joined Client Simulator** designed for hands-on Active Directory and Group Policy training. This lab walks learners step-by-step through configuring an **Account Lockout Policy** inside the **Default Domain Policy**, testing account lockout on a client workstation, and unlocking the user account in Active Directory Users and Computers (ADUC).
 
+<div align="center">
+
+### 📦 GPO Account Lockout Policy — Interactive Windows Server 2025 & Client Lab
+
+[![Click to Launch Interactive Lab](https://img.shields.io/badge/▶_CLICK_TO_START-INTERACTIVE_LAB-28a745?style=for-the-badge)](https://tibinjohn193-blip.github.io/az-802/lab9.html)
+
+
+
+</div>
 ---
 
 ## Table of Contents
