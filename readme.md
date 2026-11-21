@@ -46,6 +46,11 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *  [🖥️ Lab 15:  FSMO Role Migration (ntdsutil) ](lab15.md)
 
+*  [🖥️ Lab 16:  Primary & Secondary DNS with Zone Transfer  ](lab16.md)
+
+
+
+
 
 
 
