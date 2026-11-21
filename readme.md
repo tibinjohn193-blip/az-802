@@ -56,7 +56,13 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *   [🖥️ Lab 20: IIS HTTP Redirection Lab](lab20.md)
 
-*   [🖥️ Lab 21: IIS FTP Server Hosting with Authentication Lab](lab21.md) 
+*   [🖥️ Lab 21: IIS FTP Server Hosting with Authentication Lab](lab21.md)
+
+*   [🖥️ Lab 22: Volume Shadow Copy (VSS) Backup & File Recovery Lab](lab22.md)
+
+
+
+
 
   
 
