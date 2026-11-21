@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: IIS Website Hosting with DNS, HTTP Redirection &amp; FTP (www.tech.com) v2</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea { user-select: text; }
+
+        /* ==================== LEFT SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .server-card {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border: 2px solid #93c5fd;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .server-card-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .server-card-sub { font-size: 10.5px; opacity: 0.9; margin-top: 2px; }
+        .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; }
+
+        .status-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            color: #cbd5e1;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3.5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .status-row:last-child { border-bottom: none; }
+        .s-badge {
+            font-family: Consolas, monospace;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .s-pending { background: #334155; color: #94a3b8; }
+        .s-done { background: #14532d; color: #86efac; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%);
+        }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 104px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 7px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 28px; margin-bottom: 3px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 10px 6px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 24px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 16px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], textarea, select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus, textarea:focus, select:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10030; }
+        #sm-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10001; }
+        #addroles-window { width: 780px; height: 505px; top: 30px; left: 50%; transform: translateX(-50%); z-index: 10018; }
+        #dns-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10005; }
+        #newzone-window { width: 540px; height: 420px; top: 55px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #newhost-window { width: 430px; height: 320px; top: 85px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #explorer-window { width: 82%; height: 76%; top: 48px; left: 9%; z-index: 10008; }
+        #notepad-window { width: 560px; height: 390px; top: 55px; left: 50%; transform: translateX(-50%); z-index: 10028; }
+        #saveas-window { width: 480px; height: 295px; top: 105px; left: 50%; transform: translateX(-50%); z-index: 10040; }
+        .np-menu-wrap { position: relative; display: flex; gap: 4px; background: #fafafa; border-bottom: 1px solid #d4d4d4; padding: 3px 8px; font-size: 12px; }
+        .np-menu-btn { padding: 3px 9px; border-radius: 3px; cursor: pointer; }
+        .np-menu-btn:hover { background: #e5f1fb; }
+        .np-dropdown { display: none; position: absolute; top: 28px; left: 8px; width: 170px; background: #fff; border: 1px solid #bbb; box-shadow: 0 6px 18px rgba(0,0,0,0.22); border-radius: 4px; padding: 4px; z-index: 10055; }
+        .np-dropdown div { padding: 6px 12px; cursor: pointer; border-radius: 3px; font-size: 12px; display: flex; justify-content: space-between; }
+        .np-dropdown div:hover { background: var(--win-blue); color: #fff; }
+        .np-dropdown div.muted { color: #94a3b8; cursor: default; }
+        .np-dropdown div.muted:hover { background: transparent; color: #94a3b8; }
+        #iis-window { width: 90%; height: 82%; top: 34px; left: 5%; z-index: 10012; }
+        #addsite-window { width: 520px; height: 460px; top: 44px; left: 50%; transform: translateX(-50%); z-index: 10028; }
+        #defdoc-add-window { width: 410px; height: 210px; top: 140px; left: 50%; transform: translateX(-50%); z-index: 10035; }
+        #browser-window { width: 86%; height: 80%; top: 40px; left: 7%; z-index: 10015; }
+
+        /* Server Manager Header & Tools Dropdown */
+        .sm-header {
+            background: #005a9e;
+            color: #fff;
+            padding: 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12.5px;
+        }
+        .sm-tools-btn {
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.16);
+            font-weight: 700;
+        }
+        .sm-tools-btn:hover { background: rgba(255,255,255,0.28); }
+        .sm-tools-dropdown {
+            display: none;
+            position: absolute;
+            top: 72px;
+            right: 16px;
+            width: 280px;
+            background: #fff;
+            border: 1px solid #999;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 10050;
+            padding: 4px;
+            color: #222;
+            font-size: 12.5px;
+        }
+        .sm-tools-dropdown div { padding: 7px 12px; cursor: pointer; border-radius: 3px; }
+        .sm-tools-dropdown div:hover { background: var(--win-blue); color: #fff; }
+        .sm-tools-dropdown div.muted { color: #888; cursor: default; }
+        .sm-tools-dropdown div.muted:hover { background: transparent; color: #888; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 215px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+
+        /* Wizard Layout */
+        .wiz-layout { display: flex; flex: 1; min-height: 0; background: #fff; }
+        .wiz-side { width: 210px; background: #f4f6f9; border-right: 1px solid #d4d4d4; padding: 12px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+        .wiz-step { padding: 6px 8px; border-radius: 4px; color: #64748b; }
+        .wiz-step.active { background: #e5f1fb; color: #005a9e; font-weight: 700; border-left: 3px solid var(--win-blue); }
+        .wiz-step.done { color: #15803d; }
+        .wiz-main { flex: 1; padding: 16px 20px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; }
+
+        .prog-track { width: 100%; height: 14px; background: #e2e8f0; border-radius: 7px; overflow: hidden; margin: 12px 0; }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0078D7, #16a34a); transition: width 0.45s ease; }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 18px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .icon-srv::before { content: '🖥️ '; }
+        .icon-folder::before { content: '📁 '; }
+        .icon-zone::before { content: '🌐 '; }
+        .icon-site::before { content: '🌍 '; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 10px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 10px; border-bottom: 1px solid #efefef; }
+
+        /* IIS Feature Tiles */
+        .iis-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px; }
+        .iis-tile {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            cursor: pointer;
+            background: #fafafa;
+            font-size: 11.5px;
+        }
+        .iis-tile:hover { background: #e5f1fb; border-color: #60a5fa; }
+        .iis-tile .t-ico { font-size: 26px; margin-bottom: 6px; }
+
+        /* File Explorer */
+        .exp-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #fafafa;
+            border-bottom: 1px solid #d4d4d4;
+        }
+        .exp-path {
+            flex: 1;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            color: #0f172a;
+        }
+        .exp-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .exp-item:hover { background: #e5f1fb; border-color: #93c5fd; }
+
+        /* Browser */
+        .browser-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #f1f5f9;
+            border-bottom: 1px solid #cbd5e1;
+        }
+        .browser-bar input { flex: 1; font-family: Consolas, monospace; font-size: 13px; }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🌍 IIS Web Hosting Lab</h2>
+            <span>Windows Server 2025</span>
+        </div>
+
+        <div class="server-card">
+            <div class="server-card-header"><span>🖥️ SMEC-DC1</span><span class="status-dot"></span></div>
+            <div class="server-card-sub">IP: 192.168.1.1 | Domain: smec.com</div>
+            <div class="server-card-sub" id="side-role-lbl">Roles: AD DS, DNS</div>
+        </div>
+
+        <!-- Live Progress Checklist -->
+        <div class="status-card">
+            <div style="font-weight:700; color:#f8fafc; margin-bottom:5px;">📊 Lab Progress</div>
+            <div class="status-row"><span>1. DNS Zone (tech.com)</span><span id="st-dnszone" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>2. Host A (www.tech.com)</span><span id="st-dnshost" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>3. IIS + Redirect + FTP</span><span id="st-iis" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>4. inetpub\site1\a.html</span><span id="st-folder" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>5. IIS Add Website</span><span id="st-site" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>6. Default Doc (a.html)</span><span id="st-defdoc" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>7. Browser Live Test</span><span id="st-browse" class="s-badge s-pending">Pending</span></div>
+        </div>
+
+        <div class="lab-info-card">
+            <div><strong>AD Domain:</strong> <code>smec.com</code></div>
+            <div><strong>Server IP:</strong> <code>192.168.1.1</code></div>
+            <div><strong>DNS Zone:</strong> <code>tech.com</code></div>
+            <div><strong>Host (A):</strong> <code>www</code> &rarr; <code>192.168.1.1</code></div>
+            <div><strong>Role Services:</strong> <code>HTTP Redirection</code>, <code>FTP Server</code></div>
+            <div><strong>Site Path:</strong> <code>C:\inetpub\site1</code></div>
+            <div><strong>Web Page:</strong> <code>a.html</code></div>
+            <div><strong>URL:</strong> <code>http://www.tech.com</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <div class="pc-label">
+                SMEC-DC1 (AD DS · DNS · IIS Web Server)
+                <span id="top-sub">IP: 192.168.1.1 | Domain: smec.com | IIS: Not Installed</span>
+            </div>
+
+            <!-- Desktop Icons -->
+            <div class="desktop-icons">
+                <div class="d-icon" onclick="openServerManager()">
+                    <div class="ico">🗄️</div>
+                    <span>Server Manager</span>
+                </div>
+                <div class="d-icon" onclick="openDnsManager()">
+                    <div class="ico">🌐</div>
+                    <span>DNS Manager</span>
+                </div>
+                <div class="d-icon" onclick="openExplorer('root')">
+                    <div class="ico">📁</div>
+                    <span>File Explorer</span>
+                </div>
+                <div class="d-icon" id="desktop-iis-icon" style="display:none;" onclick="openIisManager()">
+                    <div class="ico">⚙️</div>
+                    <span><strong>IIS Manager</strong></span>
+                </div>
+                <div class="d-icon" onclick="openBrowser()">
+                    <svg width="30" height="30" viewBox="0 0 48 48" style="display:block; margin-bottom:3px;"><defs><linearGradient id="eg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0c59a4"/><stop offset="100%" stop-color="#114a8b"/></linearGradient><linearGradient id="eg2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1b9de2"/><stop offset="55%" stop-color="#35c1f1"/><stop offset="100%" stop-color="#50e6ff"/></linearGradient><linearGradient id="eg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#42e895"/><stop offset="100%" stop-color="#18a36e"/></linearGradient></defs><path d="M43.2 28.4c-1.8 1-4 1.6-6.3 1.6-7.7 0-13.5-5.6-13.5-12.1 0-3.2 1.6-6 4.1-7.6-7.6.3-13.7 6.5-13.7 14.2 0 7.8 6.4 14.2 14.2 14.2 6.8 0 12.6-4.7 14.1-11.1.3-.1.8.4 1.1.8z" fill="url(#eg1)"/><path d="M24 4C12.95 4 4 12.95 4 24c0 8.5 5.3 15.7 12.8 18.6-3.7-3.1-5.8-7.6-5.8-12.8 0-8.8 7.1-15.9 15.9-15.9 2.9 0 5.6.8 8 2.2 2.4 1.4 4.1 3.7 4.7 6.4.4 1.9-.6 3.7-2.4 4.4 3.9-.2 6.8-3.4 6.8-7.4C44 10.7 35.1 4 24 4z" fill="url(#eg2)"/><path d="M24 4C15.5 4 8.2 9.3 5.3 16.8c3.6-4.5 9.2-7.4 15.5-7.4 6.8 0 12.8 3.4 16.3 8.6 1.2 1.8 1.9 3.9 1.9 6.1 0 .6-.1 1.2-.2 1.8 2.9-1.9 4.9-5.1 5.1-8.8C43.4 9.7 34.6 4 24 4z" fill="url(#eg3)" opacity="0.88"/></svg>
+                    <span>Microsoft Edge</span>
+                </div>
+            </div>
+
+            <!-- Run Window -->
+            <div id="run-window" class="window">
+                <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('run-window')">X</span></div>
+                <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                    <div style="flex:1;">
+                        <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>dnsmgmt.msc</code>, <code>inetmgr</code> (IIS Manager), or <code>explorer</code>.</p>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label style="font-weight:600;">Open:</label>
+                            <input type="text" id="run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun()">
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="executeRun()">OK</button>
+                    <button onclick="closeWindow('run-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Server Manager -->
+            <div id="sm-window" class="window">
+                <div class="title-bar"><span>Server Manager - SMEC-DC1</span><span class="close-btn" onclick="closeWindow('sm-window')">X</span></div>
+                <div class="sm-header">
+                    <div style="font-weight:700;">Dashboard · Server Manager (SMEC-DC1)</div>
+                    <div class="sm-tools-btn" onclick="toggleToolsMenu(event)">🔧 Tools &#9662;</div>
+                </div>
+                <div id="sm-tools-menu" class="sm-tools-dropdown">
+                    <div class="muted">Active Directory Users and Computers</div>
+                    <div onclick="openDnsManager(event)"><strong>🌐 DNS</strong></div>
+                    <div id="sm-tools-iis" style="display:none;" onclick="openIisManager(event)"><strong>⚙️ Internet Information Services (IIS) Manager</strong></div>
+                </div>
+                <div class="content" style="background:#f8fafc; padding:18px; display:flex; flex-direction:column; gap:16px;">
+                    <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h3 style="margin:0 0 4px 0; color:#0f172a;">Configure this local server</h3>
+                            <div style="font-size:12px; color:#475569;">Server: <strong>SMEC-DC1.smec.com</strong> | IP: <strong>192.168.1.1</strong></div>
+                        </div>
+                        <button class="primary-btn" onclick="openAddRolesWizard()">+ Add roles and features</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; font-size:12px;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                            <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">DNS Zone (tech.com)</div>
+                            <div id="sm-card-dns" style="font-weight:700; color:#b45309; margin-top:4px;">Pending</div>
+                        </div>
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                            <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">Web Server (IIS)</div>
+                            <div id="sm-card-iis" style="font-weight:700; color:#64748b; margin-top:4px;">Not Installed</div>
+                        </div>
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                            <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">FTP &amp; HTTP Redirect</div>
+                            <div id="sm-card-ftp" style="font-weight:700; color:#64748b; margin-top:4px;">Not Installed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Roles and Features Wizard (IIS + HTTP Redirection + FTP Server) -->
+            <div id="addroles-window" class="window">
+                <div class="title-bar"><span>Add Roles and Features Wizard (Web Server IIS)</span><span class="close-btn" onclick="closeWindow('addroles-window')">X</span></div>
+                <div class="wiz-layout">
+                    <div class="wiz-side">
+                        <div class="wiz-step active" id="ar-nav-1">Before You Begin</div>
+                        <div class="wiz-step" id="ar-nav-2">Installation Type</div>
+                        <div class="wiz-step" id="ar-nav-3">Server Selection</div>
+                        <div class="wiz-step" id="ar-nav-4">Server Roles</div>
+                        <div class="wiz-step" id="ar-nav-5">Features</div>
+                        <div class="wiz-step" id="ar-nav-6">Web Server Role (IIS)</div>
+                        <div class="wiz-step" id="ar-nav-7">Role Services</div>
+                        <div class="wiz-step" id="ar-nav-8">Confirmation</div>
+                        <div class="wiz-step" id="ar-nav-9">Results</div>
+                    </div>
+                    <div class="wiz-main" id="ar-main-pane"></div>
+                </div>
+                <div class="dialog-footer">
+                    <button id="ar-prev-btn" onclick="arPrev()" style="display:none;">&lt; Previous</button>
+                    <button id="ar-next-btn" class="primary-btn" onclick="arNext()">Next &gt;</button>
+                    <button onclick="closeWindow('addroles-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- DNS Manager -->
+            <div id="dns-window" class="window">
+                <div class="title-bar"><span>DNS Manager [SMEC-DC1.smec.com]</span><span class="close-btn" onclick="closeWindow('dns-window')">X</span></div>
+                <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                <div class="content" style="display:flex; padding:0; background:#fff;">
+                    <div style="width: 38%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                        <ul class="tree-view">
+                            <li class="icon-folder expanded" onclick="toggleTree(this, event)">DNS
+                                <ul>
+                                    <li class="icon-srv expanded" onclick="toggleTree(this, event)">SMEC-DC1
+                                        <ul>
+                                            <li class="icon-folder expanded" onclick="toggleTree(this, event)" oncontextmenu="showContext('ctx-flz', event)" style="font-weight:600; color:#005a9e;">Forward Lookup Zones
+                                                <ul id="dns-flz-list">
+                                                    <li class="icon-zone" onclick="selectDnsZone('smec.com', this, event)">smec.com</li>
+                                                </ul>
+                                            </li>
+                                            <li class="icon-folder">Reverse Lookup Zones</li>
+                                        </ul>
+                                    </li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                    <div style="width: 62%; padding: 12px; overflow:auto;" id="dns-right" oncontextmenu="if(selectedDnsZone==='tech.com') showContext('ctx-tech-zone', event)">
+                        <div style="color:#555; font-size:12.5px; padding:10px; line-height:1.55;">
+                            Right-click <b>Forward Lookup Zones</b> on the left &rarr; click <b>New Zone...</b> to create the Primary Zone <code>tech.com</code>.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Zone Wizard (tech.com) -->
+            <div id="newzone-window" class="window">
+                <div class="title-bar"><span>New Zone Wizard</span><span class="close-btn" onclick="closeWindow('newzone-window')">X</span></div>
+                <div class="content" id="nz-pane" style="background:#fff; padding:18px; font-size:12.5px; line-height:1.55;"></div>
+                <div class="dialog-footer">
+                    <button id="nz-prev" onclick="nzPrev()" style="display:none;">&lt; Back</button>
+                    <button id="nz-next" class="primary-btn" onclick="nzNext()">Next &gt;</button>
+                    <button onclick="closeWindow('newzone-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- New Host (A) Modal -->
+            <div id="newhost-window" class="window">
+                <div class="title-bar"><span>New Host</span><span class="close-btn" onclick="closeWindow('newhost-window')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:10px;">
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:4px;">Name:</label>
+                        <input type="text" id="host-name-inp" placeholder="www" style="width:100%;" oninput="updateHostFqdn()" autocomplete="off">
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:4px;">FQDN:</label>
+                        <input type="text" id="host-fqdn-preview" value="tech.com" readonly style="width:100%; background:#f8fafc; font-family:Consolas, monospace;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:4px;">IP address:</label>
+                        <input type="text" id="host-ip-inp" placeholder="192.168.1.1" style="width:100%;" autocomplete="off" onkeypress="if(event.key==='Enter') addHostRecord()">
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="addHostRecord()">Add Host</button>
+                    <button onclick="closeWindow('newhost-window')">Done</button>
+                </div>
+            </div>
+
+            <!-- File Explorer (C:\inetpub -> Right-click New Folder -> Right-click New Text Document -> Notepad -> Save As a.html) -->
+            <div id="explorer-window" class="window">
+                <div class="title-bar"><span>File Explorer</span><span class="close-btn" onclick="closeWindow('explorer-window')">X</span></div>
+                <div class="exp-toolbar">
+                    <button onclick="expGoUp()">&#8593; Up</button>
+                    <div id="exp-path-bar" class="exp-path">C:\</div>
+                    <span id="exp-hint-pill" style="font-size:11px; color:#005a9e; font-weight:600;"></span>
+                </div>
+                <div class="content" style="background:#fff; padding:14px;" id="exp-body" oncontextmenu="handleExpContextMenu(event)"></div>
+            </div>
+
+            <!-- Authentic Windows Notepad Window -->
+            <div id="notepad-window" class="window">
+                <div class="title-bar"><span id="notepad-title">New Text Document.txt - Notepad</span><span class="close-btn" onclick="closeWindow('notepad-window')">X</span></div>
+                <div class="np-menu-wrap">
+                    <div class="np-menu-btn" onclick="toggleNotepadFileMenu(event)"><strong>File</strong></div>
+                    <div class="np-menu-btn" style="color:#666;">Edit</div>
+                    <div class="np-menu-btn" style="color:#666;">Format</div>
+                    <div class="np-menu-btn" style="color:#666;">View</div>
+                    <div class="np-menu-btn" style="color:#666;">Help</div>
+                    <div id="np-file-menu" class="np-dropdown">
+                        <div class="muted"><span>New</span><span>Ctrl+N</span></div>
+                        <div class="muted"><span>Save</span><span>Ctrl+S</span></div>
+                        <div onclick="openSaveAsModal(event)" style="font-weight:700; color:#005a9e;"><span>Save As...</span><span>Ctrl+Shift+S</span></div>
+                        <div onclick="closeWindow('notepad-window')"><span>Exit</span><span></span></div>
+                    </div>
+                </div>
+                <textarea id="notepad-editor" placeholder="Type your website text here (e.g. Welcome)..." style="flex:1; border:none; padding:12px; font-family:Consolas, 'Courier New', monospace; font-size:13.5px; resize:none; outline:none; background:#fff; color:#111;"></textarea>
+                <div style="background:#f3f3f3; border-top:1px solid #ddd; padding:4px 12px; font-size:11px; color:#555; display:flex; justify-content:space-between;">
+                    <span>Tip: Type <b>Welcome</b> (or HTML), then click <b>File &rarr; Save As...</b></span>
+                    <span>UTF-8 | Windows (CRLF)</span>
+                </div>
+            </div>
+
+            <!-- Authentic Windows Save As Dialog -->
+            <div id="saveas-window" class="window">
+                <div class="title-bar"><span>Save As</span><span class="close-btn" onclick="closeWindow('saveas-window')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:11px;">
+                    <div style="background:#f8fafc; border:1px solid #cbd5e1; padding:6px 10px; border-radius:3px; font-family:Consolas, monospace; font-size:12px; color:#334155;">
+                        📁 C:\inetpub\site1
+                    </div>
+                    <div style="display:grid; grid-template-columns:95px 1fr; gap:9px; align-items:center;">
+                        <label style="font-weight:600;">File name:</label>
+                        <input type="text" id="saveas-filename" placeholder="a.html" style="width:100%; font-family:Consolas, monospace;" autocomplete="off" onkeypress="if(event.key==='Enter') executeSaveAs()">
+                        <label style="font-weight:600;">Save as type:</label>
+                        <select id="saveas-type" style="width:100%;">
+                            <option value="all">All Files (*.*)</option>
+                            <option value="txt">Text Documents (*.txt)</option>
+                        </select>
+                    </div>
+                    <div style="font-size:11.5px; color:#475569;">
+                        Enter <code>a.html</code> (or any <code>.html</code> filename) and click <b>Save</b>.
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="executeSaveAs()">Save</button>
+                    <button onclick="closeWindow('saveas-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- IIS Manager (inetmgr) -->
+            <div id="iis-window" class="window">
+                <div class="title-bar"><span>Internet Information Services (IIS) Manager [SMEC-DC1]</span><span class="close-btn" onclick="closeWindow('iis-window')">X</span></div>
+                <div class="menu-bar"><span>File</span><span>View</span><span>Help</span></div>
+                <div class="content" style="display:flex; padding:0; background:#fff;">
+                    <!-- Left Connections Tree -->
+                    <div style="width: 30%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                        <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:6px;">Connections</div>
+                        <ul class="tree-view">
+                            <li class="icon-srv expanded" onclick="toggleTree(this, event)">SMEC-DC1 (SMEC\Administrator)
+                                <ul>
+                                    <li class="icon-folder">Application Pools</li>
+                                    <li class="icon-folder expanded" id="iis-sites-node" onclick="selectIisNode('sites', this, event)" oncontextmenu="showContext('ctx-iis-sites', event)" style="color:#005a9e; font-weight:700;">Sites
+                                        <ul id="iis-sites-list">
+                                            <li class="icon-site" onclick="selectIisNode('default', this, event)">Default Web Site</li>
+                                        </ul>
+                                    </li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                    <!-- Center Workspace -->
+                    <div style="width: 50%; padding: 14px; overflow-y: auto; border-right: 1px solid #e2e8f0;" id="iis-center">
+                        <div style="color:#555; font-size:12.5px; line-height:1.6;">
+                            Right-click <b>Sites</b> on the left panel (or click <b>Add Website...</b> in Actions) to host <code>site1</code> for <code>www.tech.com</code>.
+                        </div>
+                    </div>
+                    <!-- Right Actions Pane -->
+                    <div style="width: 20%; background:#f8fafc; padding: 12px; font-size:12px;" id="iis-actions">
+                        <div style="font-weight:700; color:#0f172a; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:10px;">Actions</div>
+                        <div id="iis-actions-body" style="display:flex; flex-direction:column; gap:8px;">
+                            <a href="#" onclick="openAddWebsiteModal(event)" style="color:#0078D7; font-weight:600; text-decoration:none;">➕ Add Website...</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Website Modal -->
+            <div id="addsite-window" class="window">
+                <div class="title-bar"><span>Add Website</span><span class="close-btn" onclick="closeWindow('addsite-window')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:10px;">
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:4px;">Site name:</label>
+                        <input type="text" id="as-name" placeholder="site1" style="width:100%;" autocomplete="off">
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:4px;">Physical path:</label>
+                        <div style="display:flex; gap:6px;">
+                            <input type="text" id="as-path" placeholder="C:\inetpub\site1" style="flex:1; font-family:Consolas, monospace;" autocomplete="off">
+                            <button onclick="document.getElementById('as-path').value='C:\\inetpub\\site1'">Browse...</button>
+                        </div>
+                    </div>
+                    <div style="border:1px solid #cbd5e1; padding:10px; border-radius:4px; background:#f8fafc;">
+                        <div style="font-weight:700; margin-bottom:8px; color:#005a9e;">Binding</div>
+                        <div style="display:grid; grid-template-columns:100px 1fr; gap:8px; align-items:center;">
+                            <label>Type:</label>
+                            <select id="as-type"><option value="http">http</option><option value="https">https</option></select>
+                            <label>IP address:</label>
+                            <select id="as-ip"><option value="192.168.1.1">192.168.1.1</option><option value="*">All Unassigned</option></select>
+                            <label>Port:</label>
+                            <input type="text" id="as-port" value="80">
+                            <label style="font-weight:600;">Host name:</label>
+                            <input type="text" id="as-host" placeholder="www.tech.com" autocomplete="off" onkeypress="if(event.key==='Enter') saveAddWebsite()">
+                        </div>
+                    </div>
+                    <label style="font-size:12px;"><input type="checkbox" checked disabled> Start Website immediately</label>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="saveAddWebsite()">OK</button>
+                    <button onclick="closeWindow('addsite-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Add Default Document Modal (a.html) -->
+            <div id="defdoc-add-window" class="window">
+                <div class="title-bar"><span>Add Default Document</span><span class="close-btn" onclick="closeWindow('defdoc-add-window')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px;">
+                    <label style="display:block; font-weight:600; margin-bottom:6px;">Name:</label>
+                    <input type="text" id="defdoc-inp" placeholder="a.html" style="width:100%; font-family:Consolas, monospace;" autocomplete="off" onkeypress="if(event.key==='Enter') saveDefaultDoc()">
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="saveDefaultDoc()">OK</button>
+                    <button onclick="closeWindow('defdoc-add-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Microsoft Edge Web Browser -->
+            <div id="browser-window" class="window">
+                <div class="title-bar"><span>Microsoft Edge - Test Hosted Website</span><span class="close-btn" onclick="closeWindow('browser-window')">X</span></div>
+                <div class="browser-bar">
+                    <button onclick="navigateBrowser()">&#8635;</button>
+                    <input type="text" id="browser-url" placeholder="http://www.tech.com" autocomplete="off" onkeypress="if(event.key==='Enter') navigateBrowser()">
+                    <button class="primary-btn" onclick="navigateBrowser()">Go &rarr;</button>
+                </div>
+                <div class="content" style="background:#fff; padding:24px;" id="browser-viewport">
+                    <div style="text-align:center; color:#64748b; margin-top:40px;">
+                        <svg width="48" height="48" viewBox="0 0 48 48" style="display:block; margin:0 auto 8px;"><defs><linearGradient id="eg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0c59a4"/><stop offset="100%" stop-color="#114a8b"/></linearGradient><linearGradient id="eg2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1b9de2"/><stop offset="55%" stop-color="#35c1f1"/><stop offset="100%" stop-color="#50e6ff"/></linearGradient><linearGradient id="eg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#42e895"/><stop offset="100%" stop-color="#18a36e"/></linearGradient></defs><path d="M43.2 28.4c-1.8 1-4 1.6-6.3 1.6-7.7 0-13.5-5.6-13.5-12.1 0-3.2 1.6-6 4.1-7.6-7.6.3-13.7 6.5-13.7 14.2 0 7.8 6.4 14.2 14.2 14.2 6.8 0 12.6-4.7 14.1-11.1.3-.1.8.4 1.1.8z" fill="url(#eg1)"/><path d="M24 4C12.95 4 4 12.95 4 24c0 8.5 5.3 15.7 12.8 18.6-3.7-3.1-5.8-7.6-5.8-12.8 0-8.8 7.1-15.9 15.9-15.9 2.9 0 5.6.8 8 2.2 2.4 1.4 4.1 3.7 4.7 6.4.4 1.9-.6 3.7-2.4 4.4 3.9-.2 6.8-3.4 6.8-7.4C44 10.7 35.1 4 24 4z" fill="url(#eg2)"/><path d="M24 4C15.5 4 8.2 9.3 5.3 16.8c3.6-4.5 9.2-7.4 15.5-7.4 6.8 0 12.8 3.4 16.3 8.6 1.2 1.8 1.9 3.9 1.9 6.1 0 .6-.1 1.2-.2 1.8 2.9-1.9 4.9-5.1 5.1-8.8C43.4 9.7 34.6 4 24 4z" fill="url(#eg3)" opacity="0.88"/></svg>
+                        <h3 style="margin:0 0 6px 0; color:#334155;">Microsoft Edge</h3>
+                        <p style="font-size:13px;">Type <code>http://www.tech.com</code> in the address bar above and press <b>Enter</b>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Taskbar & Start Menu -->
+            <div class="taskbar">
+                <div class="start-btn" onclick="toggleMenu('start-menu', event)" title="Start">
+                    <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                </div>
+            </div>
+
+            <div id="start-menu" class="start-menu">
+                <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                <div class="app-grid">
+                    <div class="app" onclick="openRun(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                        <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                    </div>
+                    <div class="app" onclick="openServerManager(); document.getElementById('start-menu').style.display='none';">
+                        <div class="app-icon">🗄️</div>
+                        <span style="font-size:11px; font-weight:600;">Server Manager</span>
+                    </div>
+                    <div class="app" onclick="openDnsManager(); document.getElementById('start-menu').style.display='none';">
+                        <div class="app-icon">🌐</div>
+                        <span style="font-size:11px; font-weight:600;">DNS Manager</span>
+                    </div>
+                    <div class="app" onclick="openExplorer('root'); document.getElementById('start-menu').style.display='none';">
+                        <div class="app-icon">📁</div>
+                        <span style="font-size:11px; font-weight:600;">File Explorer</span>
+                    </div>
+                    <div class="app" id="start-iis-app" style="display:none;" onclick="openIisManager(); document.getElementById('start-menu').style.display='none';">
+                        <div class="app-icon">⚙️</div>
+                        <span style="font-size:11px; font-weight:600;">IIS Manager</span>
+                    </div>
+                    <div class="app" onclick="openBrowser(); document.getElementById('start-menu').style.display='none';">
+                        <svg width="24" height="24" viewBox="0 0 48 48" style="display:block; margin-bottom:3px;"><defs><linearGradient id="eg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0c59a4"/><stop offset="100%" stop-color="#114a8b"/></linearGradient><linearGradient id="eg2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1b9de2"/><stop offset="55%" stop-color="#35c1f1"/><stop offset="100%" stop-color="#50e6ff"/></linearGradient><linearGradient id="eg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#42e895"/><stop offset="100%" stop-color="#18a36e"/></linearGradient></defs><path d="M43.2 28.4c-1.8 1-4 1.6-6.3 1.6-7.7 0-13.5-5.6-13.5-12.1 0-3.2 1.6-6 4.1-7.6-7.6.3-13.7 6.5-13.7 14.2 0 7.8 6.4 14.2 14.2 14.2 6.8 0 12.6-4.7 14.1-11.1.3-.1.8.4 1.1.8z" fill="url(#eg1)"/><path d="M24 4C12.95 4 4 12.95 4 24c0 8.5 5.3 15.7 12.8 18.6-3.7-3.1-5.8-7.6-5.8-12.8 0-8.8 7.1-15.9 15.9-15.9 2.9 0 5.6.8 8 2.2 2.4 1.4 4.1 3.7 4.7 6.4.4 1.9-.6 3.7-2.4 4.4 3.9-.2 6.8-3.4 6.8-7.4C44 10.7 35.1 4 24 4z" fill="url(#eg2)"/><path d="M24 4C15.5 4 8.2 9.3 5.3 16.8c3.6-4.5 9.2-7.4 15.5-7.4 6.8 0 12.8 3.4 16.3 8.6 1.2 1.8 1.9 3.9 1.9 6.1 0 .6-.1 1.2-.2 1.8 2.9-1.9 4.9-5.1 5.1-8.8C43.4 9.7 34.6 4 24 4z" fill="url(#eg3)" opacity="0.88"/></svg>
+                        <span style="font-size:11px; font-weight:600;">Microsoft Edge</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 11</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Context Menus -->
+    <div id="ctx-flz" class="context-menu">
+        <div onclick="openNewZoneWizard(event)"><strong>New Zone...</strong></div>
+    </div>
+    <div id="ctx-tech-zone" class="context-menu">
+        <div onclick="openNewHostModal(event)"><strong>New Host (A or AAAA)...</strong></div>
+    </div>
+    <div id="ctx-iis-sites" class="context-menu">
+        <div onclick="openAddWebsiteModal(event)"><strong>Add Website...</strong></div>
+    </div>
+    <div id="ctx-exp-inetpub" class="context-menu">
+        <div onclick="createSite1Folder(event)"><strong>📁 New &rarr; Folder</strong></div>
+    </div>
+    <div id="ctx-exp-site1" class="context-menu">
+        <div onclick="createTextDocument(event)"><strong>📝 New &rarr; Text Document</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+
+        // Lab states
+        let techZoneCreated = false;
+        let wwwHostAdded = false;
+        let selectedDnsZone = '';
+        let iisInstalled = false;
+        let site1FolderCreated = false;
+        let txtDocCreated = false;
+        let aHtmlCreated = false;
+        let savedHtmlName = 'a.html';
+        let aHtmlContent = 'Welcome';
+        let iisSiteCreated = false;
+        let defaultDocAdded = false;
+        let defaultDocs = ['Default.htm', 'Default.asp', 'index.htm', 'index.html', 'iisstart.htm'];
+        let currentExpPath = 'root'; // 'root' | 'inetpub' | 'site1'
+
+        // Wizards
+        let nzPage = 1, nzType = 'primary', nzName = '';
+        let arPage = 1, iisRoleChecked = false, httpRedirChecked = false, ftpServerChecked = false, ftpServiceChecked = false;
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu, .sm-tools-dropdown, .np-dropdown').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3000);
+        }
+
+        function markBadge(id) {
+            const el = document.getElementById(id);
+            el.innerText = 'Done ✓';
+            el.className = 's-badge s-done';
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu, .sm-tools-dropdown').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleToolsMenu(e) {
+            e.stopPropagation();
+            const m = document.getElementById('sm-tools-menu');
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+        function toggleTree(el, e) { e.stopPropagation(); el.classList.toggle('expanded'); }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.context-menu').forEach(el => el.style.display = 'none');
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 225) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 11)} / 11`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>DNS SETUP (Open DNS Manager):</strong> Click <b>DNS Manager</b> on Desktop (or <code>Start &rarr; Run &rarr; dnsmgmt.msc</code>)."; break;
+                case 2: text = "<strong>DNS SETUP (Create Zone):</strong> Right-click <b>Forward Lookup Zones</b> &rarr; <b>New Zone...</b> &rarr; <b>Primary zone</b> &rarr; Zone Name: <code>tech.com</code> &rarr; Finish."; break;
+                case 3: text = "<strong>DNS SETUP (Add www Host):</strong> Click <b>tech.com</b>, right-click it &rarr; <b>New Host (A or AAAA)...</b> &rarr; enter Name <code>www</code> and IP <code>192.168.1.1</code> &rarr; Add Host &rarr; Done."; break;
+                case 4: text = "<strong>INSTALL IIS (Select Role):</strong> Open <b>Server Manager</b> &rarr; click <b>+ Add roles and features</b> &rarr; navigate to <b>Server Roles</b> &rarr; check <b>Web Server (IIS)</b> &rarr; Next."; break;
+                case 5: text = "<strong>INSTALL IIS (Role Services):</strong> On <b>Role Services</b>, check <b>HTTP Redirection</b> and <b>FTP Server</b> (with <b>FTP Service</b>) &rarr; Next &rarr; click <b>Install</b> &rarr; Close."; break;
+                case 6: text = "<strong>CREATE SITE FOLDER:</strong> Open <b>File Explorer</b> &rarr; open <b>inetpub</b> (<code>C:\\inetpub</code>) &rarr; <b>Right-click</b> empty space &rarr; <b>New &rarr; Folder</b> &rarr; name it <code>site1</code>."; break;
+                case 7: text = "<strong>CREATE HTML VIA NOTEPAD:</strong> Open <b>site1</b> &rarr; <b>Right-click</b> empty space &rarr; <b>New &rarr; Text Document</b> &rarr; double-click <code>New Text Document.txt</code> &rarr; type <code>Welcome</code> &rarr; click <b>File &rarr; Save As...</b> &rarr; save as <code>a.html</code>."; break;
+                case 8: text = "<strong>OPEN IIS MANAGER:</strong> Open <b>IIS Manager</b> (Desktop icon, Server Manager &rarr; Tools &rarr; IIS Manager, or <code>Start &rarr; Run &rarr; inetmgr</code>)."; break;
+                case 9: text = "<strong>ADD WEBSITE IN IIS:</strong> Right-click <b>Sites</b> &rarr; <b>Add Website...</b> &rarr; Site name: <code>site1</code>, Physical path: <code>C:\\inetpub\\site1</code>, Host name: <code>www.tech.com</code> &rarr; click <b>OK</b>."; break;
+                case 10: text = "<strong>SET DEFAULT DOCUMENT:</strong> Click <b>site1</b> under Sites &rarr; double-click <b>Default Document</b> &rarr; click <b>Add...</b> (in right Actions pane) &rarr; type <code>a.html</code> &rarr; OK."; break;
+                case 11: text = "<strong>TEST LIVE WEBSITE:</strong> Open <b>Microsoft Edge</b> on Desktop, type <code>http://www.tech.com</code> in the address bar, and press <b>Enter</b>!"; break;
+                case 12:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> You configured DNS (<code>www.tech.com</code>), installed IIS with <b>HTTP Redirection</b> &amp; <b>FTP Server</b>, created <code>C:\\inetpub\\site1\\a.html</code>, hosted the site in IIS Manager, and verified it live in the browser!";
+                    break;
+            }
+            guide.innerHTML = text;
+        }
+
+        // --- RUN DIALOG ---
+        function openRun(e) {
+            e.stopPropagation();
+            document.getElementById('start-menu').style.display = 'none';
+            document.getElementById('run-window').style.display = 'flex';
+            const inp = document.getElementById('run-input');
+            inp.value = ''; inp.focus();
+        }
+        function executeRun() {
+            const cmd = document.getElementById('run-input').value.trim().toLowerCase();
+            closeWindow('run-window');
+            if (cmd === 'dnsmgmt.msc') openDnsManager();
+            else if (cmd === 'inetmgr') openIisManager();
+            else if (cmd === 'explorer') openExplorer('root');
+            else if (cmd !== '') alert(`Windows cannot find '${cmd}'. Try dnsmgmt.msc, inetmgr, or explorer.`);
+        }
+
+        // --- STEP 1-3: DNS MANAGER ---
+        function openDnsManager(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('sm-tools-menu').style.display = 'none';
+            document.getElementById('dns-window').style.display = 'flex';
+            if (step === 1) { step = 2; updateGuide(); }
+        }
+
+        function openNewZoneWizard(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-flz').style.display = 'none';
+            if (techZoneCreated) { showToast("Primary zone tech.com is already created!"); return; }
+            nzPage = 1; nzType = 'primary'; nzName = '';
+            document.getElementById('newzone-window').style.display = 'flex';
+            renderNz();
+        }
+
+        function renderNz() {
+            const pane = document.getElementById('nz-pane');
+            document.getElementById('nz-prev').style.display = nzPage > 1 ? 'inline-block' : 'none';
+            document.getElementById('nz-next').innerText = nzPage === 5 ? 'Finish' : 'Next >';
+
+            if (nzPage === 1) {
+                pane.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Welcome to the New Zone Wizard</h3><p>Create a new Forward Lookup Zone on <b>SMEC-DC1</b> (192.168.1.1).</p>`;
+            } else if (nzPage === 2) {
+                pane.innerHTML = `<h3 style="margin-top:0;">Zone Type</h3>
+                    <label style="display:block; font-weight:700; color:#005a9e; margin-bottom:8px;"><input type="radio" name="nzt" value="primary" ${nzType==='primary'?'checked':''} onchange="nzType='primary'"> Primary zone</label>
+                    <label style="display:block; color:#555; margin-bottom:8px;"><input type="radio" name="nzt" value="secondary" ${nzType==='secondary'?'checked':''} onchange="nzType='secondary'"> Secondary zone</label>
+                    <label style="display:block; color:#555;"><input type="radio" name="nzt" value="stub" ${nzType==='stub'?'checked':''} onchange="nzType='stub'"> Stub zone</label>`;
+            } else if (nzPage === 3) {
+                pane.innerHTML = `<h3 style="margin-top:0;">Zone Name</h3>
+                    <label style="display:block; font-weight:600; margin-bottom:5px;">Zone name:</label>
+                    <input type="text" id="nz-name-inp" value="${nzName}" placeholder="tech.com" style="width:100%;" oninput="nzName=this.value;" onkeypress="if(event.key==='Enter') nzNext()">`;
+                setTimeout(() => { const i = document.getElementById('nz-name-inp'); if (i) i.focus(); }, 30);
+            } else if (nzPage === 4) {
+                pane.innerHTML = `<h3 style="margin-top:0;">Zone File</h3>
+                    <label style="display:block; font-weight:600; margin-bottom:6px;"><input type="radio" checked> Create a new file with this file name:</label>
+                    <input type="text" value="tech.com.dns" readonly style="width:100%; background:#f8fafc; font-family:Consolas, monospace;">`;
+            } else if (nzPage === 5) {
+                pane.innerHTML = `<h3 style="margin-top:0;">Completing the New Zone Wizard</h3>
+                    <div style="border:1px solid #ccc; padding:12px; background:#fafafa; font-family:Consolas, monospace; font-size:12px; line-height:1.7;">
+                        Name: tech.com<br>Type: Standard Primary<br>File name: tech.com.dns
+                    </div><p>Click <b>Finish</b>.</p>`;
+            }
+        }
+
+        function nzPrev() { if (nzPage > 1) { nzPage--; renderNz(); } }
+        function nzNext() {
+            if (nzPage === 2 && nzType !== 'primary') { alert("Select 'Primary zone'!"); return; }
+            if (nzPage === 3 && nzName.trim().toLowerCase() !== 'tech.com') { alert("Enter Zone Name: tech.com"); return; }
+            if (nzPage === 5) {
+                techZoneCreated = true;
+                closeWindow('newzone-window');
+                document.getElementById('dns-flz-list').innerHTML += `<li class="icon-zone" onclick="selectDnsZone('tech.com', this, event)" oncontextmenu="showContext('ctx-tech-zone', event)" style="color:#15803d; font-weight:700;">tech.com</li>`;
+                markBadge('st-dnszone');
+                showToast("Primary zone tech.com created! Now click tech.com and add www Host (A) record.");
+                if (step === 2) { step = 3; updateGuide(); }
+                return;
+            }
+            nzPage++;
+            renderNz();
+        }
+
+        function selectDnsZone(zone, el, e) {
+            if (e) e.stopPropagation();
+            selectedDnsZone = zone;
+            document.querySelectorAll('#dns-window li').forEach(x => x.classList.remove('selected'));
+            if (el) el.classList.add('selected');
+            renderDnsRight();
+        }
+
+        function renderDnsRight() {
+            const right = document.getElementById('dns-right');
+            if (selectedDnsZone === 'tech.com') {
+                const wwwRow = wwwHostAdded
+                    ? `<tr style="background:#ecfdf5;"><td><strong>www</strong></td><td>Host (A)</td><td style="font-family:Consolas, monospace; font-weight:700; color:#15803d;">192.168.1.1</td></tr>`
+                    : '';
+                right.innerHTML = `<table class="mmc-table">
+                    <tr><th>Name</th><th>Type</th><th>Data</th></tr>
+                    <tr><td>(same as parent folder)</td><td>Start of Authority (SOA)</td><td>[2], smec-dc1.smec.com.</td></tr>
+                    <tr><td>(same as parent folder)</td><td>Name Server (NS)</td><td>smec-dc1.smec.com.</td></tr>
+                    ${wwwRow}
+                </table>
+                <p style="font-size:11.5px; color:#555; margin-top:10px;">Right-click <b>tech.com</b> &rarr; <b>New Host (A or AAAA)...</b> to add <code>www</code> &rarr; <code>192.168.1.1</code>.</p>`;
+            } else {
+                right.innerHTML = `<table class="mmc-table"><tr><th>Name</th><th>Type</th><th>Data</th></tr><tr><td>smec-dc1</td><td>Host (A)</td><td>192.168.1.1</td></tr></table>`;
+            }
+        }
+
+        function openNewHostModal(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-tech-zone').style.display = 'none';
+            document.getElementById('newhost-window').style.display = 'flex';
+            document.getElementById('host-name-inp').value = '';
+            document.getElementById('host-ip-inp').value = '';
+            document.getElementById('host-fqdn-preview').value = 'tech.com';
+            document.getElementById('host-name-inp').focus();
+        }
+
+        function updateHostFqdn() {
+            const n = document.getElementById('host-name-inp').value.trim();
+            document.getElementById('host-fqdn-preview').value = n ? `${n}.tech.com` : 'tech.com';
+        }
+
+        function addHostRecord() {
+            const n = document.getElementById('host-name-inp').value.trim().toLowerCase();
+            const ip = document.getElementById('host-ip-inp').value.trim();
+            if (n !== 'www') { alert("Please enter Host Name: www"); return; }
+            if (ip !== '192.168.1.1') { alert("Please enter IP address: 192.168.1.1"); return; }
+            wwwHostAdded = true;
+            alert("The host record www.tech.com was successfully created.");
+            closeWindow('newhost-window');
+            renderDnsRight();
+            markBadge('st-dnshost');
+            document.getElementById('sm-card-dns').innerText = 'tech.com (www) ✓';
+            document.getElementById('sm-card-dns').style.color = '#15803d';
+            showToast("Host A record www.tech.com added! Now open Server Manager to install IIS.");
+            if (step === 3) { step = 4; updateGuide(); }
+        }
+
+        // --- STEP 4-5: SERVER MANAGER & INSTALL IIS + HTTP REDIRECTION + FTP SERVER ---
+        function openServerManager() { document.getElementById('sm-window').style.display = 'flex'; }
+
+        function openAddRolesWizard() {
+            if (!wwwHostAdded) { alert("First create the tech.com DNS zone and www Host (A) record in DNS Manager!"); return; }
+            if (iisInstalled) { showToast("IIS Web Server, HTTP Redirection & FTP Server are already installed!"); return; }
+            arPage = 1;
+            document.getElementById('addroles-window').style.display = 'flex';
+            renderArPage();
+        }
+
+        function renderArPage() {
+            for (let i = 1; i <= 9; i++) {
+                const el = document.getElementById('ar-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === arPage) el.classList.add('active');
+                else if (i < arPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('ar-main-pane');
+            const prev = document.getElementById('ar-prev-btn');
+            const next = document.getElementById('ar-next-btn');
+            prev.style.display = (arPage > 1 && arPage < 9) ? 'inline-block' : 'none';
+            next.disabled = false;
+
+            if (arPage === 1) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Before You Begin</h3><p>Install <b>Web Server (IIS)</b> with <b>HTTP Redirection</b> and <b>FTP Server</b> on <b>SMEC-DC1</b>.</p>`;
+            } else if (arPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select installation type</h3><label style="font-weight:600;"><input type="radio" checked> Role-based or feature-based installation</label>`;
+            } else if (arPage === 3) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select destination server</h3><table class="mmc-table" style="border:1px solid #ccc;"><tr><th>Name</th><th>IP Address</th><th>OS</th></tr><tr style="background:#e5f1fb;"><td><strong>SMEC-DC1.smec.com</strong></td><td>192.168.1.1</td><td>Windows Server 2025</td></tr></table>`;
+            } else if (arPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select server roles</h3>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; display:flex; flex-direction:column; gap:8px;">
+                        <label style="color:#64748b;"><input type="checkbox" checked disabled> Active Directory Domain Services (Installed)</label>
+                        <label style="color:#64748b;"><input type="checkbox" checked disabled> DNS Server (Installed)</label>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-iis-role" ${iisRoleChecked?'checked':''} onchange="iisRoleChecked=this.checked; if(this.checked) showToast('Included IIS Management Console.');"> 🌍 Web Server (IIS)</label>
+                    </div>`;
+            } else if (arPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select features</h3><p>Default .NET and management features are selected. Click <b>Next</b>.</p>`;
+            } else if (arPage === 6) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Web Server Role (IIS)</h3><p>Internet Information Services (IIS) provides a reliable, manageable, and scalable Web application infrastructure. Click <b>Next</b> to select <b>Role Services</b> (HTTP Redirection &amp; FTP Server).</p>`;
+            } else if (arPage === 7) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select role services (Web Server IIS)</h3>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; background:#fafafa; display:flex; flex-direction:column; gap:7px; font-size:12px;">
+                        <div style="font-weight:700; color:#334155;">▼ Web Server &rarr; Common HTTP Features</div>
+                        <label style="padding-left:20px; color:#555;"><input type="checkbox" checked disabled> Default Document</label>
+                        <label style="padding-left:20px; color:#555;"><input type="checkbox" checked disabled> Static Content</label>
+                        <label style="padding-left:20px; font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-http-redir" ${httpRedirChecked?'checked':''} onchange="httpRedirChecked=this.checked;"> 🔀 HTTP Redirection</label>
+                        <div style="font-weight:700; color:#334155; margin-top:6px;">▼ FTP Server</div>
+                        <label style="padding-left:20px; font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-ftp-srv" ${ftpServerChecked?'checked':''} onchange="ftpServerChecked=this.checked; ftpServiceChecked=this.checked; renderArPage();"> 📂 FTP Server</label>
+                        <label style="padding-left:40px; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-ftp-svc" ${ftpServiceChecked?'checked':''} onchange="ftpServiceChecked=this.checked; if(this.checked) ftpServerChecked=true; renderArPage();"> FTP Service</label>
+                        <div style="font-weight:700; color:#334155; margin-top:6px;">▼ Management Tools</div>
+                        <label style="padding-left:20px; color:#555;"><input type="checkbox" checked disabled> IIS Management Console</label>
+                    </div>`;
+            } else if (arPage === 8) {
+                next.innerText = 'Install';
+                pane.innerHTML = `<h3 style="margin-top:0;">Confirm installation selections</h3>
+                    <ul>
+                        <li>Server: <b>SMEC-DC1.smec.com (192.168.1.1)</b></li>
+                        <li>Role: <b>Web Server (IIS)</b></li>
+                        <li>Role Services: <b>HTTP Redirection</b>, <b>FTP Server (FTP Service)</b>, <b>IIS Management Console</b></li>
+                    </ul><p>Click <b>Install</b> to begin.</p>`;
+            } else if (arPage === 9) {
+                next.innerText = 'Close';
+                next.disabled = !iisInstalled;
+                pane.innerHTML = `<h3 style="margin-top:0;">Installation progress</h3>
+                    <div id="ar-prog-txt">Installing Web Server (IIS), HTTP Redirection, and FTP Server...</div>
+                    <div class="prog-track"><div id="ar-prog-fill" class="prog-fill"></div></div>
+                    <div id="ar-done-msg" style="display:none; padding:10px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; color:#15803d; font-weight:600;">
+                        ✓ Installation succeeded! C:\inetpub has been created and IIS Manager is now available. Click Close!
+                    </div>`;
+                if (!iisInstalled) runIisInstall();
+            }
+        }
+
+        function arPrev() { if (arPage > 1 && arPage < 9) { arPage--; renderArPage(); } }
+        function arNext() {
+            if (arPage === 4) {
+                if (!iisRoleChecked) { alert("Please check 'Web Server (IIS)' to continue."); return; }
+                if (step === 4) { step = 5; updateGuide(); }
+            }
+            if (arPage === 7) {
+                if (!httpRedirChecked) { alert("Please check 'HTTP Redirection' under Common HTTP Features!"); return; }
+                if (!ftpServerChecked || !ftpServiceChecked) { alert("Please check 'FTP Server' and 'FTP Service'!"); return; }
+            }
+            if (arPage === 9) { closeWindow('addroles-window'); closeWindow('sm-window'); return; }
+            arPage++;
+            renderArPage();
+        }
+
+        function runIisInstall() {
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '45%'; }, 350);
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '85%'; }, 1000);
+            setTimeout(() => {
+                iisInstalled = true;
+                const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '100%';
+                const t = document.getElementById('ar-prog-txt'); if (t) t.innerText = 'Installation succeeded.';
+                const d = document.getElementById('ar-done-msg'); if (d) d.style.display = 'block';
+                document.getElementById('ar-next-btn').disabled = false;
+                document.getElementById('sm-card-iis').innerText = 'Installed ✓';
+                document.getElementById('sm-card-iis').style.color = '#15803d';
+                document.getElementById('sm-card-ftp').innerText = 'Installed ✓';
+                document.getElementById('sm-card-ftp').style.color = '#15803d';
+                document.getElementById('side-role-lbl').innerText = 'Roles: AD DS, DNS, IIS + FTP';
+                document.getElementById('top-sub').innerText = 'IP: 192.168.1.1 | Domain: smec.com | IIS + FTP: Active ✓';
+                document.getElementById('desktop-iis-icon').style.display = 'flex';
+                document.getElementById('start-iis-app').style.display = 'flex';
+                document.getElementById('sm-tools-iis').style.display = 'block';
+                markBadge('st-iis');
+                if (step === 5) { step = 6; updateGuide(); }
+            }, 1600);
+        }
+
+        // --- STEP 6-7: FILE EXPLORER (C:\inetpub -> site1 -> a.html) ---
+        function openExplorer(path) {
+            if (!iisInstalled) { alert("First install Web Server (IIS) via Server Manager so C:\\inetpub is created!"); return; }
+            currentExpPath = path || 'root';
+            document.getElementById('explorer-window').style.display = 'flex';
+            renderExplorer();
+        }
+
+        function expGoUp() {
+            if (currentExpPath === 'site1') currentExpPath = 'inetpub';
+            else if (currentExpPath === 'inetpub') currentExpPath = 'root';
+            renderExplorer();
+        }
+
+        const EDGE_MINI_SVG = `<svg width="24" height="24" viewBox="0 0 48 48" style="display:block; margin-bottom:3px;"><defs><linearGradient id="eg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0c59a4"/><stop offset="100%" stop-color="#114a8b"/></linearGradient><linearGradient id="eg2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1b9de2"/><stop offset="55%" stop-color="#35c1f1"/><stop offset="100%" stop-color="#50e6ff"/></linearGradient><linearGradient id="eg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#42e895"/><stop offset="100%" stop-color="#18a36e"/></linearGradient></defs><path d="M43.2 28.4c-1.8 1-4 1.6-6.3 1.6-7.7 0-13.5-5.6-13.5-12.1 0-3.2 1.6-6 4.1-7.6-7.6.3-13.7 6.5-13.7 14.2 0 7.8 6.4 14.2 14.2 14.2 6.8 0 12.6-4.7 14.1-11.1.3-.1.8.4 1.1.8z" fill="url(#eg1)"/><path d="M24 4C12.95 4 4 12.95 4 24c0 8.5 5.3 15.7 12.8 18.6-3.7-3.1-5.8-7.6-5.8-12.8 0-8.8 7.1-15.9 15.9-15.9 2.9 0 5.6.8 8 2.2 2.4 1.4 4.1 3.7 4.7 6.4.4 1.9-.6 3.7-2.4 4.4 3.9-.2 6.8-3.4 6.8-7.4C44 10.7 35.1 4 24 4z" fill="url(#eg2)"/><path d="M24 4C15.5 4 8.2 9.3 5.3 16.8c3.6-4.5 9.2-7.4 15.5-7.4 6.8 0 12.8 3.4 16.3 8.6 1.2 1.8 1.9 3.9 1.9 6.1 0 .6-.1 1.2-.2 1.8 2.9-1.9 4.9-5.1 5.1-8.8C43.4 9.7 34.6 4 24 4z" fill="url(#eg3)" opacity="0.88"/></svg>`;
+
+        function handleExpContextMenu(e) {
+            if (currentExpPath === 'inetpub') showContext('ctx-exp-inetpub', e);
+            else if (currentExpPath === 'site1') showContext('ctx-exp-site1', e);
+        }
+
+        function renderExplorer() {
+            const pathBar = document.getElementById('exp-path-bar');
+            const body = document.getElementById('exp-body');
+            const hint = document.getElementById('exp-hint-pill');
+
+            if (currentExpPath === 'root') {
+                pathBar.innerText = 'Local Disk (C:\\)';
+                hint.innerText = 'Click inetpub to open';
+                body.innerHTML = `
+                    <div class="exp-item" ondblclick="openExplorer('inetpub')" onclick="openExplorer('inetpub')">
+                        <span style="font-size:24px;">📁</span>
+                        <div><strong>inetpub</strong><div style="font-size:11px; color:#64748b;">IIS Web Root Directory (Click to open)</div></div>
+                    </div>
+                    <div class="exp-item" style="opacity:0.6; cursor:default;"><span style="font-size:24px;">📁</span><div>Windows</div></div>
+                    <div class="exp-item" style="opacity:0.6; cursor:default;"><span style="font-size:24px;">📁</span><div>Program Files</div></div>`;
+            } else if (currentExpPath === 'inetpub') {
+                pathBar.innerText = 'C:\\inetpub';
+                hint.innerText = 'Right-click empty space -> New -> Folder';
+                let site1Html = site1FolderCreated
+                    ? `<div class="exp-item" style="background:#ecfdf5; border-color:#86efac;" ondblclick="openExplorer('site1')" onclick="openExplorer('site1')">
+                           <span style="font-size:24px;">📁</span>
+                           <div><strong style="color:#15803d;">site1</strong><div style="font-size:11px; color:#15803d;">Click to open C:\\inetpub\\site1</div></div>
+                       </div>`
+                    : '';
+                body.innerHTML = `
+                    <div class="exp-item" style="opacity:0.75;"><span style="font-size:24px;">📁</span><div>wwwroot</div></div>
+                    <div class="exp-item" style="opacity:0.75;"><span style="font-size:24px;">📁</span><div>ftproot</div></div>
+                    <div class="exp-item" style="opacity:0.75;"><span style="font-size:24px;">📁</span><div>logs</div></div>
+                    ${site1Html}
+                    <div style="margin-top:18px; padding:10px 12px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12px;">
+                        💡 <b>Right-click</b> anywhere in this white area &rarr; click <b>New &rarr; Folder</b> to create <code>site1</code>.
+                    </div>`;
+            } else if (currentExpPath === 'site1') {
+                pathBar.innerText = 'C:\\inetpub\\site1';
+                hint.innerText = 'Right-click empty space -> New -> Text Document';
+                let itemsHtml = '';
+                if (txtDocCreated) {
+                    itemsHtml += `<div class="exp-item" ondblclick="openNotepad()" style="border-color:#cbd5e1; background:#f8fafc;">
+                        <span style="font-size:24px;">📝</span>
+                        <div><strong>New Text Document.txt</strong><div style="font-size:11px; color:#475569;">Text Document · <b>Double-click to open in Notepad</b></div></div>
+                    </div>`;
+                }
+                if (aHtmlCreated) {
+                    itemsHtml += `<div class="exp-item" ondblclick="openNotepad()" style="background:#ecfdf5; border-color:#86efac; margin-top:6px;">
+                        ${EDGE_MINI_SVG}
+                        <div><strong style="color:#15803d;">${savedHtmlName}</strong><div style="font-size:11px; color:#15803d;">Microsoft Edge HTML Document · Ready for IIS hosting</div></div>
+                    </div>`;
+                }
+                if (!txtDocCreated && !aHtmlCreated) {
+                    itemsHtml = `<div style="padding:18px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12.5px;">
+                        This folder is empty.<br><br>
+                        💡 <b>Right-click</b> anywhere here &rarr; select <b>New &rarr; Text Document</b>.
+                    </div>`;
+                }
+                body.innerHTML = itemsHtml;
+            }
+        }
+
+        function createSite1Folder(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-exp-inetpub').style.display = 'none';
+            if (site1FolderCreated) { showToast("Folder 'site1' already exists!"); return; }
+            const name = prompt("New Folder name inside C:\\inetpub:", "site1");
+            if (name === null) return;
+            if (name.trim().toLowerCase() !== 'site1') { alert("Please name the folder: site1"); return; }
+            site1FolderCreated = true;
+            renderExplorer();
+            showToast("Folder C:\\inetpub\\site1 created! Open site1, then right-click -> New -> Text Document.");
+            if (step === 6) { step = 7; updateGuide(); }
+        }
+
+        function createTextDocument(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-exp-site1').style.display = 'none';
+            txtDocCreated = true;
+            renderExplorer();
+            showToast("Created New Text Document.txt! Double-click it to open in Notepad.");
+        }
+
+        function openNotepad() {
+            document.getElementById('notepad-title').innerText = aHtmlCreated ? `${savedHtmlName} - Notepad` : 'New Text Document.txt - Notepad';
+            document.getElementById('notepad-window').style.display = 'flex';
+            const ed = document.getElementById('notepad-editor');
+            if (!aHtmlCreated) ed.value = '';
+            setTimeout(() => ed.focus(), 40);
+        }
+
+        function toggleNotepadFileMenu(e) {
+            e.stopPropagation();
+            const m = document.getElementById('np-file-menu');
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function openSaveAsModal(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('np-file-menu').style.display = 'none';
+            const content = document.getElementById('notepad-editor').value.trim();
+            if (!content) {
+                alert("Please type something inside Notepad first (e.g. Welcome) before saving!");
+                document.getElementById('notepad-editor').focus();
+                return;
+            }
+            document.getElementById('saveas-window').style.display = 'flex';
+            const inp = document.getElementById('saveas-filename');
+            inp.value = '';
+            setTimeout(() => inp.focus(), 40);
+        }
+
+        function executeSaveAs() {
+            const fname = document.getElementById('saveas-filename').value.trim().toLowerCase();
+            if (!fname.endsWith('.html') && !fname.endsWith('.htm')) {
+                alert("Please save the file with a .html extension (e.g. a.html)!");
+                return;
+            }
+            savedHtmlName = fname;
+            aHtmlContent = document.getElementById('notepad-editor').value.trim();
+            aHtmlCreated = true;
+            closeWindow('saveas-window');
+            closeWindow('notepad-window');
+            renderExplorer();
+            markBadge('st-folder');
+            showToast(`Saved C:\\inetpub\\site1\\${savedHtmlName}! Now open IIS Manager (inetmgr).`);
+            if (step === 7) { step = 8; updateGuide(); }
+        }
+
+        // --- STEP 8-10: IIS MANAGER (ADD WEBSITE + DEFAULT DOCUMENT) ---
+        function openIisManager(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('sm-tools-menu').style.display = 'none';
+            if (!iisInstalled) { alert("First install Web Server (IIS) via Server Manager!"); return; }
+            if (!aHtmlCreated) { alert("First create C:\\inetpub\\site1\\a.html in File Explorer!"); return; }
+            document.getElementById('iis-window').style.display = 'flex';
+            if (step === 8) { step = 9; updateGuide(); }
+        }
+
+        function selectIisNode(node, el, e) {
+            if (e) e.stopPropagation();
+            document.querySelectorAll('#iis-window li').forEach(x => x.classList.remove('selected'));
+            if (el) el.classList.add('selected');
+            const center = document.getElementById('iis-center');
+            const actions = document.getElementById('iis-actions-body');
+
+            if (node === 'sites') {
+                let s1Row = iisSiteCreated
+                    ? `<tr style="background:#ecfdf5;"><td><strong>site1</strong></td><td>Started</td><td>http :80 (www.tech.com)</td><td style="font-family:Consolas;">C:\\inetpub\\site1</td></tr>`
+                    : '';
+                center.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Sites</h3>
+                    <table class="mmc-table">
+                        <tr><th>Name</th><th>Status</th><th>Binding</th><th>Physical Path</th></tr>
+                        <tr><td>Default Web Site</td><td>Started</td><td>http :80 (*)</td><td style="font-family:Consolas;">C:\\inetpub\\wwwroot</td></tr>
+                        ${s1Row}
+                    </table>`;
+                actions.innerHTML = `<a href="#" onclick="openAddWebsiteModal(event)" style="color:#0078D7; font-weight:600; text-decoration:none;">➕ Add Website...</a>`;
+            } else if (node === 'site1') {
+                center.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">site1 Home (www.tech.com)</h3>
+                    <div style="font-size:12px; color:#475569; margin-bottom:10px;">Physical Path: <code>C:\\inetpub\\site1</code> | Binding: <code>http://www.tech.com:80</code></div>
+                    <div class="iis-grid">
+                        <div class="iis-tile" ondblclick="openDefaultDocPane()" onclick="openDefaultDocPane()" style="border-color:#93c5fd; background:#eff6ff;">
+                            <div class="t-ico">📄</div>
+                            <strong>Default Document</strong>
+                        </div>
+                        <div class="iis-tile"><div class="t-ico">🔀</div><span>HTTP Redirect</span></div>
+                        <div class="iis-tile"><div class="t-ico">📂</div><span>FTP Authorization</span></div>
+                        <div class="iis-tile"><div class="t-ico">🔐</div><span>Authentication</span></div>
+                        <div class="iis-tile"><div class="t-ico">📁</div><span>Directory Browsing</span></div>
+                        <div class="iis-tile"><div class="t-ico">📋</div><span>MIME Types</span></div>
+                    </div>`;
+                actions.innerHTML = `
+                    <a href="#" onclick="openBrowser(); return false;" style="color:#15803d; font-weight:600; text-decoration:none;">🌐 Browse www.tech.com:80</a>
+                    <a href="#" onclick="openDefaultDocPane(); return false;" style="color:#0078D7; text-decoration:none;">📄 Open Default Document</a>`;
+            } else {
+                center.innerHTML = `<h3 style="margin-top:0;">Default Web Site</h3><p style="font-size:12.5px; color:#555;">Default IIS site pointing to <code>C:\\inetpub\\wwwroot</code>.</p>`;
+                actions.innerHTML = `<a href="#" onclick="openAddWebsiteModal(event)" style="color:#0078D7; font-weight:600; text-decoration:none;">➕ Add Website...</a>`;
+            }
+        }
+
+        function openAddWebsiteModal(e) {
+            if (e) e.preventDefault();
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-iis-sites').style.display = 'none';
+            if (iisSiteCreated) { showToast("Website 'site1' is already created!"); return; }
+            document.getElementById('as-name').value = '';
+            document.getElementById('as-path').value = '';
+            document.getElementById('as-host').value = '';
+            document.getElementById('addsite-window').style.display = 'flex';
+            setTimeout(() => document.getElementById('as-name').focus(), 40);
+        }
+
+        function saveAddWebsite() {
+            const name = document.getElementById('as-name').value.trim().toLowerCase();
+            const path = document.getElementById('as-path').value.trim().toLowerCase();
+            const host = document.getElementById('as-host').value.trim().toLowerCase();
+            if (name !== 'site1') { alert("Please enter Site name: site1"); return; }
+            if (path !== 'c:\\inetpub\\site1') { alert("Please enter Physical path: C:\\inetpub\\site1"); return; }
+            if (host !== 'www.tech.com') { alert("Please enter Host name: www.tech.com"); return; }
+
+            iisSiteCreated = true;
+            closeWindow('addsite-window');
+            document.getElementById('iis-sites-list').innerHTML += `<li class="icon-site" id="iis-site1-node" onclick="selectIisNode('site1', this, event)" style="color:#15803d; font-weight:700;">site1</li>`;
+            selectIisNode('site1', document.getElementById('iis-site1-node'));
+            markBadge('st-site');
+            showToast("Website 'site1' (www.tech.com) added! Now open Default Document and add a.html.");
+            if (step === 9) { step = 10; updateGuide(); }
+        }
+
+        function openDefaultDocPane() {
+            const center = document.getElementById('iis-center');
+            const actions = document.getElementById('iis-actions-body');
+            const rows = defaultDocs.map((d, idx) =>
+                `<tr style="${d===savedHtmlName?'background:#ecfdf5; font-weight:700; color:#15803d;':''}"><td>${idx+1}</td><td style="font-family:Consolas, monospace;">${d}</td><td>${d===savedHtmlName?'Local (Added ✓)':'Inherited'}</td></tr>`
+            ).join('');
+            center.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Default Document (site1)</h3>
+                <p style="font-size:12px; color:#475569; margin-top:0;">IIS serves the first matching file in this list when users visit <code>http://www.tech.com</code>.</p>
+                <table class="mmc-table"><tr><th>Order</th><th>Name</th><th>Entry Type</th></tr>${rows}</table>`;
+            actions.innerHTML = `
+                <a href="#" onclick="openDefDocAddModal(event)" style="color:#0078D7; font-weight:700; text-decoration:none;">➕ Add...</a>
+                <a href="#" onclick="openBrowser(); return false;" style="color:#15803d; font-weight:600; text-decoration:none;">🌐 Browse www.tech.com</a>`;
+        }
+
+        function openDefDocAddModal(e) {
+            if (e) e.preventDefault();
+            document.getElementById('defdoc-inp').value = '';
+            document.getElementById('defdoc-add-window').style.display = 'flex';
+            setTimeout(() => document.getElementById('defdoc-inp').focus(), 40);
+        }
+
+        function saveDefaultDoc() {
+            const val = document.getElementById('defdoc-inp').value.trim().toLowerCase();
+            if (val !== savedHtmlName) { alert(`Please enter your HTML file name: ${savedHtmlName}`); return; }
+            if (!defaultDocs.includes(savedHtmlName)) defaultDocs.unshift(savedHtmlName);
+            defaultDocAdded = true;
+            closeWindow('defdoc-add-window');
+            openDefaultDocPane();
+            markBadge('st-defdoc');
+            showToast(`Default Document '${savedHtmlName}' added! Now open Microsoft Edge and visit http://www.tech.com.`);
+            if (step === 10) { step = 11; updateGuide(); }
+        }
+
+        // --- STEP 11: MICROSOFT EDGE BROWSER TEST ---
+        function openBrowser() {
+            document.getElementById('browser-window').style.display = 'flex';
+            setTimeout(() => document.getElementById('browser-url').focus(), 40);
+        }
+
+        function navigateBrowser() {
+            const raw = document.getElementById('browser-url').value.trim().toLowerCase();
+            const vp = document.getElementById('browser-viewport');
+            const normalized = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+            if (normalized === 'www.tech.com' || normalized === `www.tech.com/${savedHtmlName}`) {
+                if (!wwwHostAdded) {
+                    vp.innerHTML = `<h2 style="color:#b91c1c;">Hmmm… can't reach this page</h2><p><code>www.tech.com</code>'s server IP address could not be found (DNS_PROBE_FINISHED_NXDOMAIN).</p>`;
+                    return;
+                }
+                if (!iisSiteCreated) {
+                    vp.innerHTML = `<h2 style="color:#b91c1c;">404 - Site Not Configured in IIS</h2><p>DNS resolved <code>192.168.1.1</code>, but no IIS website is bound to <code>www.tech.com</code> yet.</p>`;
+                    return;
+                }
+                if (normalized === 'www.tech.com' && !defaultDocAdded) {
+                    vp.innerHTML = `<h2 style="color:#b45309;">HTTP Error 403.14 - Forbidden</h2><p>The Web server is configured to not list the contents of <code>C:\\inetpub\\site1</code>. Add <code>a.html</code> to <b>Default Document</b> in IIS Manager!</p>`;
+                    return;
+                }
+                vp.innerHTML = `
+                    <div style="border:2px solid #16a34a; border-radius:8px; padding:24px; background:#f0fdf4; max-width:600px; margin:20px auto;">
+                        <div style="font-size:11px; color:#15803d; font-weight:700; text-transform:uppercase; margin-bottom:10px;">✓ 200 OK · Served by IIS (SMEC-DC1 · 192.168.1.1) · File: C:\\inetpub\\site1\\${savedHtmlName}</div>
+                        <div style="color:#0f172a;">${aHtmlContent}</div>
+                    </div>`;
+                markBadge('st-browse');
+                if (step === 11) {
+                    step = 12;
+                    updateGuide();
+                    showToast("🎉 Website http://www.tech.com is LIVE on IIS!");
+                }
+            } else {
+                vp.innerHTML = `<h2 style="color:#334155;">Page Not Found</h2><p>Try navigating to <code>http://www.tech.com</code>.</p>`;
+            }
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
