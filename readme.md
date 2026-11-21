@@ -48,6 +48,10 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *  [🖥️ Lab 16:  Primary & Secondary DNS with Zone Transfer  ](lab16.md)
 
+*   [🖥️ Lab 17: Convert Secondary DNS to Primary DNS (Failover Lab) ](lab17.md)
+
+
+
 
 
 
