@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: Child Domain Controller Setup (sales.smec.com)</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea { user-select: text; }
+
+        /* ==================== LEFT MACHINE SELECTOR SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 245px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .machine-btn:hover { background: #273549; border-color: #60a5fa; }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+        .machine-btn-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .machine-btn-sub { font-size: 10.5px; opacity: 0.88; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .concept-card {
+            background: #064e3b;
+            border: 1px solid #10b981;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.5;
+            color: #d1fae5;
+        }
+        .concept-card strong { color: #6ee7b7; }
+        .concept-card code {
+            background: rgba(0,0,0,0.35);
+            color: #fff;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc { display: block; }
+
+        #dc1-pc { background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%); }
+        #dc2-pc { background: radial-gradient(circle at 75% 20%, #0f4c5c 0%, #0a2e38 60%, #05181e 100%); }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 104px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 30px; margin-bottom: 4px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 390px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 11px 8px;
+            border-radius: 6px;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 26px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 16px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], input[type="password"], select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus, select:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #dc2-run-window, #dc1-run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; }
+        #ncpa-window { width: 640px; height: 390px; top: 60px; left: 50%; transform: translateX(-50%); z-index: 10001; }
+        #eth-props-window { width: 410px; height: 370px; top: 80px; left: 50%; transform: translateX(-50%); z-index: 10010; }
+        #ipv4-window { width: 410px; height: 420px; top: 55px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #sm-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10002; }
+        #add-roles-window { width: 760px; height: 490px; top: 36px; left: 50%; transform: translateX(-50%); z-index: 10015; }
+        #promote-dc-window { width: 780px; height: 515px; top: 28px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #ent-cred-window { width: 400px; height: 265px; top: 125px; left: 50%; transform: translateX(-50%); z-index: 10040; }
+        #dc1-domains-window, #dc2-domains-window { width: 84%; height: 76%; top: 48px; left: 8%; z-index: 10005; }
+        #dc2-aduc-window { width: 84%; height: 76%; top: 48px; left: 8%; z-index: 10006; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 190px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+
+        /* Wizard Sidebar */
+        .wiz-layout { display: flex; flex: 1; min-height: 0; background: #fff; }
+        .wiz-side { width: 210px; background: #f4f6f9; border-right: 1px solid #d4d4d4; padding: 12px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+        .wiz-step { padding: 6px 8px; border-radius: 4px; color: #64748b; }
+        .wiz-step.active { background: #e5f1fb; color: #005a9e; font-weight: 700; border-left: 3px solid var(--win-blue); }
+        .wiz-step.done { color: #15803d; }
+        .wiz-main { flex: 1; padding: 16px 20px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; }
+
+        /* Progress Bar */
+        .prog-track { width: 100%; height: 14px; background: #e2e8f0; border-radius: 7px; overflow: hidden; margin: 12px 0; }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0078D7, #16a34a); transition: width 0.45s ease; }
+
+        /* Overlays */
+        .full-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(150deg, #004e8c, #002342);
+            z-index: 99920;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            padding: 24px;
+            text-align: center;
+        }
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 4px solid rgba(255,255,255,0.25);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin-bottom: 14px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .login-card {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .login-card input {
+            width: 100%;
+            padding: 9px 11px;
+            border-radius: 4px;
+            border: 2px solid rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.96);
+            font-size: 13px;
+            color: #111;
+        }
+        .login-error {
+            background: rgba(220,38,38,0.85);
+            border: 1px solid #fca5a5;
+            padding: 7px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
+        }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 18px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .icon-domain::before { content: '🏢 '; }
+        .icon-child::before { content: '🌿 '; }
+        .icon-ou::before { content: '🗂️ '; }
+        .icon-dc::before { content: '🖥️ '; }
+        .icon-folder::before { content: '📁 '; }
+        .icon-folder-open::before { content: '📂 '; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 10px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 10px; border-bottom: 1px solid #efefef; }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🌿 Child Domain Lab</h2>
+            <span>Windows Server 2025</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Server</div>
+
+        <button id="btn-switch-dc1" class="machine-btn active" onclick="switchMachine('dc1')">
+            <div class="machine-btn-header"><span>🏢 Server 1 (Parent DC)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">SMEC-DC1 (192.168.1.1)</div>
+            <div class="machine-btn-sub">Parent: smec.com</div>
+        </button>
+
+        <button id="btn-switch-dc2" class="machine-btn" onclick="switchMachine('dc2')">
+            <div class="machine-btn-header"><span>🌿 Server 2 (Child DC)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub" id="dc2-sidebar-ip">SALES-DC1 (IP: Not Set)</div>
+            <div class="machine-btn-sub" id="dc2-sidebar-role">Workgroup Server</div>
+        </button>
+
+        <div class="lab-info-card">
+            <div><strong>Parent Domain:</strong> <code>smec.com</code></div>
+            <div><strong>Child Name:</strong> <code>sales</code></div>
+            <div><strong>Full Child FQDN:</strong> <code>sales.smec.com</code></div>
+            <div><strong>DC1 IP / DNS:</strong> <code>192.168.1.1</code></div>
+            <div><strong>Child DC IP:</strong> <code>192.168.1.2</code></div>
+            <div><strong>Enterprise Admin:</strong> <code>smec\administrator</code></div>
+            <div><strong>Password / DSRM:</strong> <code>password123</code></div>
+        </div>
+
+        <div class="concept-card">
+            <strong>What is a Child Domain?</strong><br>
+            A subdomain created under an existing Parent Domain (e.g., <code>sales.smec.com</code> under <code>smec.com</code>). It shares the same Forest &amp; Schema, gets an automatic <b>two-way transitive trust</b>, and has its own dedicated Domain Controller &amp; AD database. You only enter <code>sales</code> (no <code>.com</code> needed).
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <!-- ==================== SERVER 1: SMEC-DC1 (Parent Root DC) ==================== -->
+            <div class="pc-container active-pc" id="dc1-pc">
+                <div class="pc-label">
+                    SMEC-DC1 (Forest Root / Parent DC)
+                    <span>IP: 192.168.1.1 | DNS: 192.168.1.1 | Domain: smec.com</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openDC1Domains()">
+                        <div class="ico">🌐</div>
+                        <span>AD Domains &amp; Trusts</span>
+                    </div>
+                </div>
+
+                <!-- DC1 Run Window -->
+                <div id="dc1-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('dc1-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>domain.msc</code> to open Active Directory Domains and Trusts.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="dc1-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeDC1Run()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeDC1Run()">OK</button>
+                        <button onclick="closeWindow('dc1-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- DC1 AD Domains & Trusts Window -->
+                <div id="dc1-domains-window" class="window">
+                    <div class="title-bar"><span>Active Directory Domains and Trusts [SMEC-DC1.smec.com]</span><span class="close-btn" onclick="closeWindow('dc1-domains-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 44%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded" onclick="toggleTree(this, event)">Active Directory Domains and Trusts
+                                    <ul>
+                                        <li class="icon-domain expanded" onclick="selectDC1Domain(this, event)" style="color:#005a9e; font-weight:700;">smec.com
+                                            <ul id="dc1-child-tree-ul"></ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 56%; padding: 14px; overflow:auto;">
+                            <div id="dc1-dom-info" style="color:#444; font-size:12.5px; line-height:1.6;">
+                                Click <b>smec.com</b> on the left pane to verify the Forest Root / Parent Domain before creating the <b>sales</b> child domain.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('dc1-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="dc1-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openDC1Run(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:5px;">Run</span>
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openDC1Domains(); document.getElementById('dc1-start-menu').style.display='none';">
+                            <div class="app-icon">🌐</div>
+                            <span style="font-size:11px; font-weight:600; text-align:center;">Domains &amp;<br>Trusts</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== SERVER 2: SALES-DC1 (Target Child Domain Controller) ==================== -->
+            <div class="pc-container" id="dc2-pc">
+                <div class="pc-label" id="dc2-top-label">
+                    SALES-DC1 (Plain Server)
+                    <span id="dc2-top-sub">IP: DHCP (Not Configured) | Workgroup | User: Local Administrator</span>
+                </div>
+
+                <!-- Desktop Icons -->
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openServerManager()">
+                        <div class="ico">🗄️</div>
+                        <span>Server Manager</span>
+                    </div>
+                    <div class="d-icon" id="dc2-domains-icon" style="display:none;" onclick="openDC2Domains()">
+                        <div class="ico">🌐</div>
+                        <span><strong>AD Domains &amp; Trusts</strong></span>
+                    </div>
+                    <div class="d-icon" id="dc2-aduc-icon" style="display:none;" onclick="openDC2Aduc()">
+                        <div class="ico">👥</div>
+                        <span><strong>AD Users &amp; Computers</strong></span>
+                    </div>
+                </div>
+
+                <!-- Restarting Overlay -->
+                <div id="dc2-restart-overlay" class="full-overlay">
+                    <div class="spinner"></div>
+                    <h2 id="restart-title" style="margin:0 0 6px 0;">Restarting SALES-DC1...</h2>
+                    <p id="restart-sub" style="margin:0; font-size:13px; color:#bae6fd;">Configuring Child Domain sales.smec.com...</p>
+                </div>
+
+                <!-- Child Domain Login Overlay (After Child DC Promotion) -->
+                <div id="dc2-login-overlay" class="full-overlay">
+                    <div style="position:absolute; top:22px; background:rgba(0,0,0,0.35); padding:8px 20px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); font-size:13.5px;">
+                        <strong>SALES-DC1</strong> · Child Domain Controller: <code>sales.smec.com</code>
+                    </div>
+                    <div style="font-size:50px; background:rgba(255,255,255,0.18); width:92px; height:92px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,0.35); margin-bottom:10px;">👤</div>
+                    <h2 style="margin:0 0 4px 0; font-weight:500;">SALES\Administrator</h2>
+                    <p style="margin:0 0 8px 0; font-size:12px; color:#bae6fd;">Sign in to the new Child Domain: <code>sales\administrator</code> / <code>password123</code></p>
+                    <div class="login-card">
+                        <input type="text" id="dc2-login-user" placeholder="sales\administrator" autocomplete="off">
+                        <input type="password" id="dc2-login-pass" placeholder="Password (password123)" autocomplete="off" onkeypress="if(event.key==='Enter') submitChildLogin()">
+                        <div id="dc2-login-err" class="login-error"></div>
+                        <button class="primary-btn" onclick="submitChildLogin()" style="padding:9px; font-size:13px;">Sign In &rarr;</button>
+                    </div>
+                </div>
+
+                <!-- DC2 Run Window -->
+                <div id="dc2-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('dc2-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>ncpa.cpl</code> (Network), <code>domain.msc</code> (Domains &amp; Trusts), or <code>dsa.msc</code> (ADUC).</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="dc2-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeDC2Run()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeDC2Run()">OK</button>
+                        <button onclick="closeWindow('dc2-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- ncpa.cpl Network Connections -->
+                <div id="ncpa-window" class="window">
+                    <div class="title-bar"><span>Network Connections</span><span class="close-btn" onclick="closeWindow('ncpa-window')">X</span></div>
+                    <div class="menu-bar"><span>Organize</span><span>Change settings of this connection</span></div>
+                    <div class="content" style="background:#fff; padding:18px;">
+                        <div id="eth-adapter" oncontextmenu="showContext('ctx-ethernet', event)" style="display:inline-flex; align-items:center; gap:12px; padding:12px 16px; border:1px solid #99d1ff; background:#e5f1fb; border-radius:5px; cursor:pointer;">
+                            <div style="font-size:32px;">🔌</div>
+                            <div>
+                                <div style="font-weight:700; font-size:13px;">Ethernet</div>
+                                <div id="eth-status-sub" style="font-size:11.5px; color:#475569;">Network (DHCP) · Intel(R) Gigabit</div>
+                            </div>
+                        </div>
+                        <p style="font-size:12px; color:#64748b; margin-top:16px;">Right-click <b>Ethernet</b> and select <b>Properties</b> to set Static IP and Parent DNS (<code>192.168.1.1</code>).</p>
+                    </div>
+                </div>
+
+                <!-- Ethernet Properties -->
+                <div id="eth-props-window" class="window">
+                    <div class="title-bar"><span>Ethernet Properties</span><span class="close-btn" onclick="closeWindow('eth-props-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <p style="margin:0 0 8px 0;">This connection uses the following items:</p>
+                        <div style="border:1px solid #ccc; padding:6px; height:195px; overflow:auto; background:#fafafa; display:flex; flex-direction:column; gap:4px;">
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> Client for Microsoft Networks</div>
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> File and Printer Sharing for Microsoft Networks</div>
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> Internet Protocol Version 6 (TCP/IPv6)</div>
+                            <div id="ipv4-row" ondblclick="openIPv4Dialog()" onclick="selectIPv4Row()" style="padding:5px 6px; border-radius:3px; cursor:pointer; background:#cce8ff; font-weight:600;">
+                                <input type="checkbox" checked disabled> Internet Protocol Version 4 (TCP/IPv4)
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+                            <button class="primary-btn" onclick="openIPv4Dialog()">Properties</button>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="closeWindow('eth-props-window')">OK</button>
+                        <button onclick="closeWindow('eth-props-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- IPv4 Properties (NO AUTO-FILL!) -->
+                <div id="ipv4-window" class="window">
+                    <div class="title-bar"><span>Internet Protocol Version 4 (TCP/IPv4) Properties</span><span class="close-btn" onclick="closeWindow('ipv4-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <label style="display:block; margin-bottom:6px;"><input type="radio" name="ip-mode" value="dhcp" onchange="toggleStaticIP(false)"> Obtain an IP address automatically</label>
+                        <label style="display:block; font-weight:600; margin-bottom:10px;"><input type="radio" name="ip-mode" id="radio-static-ip" value="static" checked onchange="toggleStaticIP(true)"> Use the following IP address:</label>
+
+                        <div style="display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; padding-left:18px; margin-bottom:14px;">
+                            <label>IP address:</label>
+                            <input type="text" id="inp-ip" placeholder="e.g. 192.168.1.2" autocomplete="off">
+                            <label>Subnet mask:</label>
+                            <input type="text" id="inp-mask" placeholder="e.g. 255.255.255.0" autocomplete="off">
+                            <label>Default gateway:</label>
+                            <input type="text" id="inp-gw" placeholder="(Optional)" autocomplete="off">
+                        </div>
+
+                        <label style="display:block; font-weight:600; margin-bottom:10px;"><input type="radio" checked disabled> Use the following DNS server addresses:</label>
+                        <div style="display:grid; grid-template-columns:150px 1fr; gap:8px; align-items:center; padding-left:18px;">
+                            <label>Preferred DNS server:</label>
+                            <input type="text" id="inp-dns" placeholder="e.g. 192.168.1.1" autocomplete="off">
+                            <label>Alternate DNS server:</label>
+                            <input type="text" id="inp-dns2" placeholder="(Optional)" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="saveIPv4()">OK</button>
+                        <button onclick="closeWindow('ipv4-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server Manager Window -->
+                <div id="sm-window" class="window">
+                    <div class="title-bar"><span>Server Manager - SALES-DC1</span><span class="close-btn" onclick="closeWindow('sm-window')">X</span></div>
+                    <div style="background:#005a9e; color:#fff; padding:8px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12.5px;">
+                        <div style="font-weight:700;">Dashboard · Server Manager</div>
+                        <div id="sm-flag-btn" onclick="togglePromotePopover(event)" style="cursor:pointer; padding:3px 8px; border-radius:4px; background:rgba(255,255,255,0.12);">
+                            🚩 Notifications <span id="sm-flag-badge" style="display:none; background:#facc15; color:#000; font-weight:700; font-size:10px; padding:1px 5px; border-radius:10px; margin-left:3px;">1</span>
+                        </div>
+                    </div>
+                    <!-- Notification Flag Popover -->
+                    <div id="sm-promote-popover" style="display:none; position:absolute; top:70px; right:16px; width:340px; background:#fff; border:1px solid #999; border-radius:5px; box-shadow:0 8px 24px rgba(0,0,0,0.3); padding:12px; z-index:10050; font-size:12px;">
+                        <div style="font-weight:700; color:#b45309; margin-bottom:6px;">⚠️ Post-deployment Configuration</div>
+                        <p style="margin:0 0 10px 0; color:#333;">Configuration required for Active Directory Domain Services at SALES-DC1.</p>
+                        <a href="#" onclick="openPromoteWizard(event)" style="color:#0078D7; font-weight:700; text-decoration:underline;">Promote this server to a domain controller</a>
+                    </div>
+
+                    <div class="content" style="background:#f8fafc; padding:18px; display:flex; flex-direction:column; gap:16px;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <h3 style="margin:0 0 4px 0; color:#0f172a;">Configure this local server</h3>
+                                <div style="font-size:12px; color:#475569;">Computer: <strong>SALES-DC1</strong> | Current Scope: <strong id="sm-domain-lbl">WORKGROUP</strong></div>
+                            </div>
+                            <button id="btn-add-roles" class="primary-btn" onclick="openAddRolesWizard()">+ Add roles and features</button>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; font-size:12px;">
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">IP / Parent DNS</div>
+                                <div id="sm-card-ip" style="font-weight:700; color:#b45309; margin-top:4px;">DHCP (Pending)</div>
+                            </div>
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">AD DS Role</div>
+                                <div id="sm-card-adds" style="font-weight:700; color:#64748b; margin-top:4px;">Not Installed</div>
+                            </div>
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">Child Domain</div>
+                                <div id="sm-card-child" style="font-weight:700; color:#64748b; margin-top:4px;">Not Configured</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Roles and Features Wizard -->
+                <div id="add-roles-window" class="window">
+                    <div class="title-bar"><span>Add Roles and Features Wizard</span><span class="close-btn" onclick="closeWindow('add-roles-window')">X</span></div>
+                    <div class="wiz-layout">
+                        <div class="wiz-side">
+                            <div class="wiz-step active" id="ar-nav-1">Before You Begin</div>
+                            <div class="wiz-step" id="ar-nav-2">Installation Type</div>
+                            <div class="wiz-step" id="ar-nav-3">Server Selection</div>
+                            <div class="wiz-step" id="ar-nav-4">Server Roles</div>
+                            <div class="wiz-step" id="ar-nav-5">Features</div>
+                            <div class="wiz-step" id="ar-nav-6">AD DS</div>
+                            <div class="wiz-step" id="ar-nav-7">Confirmation</div>
+                            <div class="wiz-step" id="ar-nav-8">Results</div>
+                        </div>
+                        <div class="wiz-main" id="ar-main-pane"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button id="ar-prev-btn" onclick="arPrev()" style="display:none;">&lt; Previous</button>
+                        <button id="ar-next-btn" class="primary-btn" onclick="arNext()">Next &gt;</button>
+                        <button onclick="closeWindow('add-roles-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- AD DS Configuration Wizard (Child Domain Promotion) -->
+                <div id="promote-dc-window" class="window">
+                    <div class="title-bar"><span>Active Directory Domain Services Configuration Wizard (Child Domain)</span><span class="close-btn" onclick="closeWindow('promote-dc-window')">X</span></div>
+                    <div class="wiz-layout">
+                        <div class="wiz-side">
+                            <div class="wiz-step active" id="pd-nav-1">Deployment Configuration</div>
+                            <div class="wiz-step" id="pd-nav-2">Domain Controller Options</div>
+                            <div class="wiz-step" id="pd-nav-3">DNS Options</div>
+                            <div class="wiz-step" id="pd-nav-4">Additional Options</div>
+                            <div class="wiz-step" id="pd-nav-5">Paths</div>
+                            <div class="wiz-step" id="pd-nav-6">Review Options</div>
+                            <div class="wiz-step" id="pd-nav-7">Prerequisites Check</div>
+                            <div class="wiz-step" id="pd-nav-8">Installation</div>
+                        </div>
+                        <div class="wiz-main" id="pd-main-pane"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button id="pd-prev-btn" onclick="pdPrev()" style="display:none;">&lt; Previous</button>
+                        <button id="pd-next-btn" class="primary-btn" onclick="pdNext()">Next &gt;</button>
+                        <button onclick="closeWindow('promote-dc-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Enterprise Admin Credentials Modal -->
+                <div id="ent-cred-window" class="window">
+                    <div class="title-bar"><span>Windows Security (Enterprise Admin Credentials)</span><span class="close-btn" onclick="closeWindow('ent-cred-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <p style="margin:0 0 12px 0;">Supply Enterprise Admin credentials for parent forest <b>smec.com</b>:</p>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <input type="text" id="ent-user-inp" placeholder="smec\administrator" autocomplete="off">
+                            <input type="password" id="ent-pass-inp" placeholder="password123" autocomplete="off" onkeypress="if(event.key==='Enter') confirmEntCreds()">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="confirmEntCreds()">OK</button>
+                        <button onclick="closeWindow('ent-cred-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- DC2 AD Domains & Trusts Verification Window -->
+                <div id="dc2-domains-window" class="window">
+                    <div class="title-bar"><span>Active Directory Domains and Trusts [SALES-DC1.sales.smec.com]</span><span class="close-btn" onclick="closeWindow('dc2-domains-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 44%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded" onclick="toggleTree(this, event)">Active Directory Domains and Trusts
+                                    <ul>
+                                        <li class="icon-domain expanded" onclick="selectDC2Domain('parent', this, event)">smec.com
+                                            <ul>
+                                                <li class="icon-child" onclick="selectDC2Domain('child', this, event)" style="color:#15803d; font-weight:700;">sales.smec.com</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 56%; padding: 14px; overflow:auto;" id="dc2-domains-detail">
+                            <p style="color:#555; font-size:12.5px; margin:0;">Click <b>sales.smec.com</b> under <b>smec.com</b> to verify the Child Domain hierarchy and automatic Two-Way Transitive Trust!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DC2 ADUC Window -->
+                <div id="dc2-aduc-window" class="window">
+                    <div class="title-bar"><span>Active Directory Users and Computers [SALES-DC1.sales.smec.com]</span><span class="close-btn" onclick="closeWindow('dc2-aduc-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 42%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded">Active Directory Users and Computers
+                                    <ul>
+                                        <li class="icon-child expanded" style="color:#15803d; font-weight:700;">sales.smec.com
+                                            <ul>
+                                                <li class="icon-folder">Builtin</li>
+                                                <li class="icon-folder">Computers</li>
+                                                <li class="icon-ou selected">Domain Controllers</li>
+                                                <li class="icon-folder">Users</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 58%; padding: 12px;">
+                            <table class="mmc-table">
+                                <tr><th>Name</th><th>Domain</th><th>DC Type</th></tr>
+                                <tr style="background:#ecfdf5;">
+                                    <td><span class="icon-dc"></span><strong>SALES-DC1</strong></td>
+                                    <td style="font-family:Consolas, monospace;">sales.smec.com</td>
+                                    <td style="color:#15803d; font-weight:700;">GC (Child DC)</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DC2 Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('dc2-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="dc2-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SALES-DC1)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openDC2Run(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:5px;">Run</span>
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openServerManager(); document.getElementById('dc2-start-menu').style.display='none';">
+                            <div class="app-icon">🗄️</div>
+                            <span style="font-size:11.5px; font-weight:600; text-align:center;">Server<br>Manager</span>
+                        </div>
+                        <div class="app" id="dc2-start-domains" style="display:none;" onclick="openDC2Domains(); document.getElementById('dc2-start-menu').style.display='none';">
+                            <div class="app-icon">🌐</div>
+                            <span style="font-size:11px; font-weight:600; text-align:center;">Domains &amp;<br>Trusts</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Dedicated Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 12</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Context Menus -->
+    <div id="ctx-ethernet" class="context-menu">
+        <div onclick="openEthProperties()"><strong>Properties</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 'dc1';
+        let parentVerified = false;
+        let ipConfigured = false;
+        let addsRoleInstalled = false;
+        let childPromoted = false;
+
+        // Add Roles Wizard
+        let arPage = 1;
+        let addsRoleChecked = false;
+
+        // Promote Child DC Wizard
+        let pdPage = 1;
+        let pdDeployMode = 'add-dc';
+        let pdDomainType = 'child';
+        let pdParentDomain = '';
+        let pdChildName = '';
+        let entCredsVerified = false;
+        let pdDsrmPass = '';
+        let pdDsrmConfirm = '';
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => el.style.display = 'none');
+            const pop = document.getElementById('sm-promote-popover');
+            if (pop) pop.style.display = 'none';
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 2900);
+        }
+
+        function switchMachine(m) {
+            activeMachine = m;
+            document.getElementById('dc1-pc').classList.toggle('active-pc', m === 'dc1');
+            document.getElementById('dc2-pc').classList.toggle('active-pc', m === 'dc2');
+            document.getElementById('btn-switch-dc1').classList.toggle('active', m === 'dc1');
+            document.getElementById('btn-switch-dc2').classList.toggle('active', m === 'dc2');
+            updateSidebarAttention();
+        }
+
+        function updateSidebarAttention() {
+            const b1 = document.getElementById('btn-switch-dc1');
+            const b2 = document.getElementById('btn-switch-dc2');
+            b1.classList.remove('attention');
+            b2.classList.remove('attention');
+            if (step <= 2 && activeMachine !== 'dc1') b1.classList.add('attention');
+            if (step >= 3 && step <= 12 && activeMachine !== 'dc2') b2.classList.add('attention');
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+
+        function toggleTree(el, e) {
+            e.stopPropagation();
+            el.classList.toggle('expanded');
+            if (el.classList.contains('icon-folder')) { el.classList.remove('icon-folder'); el.classList.add('icon-folder-open'); }
+            else if (el.classList.contains('icon-folder-open')) { el.classList.remove('icon-folder-open'); el.classList.add('icon-folder'); }
+        }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 210) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 90) + 'px';
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 12)} / 12`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER 1 (Verify Parent):</strong> Open <b>AD Domains &amp; Trusts</b> (click Desktop icon or <code>Start &rarr; Run &rarr; domain.msc</code>) to verify parent domain <code>smec.com</code>."; break;
+                case 2: text = "<strong>SERVER 1 (Verify Parent):</strong> Click <b>smec.com</b> in the left tree to confirm the Forest Root Domain is online."; break;
+                case 3: text = "<strong>SERVER 2 (IP &amp; Parent DNS):</strong> Switch to <b>🌿 Server 2 (Child DC)</b> on the left sidebar! Open <b>Start &rarr; Run</b>, type <code>ncpa.cpl</code>, and click <b>OK</b>."; break;
+                case 4: text = "<strong>SERVER 2 (IP &amp; Parent DNS):</strong> Right-click <b>Ethernet</b> &rarr; <b>Properties</b> &rarr; double-click <b>Internet Protocol Version 4 (TCP/IPv4)</b>."; break;
+                case 5: text = "<strong>SERVER 2 (IP &amp; Parent DNS):</strong> Enter IP <code>192.168.1.2</code>, Subnet Mask <code>255.255.255.0</code>, and Preferred DNS <code>192.168.1.1</code> (Parent DC IP so it can locate <code>smec.com</code>) &rarr; click <b>OK</b>."; break;
+                case 6: text = "<strong>SERVER 2 (Install AD DS):</strong> Open <b>Server Manager</b> and click <b>+ Add roles and features</b>."; break;
+                case 7: text = "<strong>SERVER 2 (Install AD DS):</strong> Navigate to <b>Server Roles</b>, check <b>Active Directory Domain Services</b>, proceed to Confirmation, and click <b>Install</b>."; break;
+                case 8: text = "<strong>SERVER 2 (Promote to Child DC):</strong> Click the yellow <b>🚩 Notifications</b> flag in Server Manager &rarr; click <b>Promote this server to a domain controller</b>."; break;
+                case 9: text = "<strong>SERVER 2 (Child Domain Config):</strong> Select <b>Add a new domain to an existing forest</b> &rarr; Domain type: <b>Child domain</b> &rarr; Parent: <code>smec.com</code> &rarr; New domain name: <code>sales</code> (no .com needed!) &rarr; click <b>Change...</b> to enter Enterprise Admin <code>smec\\administrator</code> / <code>password123</code> &rarr; Next."; break;
+                case 10: text = "<strong>SERVER 2 (Wizard &amp; Install):</strong> Set DSRM password <code>password123</code> &rarr; verify NetBIOS name <code>SALES</code> &rarr; Review <code>sales.smec.com</code> &rarr; click <b>Install</b> on Prerequisites Check."; break;
+                case 11: text = "<strong>SERVER 2 (Child Domain Login):</strong> After restart, sign in to the new Child Domain as <code>sales\\administrator</code> with password <code>password123</code>."; break;
+                case 12: text = "<strong>SERVER 2 (Verify Child Domain &amp; Trust):</strong> Open <b>AD Domains &amp; Trusts</b> (<code>domain.msc</code>) on <b>SALES-DC1</b> and click <b>sales.smec.com</b> under <b>smec.com</b> to verify the Child Domain and automatic Two-Way Transitive Trust!"; break;
+                case 13:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> Child Domain <code>sales.smec.com</code> is live on <b>SALES-DC1 (192.168.1.2)</b> with an automatic Two-Way Transitive Trust to parent <code>smec.com</code>!";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        // --- STEP 1-2: SERVER 1 (PARENT DC) CHECK ---
+        function openDC1Run(e) {
+            e.stopPropagation();
+            document.getElementById('dc1-start-menu').style.display = 'none';
+            document.getElementById('dc1-run-window').style.display = 'flex';
+            document.getElementById('dc1-run-input').value = '';
+            document.getElementById('dc1-run-input').focus();
+        }
+        function executeDC1Run() {
+            const cmd = document.getElementById('dc1-run-input').value.trim().toLowerCase();
+            closeWindow('dc1-run-window');
+            if (cmd === 'domain.msc' || cmd === 'dsa.msc') openDC1Domains();
+            else if (cmd !== '') alert(`Windows cannot find '${cmd}'.`);
+        }
+        function openDC1Domains() {
+            document.getElementById('dc1-domains-window').style.display = 'flex';
+            if (step === 1) { step = 2; updateGuide(); }
+        }
+        function selectDC1Domain(el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('#dc1-domains-window li').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('dc1-dom-info').innerHTML = `
+                <div style="padding:12px; background:#eff6ff; border:1px solid #93c5fd; border-radius:6px;">
+                    <strong style="color:#005a9e;">🏢 Forest Root / Parent Domain: smec.com</strong><br><br>
+                    • <b>Primary DC:</b> SMEC-DC1 (192.168.1.1)<br>
+                    • <b>Forest Functional Level:</b> Windows Server 2025<br>
+                    • <b>Child Domains:</b> ${childPromoted ? '<strong style="color:#15803d;">sales.smec.com (Active ✓)</strong>' : 'None yet'}
+                </div>`;
+            if (step === 2) {
+                parentVerified = true;
+                showToast("Parent domain smec.com verified! Now switch to Server 2 (Child DC) on the left.");
+                step = 3;
+                updateGuide();
+            }
+        }
+
+        // --- DC2 RUN DIALOG ---
+        function openDC2Run(e) {
+            e.stopPropagation();
+            document.getElementById('dc2-start-menu').style.display = 'none';
+            document.getElementById('dc2-run-window').style.display = 'flex';
+            document.getElementById('dc2-run-input').value = '';
+            document.getElementById('dc2-run-input').focus();
+        }
+        function executeDC2Run() {
+            const cmd = document.getElementById('dc2-run-input').value.trim().toLowerCase();
+            closeWindow('dc2-run-window');
+            if (cmd === 'ncpa.cpl') {
+                if (!parentVerified) { alert("First verify parent domain smec.com on Server 1!"); return; }
+                document.getElementById('ncpa-window').style.display = 'flex';
+                if (step === 3) { step = 4; updateGuide(); }
+            } else if (cmd === 'domain.msc') {
+                if (!childPromoted) { alert("AD Domains & Trusts is available after promoting SALES-DC1!"); return; }
+                openDC2Domains();
+            } else if (cmd === 'dsa.msc') {
+                if (!childPromoted) { alert("ADUC is available after promoting SALES-DC1!"); return; }
+                openDC2Aduc();
+            } else if (cmd !== '') {
+                alert(`Windows cannot find '${cmd}'.`);
+            }
+        }
+
+        // --- STEP 3-5: IP & PARENT DNS CONFIG ---
+        function openEthProperties() { document.getElementById('eth-props-window').style.display = 'flex'; }
+        function selectIPv4Row() { document.getElementById('ipv4-row').style.background = '#cce8ff'; }
+        function openIPv4Dialog() {
+            document.getElementById('ipv4-window').style.display = 'flex';
+            document.getElementById('inp-ip').focus();
+            if (step === 4) { step = 5; updateGuide(); }
+        }
+        function toggleStaticIP(en) {
+            ['inp-ip', 'inp-mask', 'inp-gw', 'inp-dns', 'inp-dns2'].forEach(id => document.getElementById(id).disabled = !en);
+        }
+        function saveIPv4() {
+            const ip = document.getElementById('inp-ip').value.trim();
+            const mask = document.getElementById('inp-mask').value.trim();
+            const dns = document.getElementById('inp-dns').value.trim();
+            if (ip !== '192.168.1.2') { alert("Please set IP address to 192.168.1.2"); return; }
+            if (mask !== '255.255.255.0') { alert("Please set Subnet mask to 255.255.255.0"); return; }
+            if (dns !== '192.168.1.1') { alert("Please set Preferred DNS server to 192.168.1.1 (Parent DC SMEC-DC1 IP)"); return; }
+
+            ipConfigured = true;
+            closeWindow('ipv4-window');
+            closeWindow('eth-props-window');
+            closeWindow('ncpa-window');
+            document.getElementById('eth-status-sub').innerText = 'IP: 192.168.1.2 | DNS: 192.168.1.1';
+            document.getElementById('dc2-sidebar-ip').innerText = 'SALES-DC1 (192.168.1.2)';
+            document.getElementById('dc2-top-sub').innerText = 'IP: 192.168.1.2 | DNS: 192.168.1.1 | Workgroup';
+            document.getElementById('sm-card-ip').innerText = '192.168.1.2 (DNS: .1) ✓';
+            document.getElementById('sm-card-ip').style.color = '#15803d';
+            showToast("IP 192.168.1.2 & Parent DNS 192.168.1.1 configured! Now open Server Manager.");
+            if (step === 5) { step = 6; updateGuide(); }
+        }
+
+        // --- STEP 6-7: SERVER MANAGER & ADD AD DS ROLE ---
+        function openServerManager() {
+            if (!ipConfigured) { alert("First configure Static IP (192.168.1.2) and Parent DNS (192.168.1.1) in ncpa.cpl!"); return; }
+            document.getElementById('sm-window').style.display = 'flex';
+        }
+
+        function openAddRolesWizard() {
+            if (addsRoleInstalled) { showToast("AD DS Role is already installed. Click the 🚩 Notifications flag to promote!"); return; }
+            arPage = 1;
+            document.getElementById('add-roles-window').style.display = 'flex';
+            renderArPage();
+            if (step === 6) { step = 7; updateGuide(); }
+        }
+
+        function renderArPage() {
+            for (let i = 1; i <= 8; i++) {
+                const el = document.getElementById('ar-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === arPage) el.classList.add('active');
+                else if (i < arPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('ar-main-pane');
+            const prev = document.getElementById('ar-prev-btn');
+            const next = document.getElementById('ar-next-btn');
+            prev.style.display = (arPage > 1 && arPage < 8) ? 'inline-block' : 'none';
+            next.disabled = false;
+
+            if (arPage === 1) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Before You Begin</h3><p>This wizard installs Active Directory Domain Services on <b>SALES-DC1</b> so it can be promoted as the Domain Controller for the new <code>sales.smec.com</code> child domain.</p>`;
+            } else if (arPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select installation type</h3><label style="display:block; font-weight:600; margin-bottom:8px;"><input type="radio" checked> Role-based or feature-based installation</label><label style="display:block; color:#666;"><input type="radio" disabled> Remote Desktop Services installation</label>`;
+            } else if (arPage === 3) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select destination server</h3><table class="mmc-table" style="border:1px solid #ccc;"><tr><th>Name</th><th>IP Address</th><th>OS</th></tr><tr style="background:#e5f1fb;"><td><strong>SALES-DC1</strong></td><td>192.168.1.2</td><td>Windows Server 2025</td></tr></table>`;
+            } else if (arPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select server roles</h3>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; display:flex; flex-direction:column; gap:8px;">
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-adds-role" ${addsRoleChecked ? 'checked' : ''} onchange="addsRoleChecked=this.checked; if(this.checked) showToast('Included required AD DS Management Tools.');"> Active Directory Domain Services</label>
+                        <label style="color:#555;"><input type="checkbox" disabled> DHCP Server</label>
+                        <label style="color:#555;"><input type="checkbox" disabled> DNS Server (Auto-selected during Child DC promotion)</label>
+                        <label style="color:#555;"><input type="checkbox" disabled> Web Server (IIS)</label>
+                    </div>`;
+            } else if (arPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select features</h3><p>AD DS and AD LDS Tools (including AD Domains and Trusts) are automatically selected. Click <b>Next</b>.</p>`;
+            } else if (arPage === 6) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Active Directory Domain Services (AD DS)</h3><p>After installation finishes, you will promote <b>SALES-DC1</b> to create the new Child Domain <code>sales.smec.com</code> inside the <code>smec.com</code> forest.</p>`;
+            } else if (arPage === 7) {
+                next.innerText = 'Install';
+                pane.innerHTML = `<h3 style="margin-top:0;">Confirm installation selections</h3><ul><li>Destination Server: <b>SALES-DC1 (192.168.1.2)</b></li><li>Role: <b>Active Directory Domain Services</b></li></ul><p>Click <b>Install</b> to begin.</p>`;
+            } else if (arPage === 8) {
+                next.innerText = 'Close';
+                next.disabled = !addsRoleInstalled;
+                pane.innerHTML = `<h3 style="margin-top:0;">Installation progress</h3>
+                    <div id="ar-prog-txt">Installing Active Directory Domain Services binaries...</div>
+                    <div class="prog-track"><div id="ar-prog-fill" class="prog-fill"></div></div>
+                    <div id="ar-done-msg" style="display:none; padding:10px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; color:#15803d; font-weight:600;">
+                        ✓ Installation succeeded on SALES-DC1! Click Close, then click the yellow 🚩 Notifications flag in Server Manager.
+                    </div>`;
+                if (!addsRoleInstalled) runAddsInstall();
+            }
+        }
+
+        function arPrev() { if (arPage > 1 && arPage < 8) { arPage--; renderArPage(); } }
+        function arNext() {
+            if (arPage === 4 && !addsRoleChecked) { alert("Please check 'Active Directory Domain Services' to continue."); return; }
+            if (arPage === 8) { closeWindow('add-roles-window'); return; }
+            arPage++;
+            renderArPage();
+        }
+
+        function runAddsInstall() {
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '45%'; }, 350);
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '85%'; }, 1000);
+            setTimeout(() => {
+                addsRoleInstalled = true;
+                const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '100%';
+                const t = document.getElementById('ar-prog-txt'); if (t) t.innerText = 'Installation succeeded.';
+                const d = document.getElementById('ar-done-msg'); if (d) d.style.display = 'block';
+                document.getElementById('ar-next-btn').disabled = false;
+                document.getElementById('sm-card-adds').innerText = 'Installed ✓';
+                document.getElementById('sm-card-adds').style.color = '#15803d';
+                document.getElementById('sm-flag-badge').style.display = 'inline';
+                if (step === 7) { step = 8; updateGuide(); }
+            }, 1600);
+        }
+
+        // --- STEP 8-10: PROMOTE TO CHILD DOMAIN CONTROLLER ---
+        function togglePromotePopover(e) {
+            e.stopPropagation();
+            if (!addsRoleInstalled) { showToast("No pending notifications. Install AD DS role first."); return; }
+            const pop = document.getElementById('sm-promote-popover');
+            pop.style.display = pop.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function openPromoteWizard(e) {
+            e.preventDefault(); e.stopPropagation();
+            document.getElementById('sm-promote-popover').style.display = 'none';
+            pdPage = 1;
+            document.getElementById('promote-dc-window').style.display = 'flex';
+            renderPdPage();
+            if (step === 8) { step = 9; updateGuide(); }
+        }
+
+        function renderPdPage() {
+            for (let i = 1; i <= 8; i++) {
+                const el = document.getElementById('pd-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === pdPage) el.classList.add('active');
+                else if (i < pdPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('pd-main-pane');
+            const prev = document.getElementById('pd-prev-btn');
+            const next = document.getElementById('pd-next-btn');
+            prev.style.display = (pdPage > 1 && pdPage < 8) ? 'inline-block' : 'none';
+            next.disabled = false;
+
+            if (pdPage === 1) {
+                next.innerText = 'Next >';
+                const showChildFields = (pdDeployMode === 'new-domain');
+                pane.innerHTML = `<h3 style="margin-top:0;">Deployment Configuration</h3>
+                    <p style="margin-top:0;">Select the deployment operation:</p>
+                    <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:12px;">
+                        <label style="color:#555;"><input type="radio" name="pd-mode" value="add-dc" ${pdDeployMode==='add-dc'?'checked':''} onchange="pdDeployMode='add-dc'; renderPdPage();"> Add a domain controller to an existing domain</label>
+                        <label style="font-weight:700; color:#005a9e;"><input type="radio" name="pd-mode" value="new-domain" ${pdDeployMode==='new-domain'?'checked':''} onchange="pdDeployMode='new-domain'; renderPdPage();"> 🌿 Add a new domain to an existing forest</label>
+                        <label style="color:#555;"><input type="radio" name="pd-mode" value="new-forest" ${pdDeployMode==='new-forest'?'checked':''} onchange="pdDeployMode='new-forest'; renderPdPage();"> Add a new forest</label>
+                    </div>
+                    <div style="border:1px solid #ccc; padding:12px; border-radius:4px; background:#fafafa; display:${showChildFields ? 'block' : 'none'};">
+                        <div style="display:grid; grid-template-columns:155px 1fr; gap:8px; align-items:center; margin-bottom:10px;">
+                            <label style="font-weight:600;">Select domain type:</label>
+                            <select id="pd-dom-type" onchange="pdDomainType=this.value;">
+                                <option value="child" ${pdDomainType==='child'?'selected':''}>Child Domain</option>
+                                <option value="tree" ${pdDomainType==='tree'?'selected':''}>Tree Domain</option>
+                            </select>
+                            <label style="font-weight:600;">Parent domain name:</label>
+                            <input type="text" id="pd-parent-inp" value="${pdParentDomain}" placeholder="smec.com" oninput="pdParentDomain=this.value; updateFqdnPreview();">
+                            <label style="font-weight:600;">New domain name:</label>
+                            <input type="text" id="pd-child-inp" value="${pdChildName}" placeholder="sales (no .com needed)" oninput="pdChildName=this.value; updateFqdnPreview();">
+                        </div>
+                        <div id="fqdn-preview" style="font-size:11.5px; color:#15803d; font-weight:600; margin-bottom:10px;">
+                            Full Child Domain FQDN: <code>${(pdChildName||'sales').toLowerCase()}.${(pdParentDomain||'smec.com').toLowerCase()}</code>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #e2e8f0; padding-top:8px;">
+                            <span style="font-size:12px;">Enterprise Admin Credentials: <strong style="color:${entCredsVerified?'#15803d':'#b45309'};">${entCredsVerified ? 'SMEC\\Administrator ✓' : 'Not Supplied'}</strong></span>
+                            <button class="primary-btn" onclick="openEntCredModal()">Change...</button>
+                        </div>
+                    </div>`;
+            } else if (pdPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Domain Controller Options</h3>
+                    <div style="margin-bottom:12px;">
+                        <div style="margin-bottom:6px;">Domain functional level: <select><option>Windows Server 2025</option></select></div>
+                        <label style="display:block; margin-bottom:5px;"><input type="checkbox" checked> Domain Name System (DNS) server</label>
+                        <label style="display:block; margin-bottom:5px;"><input type="checkbox" checked> Global Catalog (GC)</label>
+                        <div style="margin-top:6px;">Site name: <select><option>Default-First-Site-Name</option></select></div>
+                    </div>
+                    <div style="border:1px solid #ccc; padding:12px; border-radius:4px; background:#fafafa;">
+                        <div style="font-weight:600; margin-bottom:8px;">Directory Services Restore Mode (DSRM) password:</div>
+                        <div style="display:grid; grid-template-columns:140px 1fr; gap:8px; align-items:center;">
+                            <label>Password:</label><input type="password" id="pd-dsrm-1" value="${pdDsrmPass}" placeholder="password123">
+                            <label>Confirm password:</label><input type="password" id="pd-dsrm-2" value="${pdDsrmConfirm}" placeholder="password123">
+                        </div>
+                    </div>`;
+            } else if (pdPage === 3) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">DNS Options</h3>
+                    <label style="display:block; font-weight:600; margin-bottom:8px;"><input type="checkbox" checked> Create DNS delegation (delegates <code>sales.smec.com</code> zone from parent DNS <code>192.168.1.1</code>)</label>
+                    <p style="font-size:12px; color:#555;">Credentials: <strong>SMEC\\Administrator</strong>. Click <b>Next</b>.</p>`;
+            } else if (pdPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Additional Options</h3>
+                    <p>Verify the NetBIOS name assigned to the new Child Domain:</p>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-weight:600;">The NetBIOS domain name:</label>
+                        <input type="text" value="SALES" readonly style="width:200px; font-weight:700; color:#005a9e; background:#f8fafc;">
+                    </div>`;
+            } else if (pdPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Paths</h3>
+                    <div style="display:grid; grid-template-columns:130px 1fr; gap:8px; align-items:center;">
+                        <label>Database folder:</label><input type="text" value="C:\\Windows\\NTDS" readonly style="background:#f8fafc;">
+                        <label>Log files folder:</label><input type="text" value="C:\\Windows\\NTDS" readonly style="background:#f8fafc;">
+                        <label>SYSVOL folder:</label><input type="text" value="C:\\Windows\\SYSVOL" readonly style="background:#f8fafc;">
+                    </div>`;
+            } else if (pdPage === 6) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Review Options</h3>
+                    <div style="border:1px solid #ccc; padding:12px; background:#fafafa; font-family:Consolas, monospace; font-size:12px; line-height:1.7;">
+                        Operation: Configure a new Child Domain in existing forest<br>
+                        Parent Domain: smec.com (SMEC-DC1)<br>
+                        Child Domain FQDN: sales.smec.com<br>
+                        NetBIOS Name: SALES<br>
+                        Child DC Server: SALES-DC1 (192.168.1.2)<br>
+                        Automatic Trust: Two-Way Transitive Trust (smec.com &lt;-&gt; sales.smec.com)
+                    </div>`;
+            } else if (pdPage === 7) {
+                next.innerText = 'Install';
+                pane.innerHTML = `<h3 style="margin-top:0;">Prerequisites Check</h3>
+                    <div style="padding:12px; background:#ecfdf5; border:1px solid #16a34a; border-radius:5px; color:#15803d; font-weight:600; margin-bottom:10px;">
+                        ✓ All prerequisite checks passed successfully. Click "Install" to create Child Domain <code>sales.smec.com</code>.
+                    </div>
+                    <p style="font-size:12px; color:#475569;">Verified Parent DC (<code>SMEC-DC1</code>), Enterprise Admin permissions, and DNS delegation.</p>`;
+            } else if (pdPage === 8) {
+                next.innerText = 'Close';
+                next.disabled = true;
+                pane.innerHTML = `<h3 style="margin-top:0;">Creating Child Domain sales.smec.com...</h3>
+                    <div id="pd-prog-txt">Contacting Domain Naming Master on SMEC-DC1.smec.com...</div>
+                    <div class="prog-track"><div id="pd-prog-fill" class="prog-fill"></div></div>`;
+                runChildPromotion();
+            }
+        }
+
+        function updateFqdnPreview() {
+            const el = document.getElementById('fqdn-preview');
+            if (!el) return;
+            const c = (pdChildName || 'sales').trim().toLowerCase();
+            const p = (pdParentDomain || 'smec.com').trim().toLowerCase();
+            el.innerHTML = `Full Child Domain FQDN: <code>${c}.${p}</code>`;
+        }
+
+        function openEntCredModal() {
+            document.getElementById('ent-cred-window').style.display = 'flex';
+            document.getElementById('ent-user-inp').value = '';
+            document.getElementById('ent-pass-inp').value = '';
+            document.getElementById('ent-user-inp').focus();
+        }
+
+        function confirmEntCreds() {
+            const u = document.getElementById('ent-user-inp').value.trim().toLowerCase();
+            const p = document.getElementById('ent-pass-inp').value;
+            if ((u !== 'smec\\administrator' && u !== 'administrator@smec.com') || p !== 'password123') {
+                alert("Invalid Enterprise Admin credentials! Use smec\\administrator and password123");
+                return;
+            }
+            entCredsVerified = true;
+            closeWindow('ent-cred-window');
+            renderPdPage();
+            showToast("Enterprise Admin credentials (SMEC\\Administrator) verified!");
+        }
+
+        function pdPrev() { if (pdPage > 1 && pdPage < 8) { pdPage--; renderPdPage(); } }
+        function pdNext() {
+            if (pdPage === 1) {
+                if (pdDeployMode !== 'new-domain') { alert("Select 'Add a new domain to an existing forest' to create a Child Domain!"); return; }
+                if (pdDomainType !== 'child') { alert("Select 'Child Domain' as the domain type!"); return; }
+                if (pdParentDomain.trim().toLowerCase() !== 'smec.com') { alert("Enter Parent domain name: smec.com"); return; }
+                const childVal = pdChildName.trim().toLowerCase();
+                if (childVal !== 'sales') {
+                    alert("Enter New domain name as just 'sales' (do not add .com or .in — Windows automatically creates sales.smec.com!).");
+                    return;
+                }
+                if (!entCredsVerified) { alert("Click 'Change...' to supply Enterprise Admin credentials (smec\\administrator / password123)."); return; }
+                if (step === 9) { step = 10; updateGuide(); }
+            }
+            if (pdPage === 2) {
+                pdDsrmPass = document.getElementById('pd-dsrm-1').value;
+                pdDsrmConfirm = document.getElementById('pd-dsrm-2').value;
+                if (!pdDsrmPass || pdDsrmPass !== pdDsrmConfirm) { alert("Please enter matching DSRM passwords (e.g. password123)."); return; }
+            }
+            pdPage++;
+            renderPdPage();
+        }
+
+        function runChildPromotion() {
+            setTimeout(() => { const f = document.getElementById('pd-prog-fill'); if (f) f.style.width = '38%'; }, 400);
+            setTimeout(() => {
+                const f = document.getElementById('pd-prog-fill'); if (f) f.style.width = '76%';
+                const t = document.getElementById('pd-prog-txt'); if (t) t.innerText = 'Creating sales.smec.com AD partition, DNS delegation & Two-Way Trust...';
+            }, 1100);
+            setTimeout(() => {
+                const f = document.getElementById('pd-prog-fill'); if (f) f.style.width = '100%';
+                const t = document.getElementById('pd-prog-txt'); if (t) t.innerText = 'Child Domain sales.smec.com created successfully! Restarting SALES-DC1...';
+                setTimeout(() => {
+                    closeWindow('promote-dc-window');
+                    closeWindow('sm-window');
+                    const ov = document.getElementById('dc2-restart-overlay');
+                    ov.style.display = 'flex';
+                    setTimeout(() => {
+                        ov.style.display = 'none';
+                        childPromoted = true;
+                        document.getElementById('dc2-sidebar-role').innerText = 'Child DC: sales.smec.com ✓';
+                        document.getElementById('dc2-top-label').childNodes[0].nodeValue = 'SALES-DC1 (Child DC) ';
+                        document.getElementById('sm-domain-lbl').innerText = 'sales.smec.com';
+                        document.getElementById('sm-card-child').innerText = 'sales.smec.com (Active) ✓';
+                        document.getElementById('sm-card-child').style.color = '#15803d';
+                        document.getElementById('sm-flag-badge').style.display = 'none';
+                        document.getElementById('dc1-child-tree-ul').innerHTML = `<li class="icon-child" style="color:#15803d; font-weight:700;">sales.smec.com</li>`;
+                        document.getElementById('dc2-domains-icon').style.display = 'flex';
+                        document.getElementById('dc2-aduc-icon').style.display = 'flex';
+                        document.getElementById('dc2-start-domains').style.display = 'flex';
+
+                        // Show Child Domain Login Screen
+                        document.getElementById('dc2-login-overlay').style.display = 'flex';
+                        document.getElementById('dc2-login-user').value = '';
+                        document.getElementById('dc2-login-pass').value = '';
+                        document.getElementById('dc2-login-user').focus();
+                        if (step === 10) { step = 11; updateGuide(); }
+                    }, 1700);
+                }, 900);
+            }, 2100);
+        }
+
+        function submitChildLogin() {
+            const u = document.getElementById('dc2-login-user').value.trim().toLowerCase();
+            const p = document.getElementById('dc2-login-pass').value;
+            const err = document.getElementById('dc2-login-err');
+            if ((u !== 'sales\\administrator' && u !== 'administrator@sales.smec.com') || p !== 'password123') {
+                err.innerText = 'Sign in to Child Domain as sales\\administrator / password123';
+                err.style.display = 'block';
+                return;
+            }
+            err.style.display = 'none';
+            document.getElementById('dc2-login-overlay').style.display = 'none';
+            document.getElementById('dc2-top-sub').innerText = 'IP: 192.168.1.2 | Child Domain: sales.smec.com | User: sales\\administrator';
+            showToast("Signed in as sales\\administrator! Open AD Domains & Trusts to verify sales.smec.com.");
+            if (step === 11) { step = 12; updateGuide(); }
+        }
+
+        // --- STEP 12: VERIFY CHILD DOMAIN & TWO-WAY TRUST ---
+        function openDC2Domains() { document.getElementById('dc2-domains-window').style.display = 'flex'; }
+        function openDC2Aduc() { document.getElementById('dc2-aduc-window').style.display = 'flex'; }
+
+        function selectDC2Domain(which, el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('#dc2-domains-window li').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            const box = document.getElementById('dc2-domains-detail');
+            if (which === 'child') {
+                box.innerHTML = `
+                    <div style="padding:14px; background:#ecfdf5; border:1px solid #16a34a; border-radius:6px; font-size:12.5px; line-height:1.65;">
+                        <strong style="color:#15803d; font-size:13.5px;">🌿 Child Domain Verified: sales.smec.com</strong><br><br>
+                        • <b>Parent Domain:</b> <code>smec.com</code> (SMEC-DC1)<br>
+                        • <b>Child DC:</b> <code>SALES-DC1</code> (192.168.1.2)<br>
+                        • <b>NetBIOS Name:</b> <code>SALES</code><br>
+                        • <b>Trust Relationship:</b> <strong style="color:#15803d;">Two-Way Transitive Trust (Automatic ✓)</strong><br>
+                        • <b>Directory Partition:</b> Dedicated Child AD database sharing the <code>smec.com</code> Forest Schema.
+                    </div>`;
+                if (step === 12) {
+                    step = 13;
+                    updateGuide();
+                    showToast("🎉 Child Domain sales.smec.com & Two-Way Trust Verified!");
+                }
+            } else {
+                box.innerHTML = `<p style="font-size:12.5px; color:#333;">Parent Domain <b>smec.com</b>. Click <b>sales.smec.com</b> directly underneath it to complete verification!</p>`;
+            }
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
