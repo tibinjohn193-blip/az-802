@@ -38,6 +38,9 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *   [🖥️ Lab 11: Additional Domain Controller ](lab11.md)
 
+*    [🖥️ Lab 12: Readonly Domain Controller ](lab12.md)
+
+
 
 
 ---
