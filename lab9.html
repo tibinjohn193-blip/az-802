@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: GPO Account Lockout Policy (smec.com)</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        /* ==================== LEFT MACHINE SELECTOR SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 205px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 12px;
+            z-index: 200;
+        }
+
+        .sidebar-title {
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 10px;
+        }
+        .sidebar-title h2 {
+            margin: 0;
+            font-size: 14px;
+            color: #fff;
+            letter-spacing: 0.3px;
+        }
+        .sidebar-title span {
+            display: block;
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 3px;
+        }
+
+        .sidebar-section-label {
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 11px 12px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            position: relative;
+        }
+        .machine-btn:hover {
+            background: #273549;
+            border-color: #60a5fa;
+        }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.35);
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.35); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+
+        .machine-btn-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .machine-btn-sub {
+            font-size: 11px;
+            opacity: 0.85;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            display: inline-block;
+        }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 10px 11px;
+            font-size: 11px;
+            line-height: 1.6;
+            color: #cbd5e1;
+            margin-top: 4px;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .reset-btn:hover { background: #334155; border-color: #94a3b8; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        /* Full-Screen Active PC Stage */
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc {
+            display: block;
+        }
+
+        #server-pc {
+            background: radial-gradient(circle at 25% 20%, #163d6b 0%, #0b2545 60%, #061529 100%);
+        }
+
+        #client-pc {
+            background: radial-gradient(circle at 75% 25%, #0072c6 0%, #004e8c 60%, #00315c 100%);
+        }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.78);
+            backdrop-filter: blur(8px);
+            color: #fff;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+        .pc-label span {
+            display: block;
+            color: #9ed2ff;
+            font-size: 11px;
+            font-weight: 400;
+            margin-top: 2px;
+        }
+
+        /* ==================== DEDICATED BOTTOM LAB GUIDE ==================== */
+        /* Sits cleanly in flex flow below the desktop stage - NEVER overlaps or gets covered! */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 {
+            margin: 0;
+            color: var(--win-blue);
+            font-size: 14.5px;
+            white-space: nowrap;
+        }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions {
+            font-size: 14px;
+            color: #1e293b;
+            margin: 0;
+            line-height: 1.5;
+            flex: 1;
+        }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 380px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 20px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 12px 8px;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 28px; margin-bottom: 5px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 70px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn {
+            cursor: pointer;
+            padding: 2px 10px;
+            font-family: sans-serif;
+            font-weight: 600;
+            border-radius: 4px;
+            color: #444;
+        }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .menu-bar span { padding: 3px 6px; border-radius: 3px; cursor: pointer; }
+        .menu-bar span:hover { background: #e5f1fb; }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 10px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 18px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12.5px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn {
+            background: var(--win-blue);
+            color: #fff;
+            border-color: #005a9e;
+            font-weight: 600;
+        }
+        button.primary-btn:hover { background: #0063b1; }
+
+        input[type="text"], input[type="number"], input[type="password"] {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 13px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Spacious Window Sizes (Full Desktop Stage) */
+        #server-run-window { width: 420px; height: 215px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; }
+        #aduc-window { width: 82%; height: 76%; top: 58px; left: 9%; z-index: 10001; }
+        #user-props-window { width: 440px; height: 350px; top: 90px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #gpm-window { width: 82%; height: 76%; top: 58px; left: 9%; z-index: 10002; }
+        #gpme-window { width: 88%; height: 80%; top: 44px; left: 6%; z-index: 10006; }
+        #policy-window { width: 490px; height: 400px; top: 70px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #suggested-window { width: 450px; height: 270px; top: 120px; left: 50%; transform: translateX(-50%); z-index: 10035; }
+        #server-cmd-window { width: 78%; height: 68%; top: 68px; left: 11%; background: #0c0c0c; color: #e5e5e5; font-family: Consolas, monospace; z-index: 10008; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 210px;
+        }
+        .context-menu div {
+            padding: 7px 14px;
+            cursor: pointer;
+            font-size: 12.5px;
+            border-radius: 3px;
+            color: #222;
+        }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+        .context-menu div.disabled-item { color: #999; cursor: default; }
+        .context-menu div.disabled-item:hover { background: transparent; color: #999; }
+
+        /* MMC Tree View */
+        .tree-view { list-style: none; padding-left: 18px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .icon-domain::before { content: '🏢 '; }
+        .icon-ou::before { content: '🗂️ '; }
+        .icon-user::before { content: '👤 '; }
+        .icon-gpo::before { content: '📜 '; }
+        .icon-folder::before { content: '📁 '; }
+        .icon-folder-open::before { content: '📂 '; }
+        .icon-sec::before { content: '🛡️ '; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        /* MMC Table */
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mmc-table th {
+            border-bottom: 1px solid #ccc;
+            text-align: left;
+            background: #f5f5f5;
+            padding: 7px 10px;
+            font-weight: 600;
+            color: #333;
+        }
+        .mmc-table td { padding: 7px 10px; border-bottom: 1px solid #efefef; }
+        .mmc-table tr.policy-row:hover { background: #e5f1fb; cursor: pointer; }
+
+        /* Tabs for User Properties */
+        .tab-bar { display: flex; gap: 4px; padding: 8px 12px 0; background: #e9e9e9; border-bottom: 1px solid #ccc; }
+        .tab-btn {
+            padding: 6px 14px;
+            background: #dfdfdf;
+            border: 1px solid #bbb;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .tab-btn.active { background: #fff; font-weight: 600; color: var(--win-blue); }
+
+        /* ==================== CLIENT LOGIN SCREEN ==================== */
+        #client-login-screen {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(150deg, rgba(0, 80, 145, 0.97), rgba(0, 42, 82, 0.99));
+            z-index: 99900;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            padding: 24px;
+        }
+        .login-domain-info {
+            position: absolute;
+            top: 24px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 15px;
+            font-weight: 600;
+            background: rgba(0, 0, 0, 0.32);
+            padding: 9px 22px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        .login-domain-info span {
+            font-size: 12px;
+            font-weight: 400;
+            color: #a9d6ff;
+            display: block;
+            margin-top: 3px;
+        }
+        .login-avatar {
+            font-size: 52px;
+            background: rgba(255, 255, 255, 0.18);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-radius: 50%;
+            width: 96px;
+            height: 96px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 300px;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .password-row {
+            display: flex;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.96);
+            border-radius: 4px;
+            overflow: hidden;
+            border: 2px solid transparent;
+        }
+        .password-row:focus-within { border-color: #66c2ff; }
+        .password-row input {
+            flex: 1;
+            border: none;
+            padding: 9px 12px;
+            font-size: 13.5px;
+            background: transparent;
+            color: #111;
+        }
+        .password-row button {
+            border: none;
+            background: var(--win-blue);
+            color: #fff;
+            padding: 0 16px;
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 0;
+        }
+        .password-row button:hover { background: #005a9e; }
+
+        .login-msg {
+            min-height: 44px;
+            text-align: center;
+            font-size: 13px;
+            line-height: 1.45;
+            padding: 9px 14px;
+            border-radius: 5px;
+            width: 100%;
+            display: none;
+        }
+        .login-msg.error {
+            display: block;
+            background: rgba(220, 38, 38, 0.25);
+            border: 1px solid rgba(252, 165, 165, 0.7);
+            color: #fee2e2;
+        }
+        .login-msg.locked {
+            display: block;
+            background: rgba(185, 28, 28, 0.88);
+            border: 1px solid #fca5a5;
+            color: #fff;
+            font-weight: 600;
+        }
+        .attempt-counter {
+            font-size: 12px;
+            color: #bae6fd;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 14px;
+            border-radius: 14px;
+        }
+
+        #client-desktop-banner {
+            position: absolute;
+            top: 46%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.97);
+            color: #111;
+            padding: 24px 32px;
+            border-radius: 10px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+            border-top: 5px solid #16a34a;
+            text-align: center;
+            max-width: 390px;
+            display: none;
+            z-index: 200;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== LEFT SIDEBAR: MACHINE SWITCHER ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🛡️ GPO Lockout Lab</h2>
+            <span>Windows Server 2025 &amp; Client</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Machine</div>
+
+        <button id="btn-switch-server" class="machine-btn active" onclick="switchMachine('server')">
+            <div class="machine-btn-header">
+                <span>🖥️ Server</span>
+                <span class="status-dot"></span>
+            </div>
+            <div class="machine-btn-sub">SMEC-DC1 (192.168.1.100)</div>
+            <div class="machine-btn-sub">Domain Controller</div>
+        </button>
+
+        <button id="btn-switch-client" class="machine-btn" onclick="switchMachine('client')">
+            <div class="machine-btn-header">
+                <span>💻 Client</span>
+                <span class="status-dot"></span>
+            </div>
+            <div class="machine-btn-sub">PC-ARUN (192.168.1.101)</div>
+            <div class="machine-btn-sub">User: Arun (Sales)</div>
+        </button>
+
+        <div class="lab-info-card">
+            <div><strong>Domain:</strong> <code>smec.com</code></div>
+            <div><strong>GPO:</strong> Default Domain Policy</div>
+            <div><strong>Threshold:</strong> <code>3</code> attempts</div>
+            <div><strong>Arun Password:</strong> <code>Password123</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT MAIN WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+
+        <!-- Full-Width Active PC Stage -->
+        <div id="desktop-stage">
+
+            <!-- ==================== SERVER PC ==================== -->
+            <div class="pc-container active-pc" id="server-pc">
+                <div class="pc-label">
+                    SMEC-DC1 (Server)
+                    <span>IP: 192.168.1.100 | Domain: smec.com</span>
+                </div>
+
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('server-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="server-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (Server)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openServerRun(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12.5px; font-weight:700; color:#005a9e; margin-bottom:5px; text-align:center;">Run</span>
+                            <div class="app-icon" style="margin-bottom:0;">🪟</div>
+                        </div>
+                        <div class="app" onclick="openDirectADUC(event)">
+                            <div class="app-icon">👥</div>
+                            <span style="font-size:11.5px; font-weight:600; text-align:center;">ADUC</span>
+                        </div>
+                        <div class="app">
+                            <div class="app-icon">🗄️</div>
+                            <span style="font-size:11.5px; font-weight:600; text-align:center;">Server<br>Manager</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server Run Window -->
+                <div id="server-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('server-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <div style="font-size:34px; color:var(--win-blue); line-height:1;">🪟</div>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px; color:#333;">Type the name of a program, folder, document, or Internet resource, and Windows will open it for you.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label for="server-run-input" style="font-weight:600; font-size:12.5px;">Open:</label>
+                                <input type="text" id="server-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeServerRun()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeServerRun()">OK</button>
+                        <button onclick="closeWindow('server-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- ADUC Window -->
+                <div id="aduc-window" class="window">
+                    <div class="title-bar"><span>Active Directory Users and Computers [SMEC-DC1.smec.com]</span><span class="close-btn" onclick="handleADUCClose()">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 40%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder" onclick="toggleTree(this, event)">Active Directory Users and Computers
+                                    <ul>
+                                        <li class="icon-domain" onclick="toggleTree(this, event)">smec.com
+                                            <ul>
+                                                <li class="icon-folder">Builtin</li>
+                                                <li class="icon-folder">Computers</li>
+                                                <li class="icon-ou">Domain Controllers</li>
+                                                <li class="icon-ou" id="aduc-sales-ou" onclick="showUsers(this, event)">Sales</li>
+                                                <li class="icon-folder">Users</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 60%; padding: 12px; overflow:auto;">
+                            <div id="ou-contents" style="display:none;">
+                                <table class="mmc-table">
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                    </tr>
+                                    <tr class="policy-row" ondblclick="openArunProperties()" title="Double-click to open Properties">
+                                        <td><span class="icon-user"></span>Arun</td>
+                                        <td>User</td>
+                                        <td id="arun-ad-status" style="color:#15803d; font-weight:600;">Active</td>
+                                    </tr>
+                                </table>
+                                <p id="aduc-hint" style="font-size:12px; color:#555; margin-top:12px;">User <b>Arun</b> is in the Sales OU (smec.com).</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Arun Properties Window (Unlock Account) -->
+                <div id="user-props-window" class="window">
+                    <div class="title-bar"><span>Arun Properties</span><span class="close-btn" onclick="closeWindow('user-props-window')">X</span></div>
+                    <div class="tab-bar">
+                        <div class="tab-btn" id="tab-general" onclick="switchUserTab('general')">General</div>
+                        <div class="tab-btn active" id="tab-account" onclick="switchUserTab('account')">Account</div>
+                    </div>
+                    <div class="content" style="background:#fff;">
+                        <div id="pane-general" style="display:none; font-size:12.5px; line-height:1.9;">
+                            <div><strong>First name:</strong> Arun</div>
+                            <div><strong>Department:</strong> Sales</div>
+                            <div><strong>User logon name:</strong> arun@smec.com</div>
+                        </div>
+                        <div id="pane-account" style="font-size:12.5px;">
+                            <div style="margin-bottom:14px;">
+                                <div style="font-weight:600; margin-bottom:5px;">User logon name:</div>
+                                <div style="display:flex; gap:6px;">
+                                    <input type="text" value="arun" readonly style="width:48%; background:#f9f9f9;">
+                                    <input type="text" value="@smec.com" readonly style="width:52%; background:#f9f9f9;">
+                                </div>
+                            </div>
+                            <div style="border:1px solid #d4d4d4; padding:12px; border-radius:4px; background:#fafafa;">
+                                <div style="font-weight:600; margin-bottom:8px;">Account Status:</div>
+                                <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                                    <input type="checkbox" id="unlock-account-chk" style="margin-top:3px;">
+                                    <span>
+                                        <strong>Unlock account.</strong><br>
+                                        <span id="lockout-status-note" style="font-size:11.5px; color:#555;">This account is currently active.</span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="okArunProperties()">OK</button>
+                        <button onclick="closeWindow('user-props-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Group Policy Management (gpmc.msc) -->
+                <div id="gpm-window" class="window">
+                    <div class="title-bar"><span>Group Policy Management</span><span class="close-btn" onclick="handleGPMClose()">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 45%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder" onclick="toggleTree(this, event)">Forest: smec.com
+                                    <ul>
+                                        <li class="icon-folder" onclick="toggleTree(this, event)">Domains
+                                            <ul>
+                                                <li class="icon-domain" onclick="toggleTree(this, event)">smec.com
+                                                    <ul>
+                                                        <li class="icon-gpo" id="default-domain-policy-node" onclick="selectDefaultGpo(this, event)" oncontextmenu="showDefaultGPOContext(event)">Default Domain Policy</li>
+                                                        <li class="icon-ou">Domain Controllers</li>
+                                                        <li class="icon-ou">Sales</li>
+                                                        <li class="icon-folder">Group Policy Objects</li>
+                                                    </ul>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="padding: 16px; width: 55%; background:#f9f9f9; font-size:12.5px;">
+                            <h4 style="margin:0 0 8px 0; color:#005a9e;">Default Domain Policy</h4>
+                            <p style="color:#444; line-height:1.55; margin:0 0 10px 0;">
+                                <strong>Important:</strong> In Active Directory, <b>Account Lockout Policies</b> and <b>Password Policies</b> must be configured inside the <b>Default Domain Policy</b> linked at the domain root (<code>smec.com</code>).
+                            </p>
+                            <p style="color:#555; font-size:12px; margin:0;">Right-click <b>Default Domain Policy</b> on the left and click <b>Edit...</b></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group Policy Management Editor (GPME) -->
+                <div id="gpme-window" class="window">
+                    <div class="title-bar"><span>Group Policy Management Editor - [Default Domain Policy]</span><span class="close-btn" onclick="handleGPMEclose()">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 44%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder" onclick="toggleTree(this, event)">Computer Configuration
+                                    <ul>
+                                        <li class="icon-folder" onclick="toggleTree(this, event)">Policies
+                                            <ul>
+                                                <li class="icon-folder" onclick="toggleTree(this, event)">Software Settings</li>
+                                                <li class="icon-folder" onclick="toggleTree(this, event)">Windows Settings
+                                                    <ul>
+                                                        <li class="icon-folder">Scripts (Startup/Shutdown)</li>
+                                                        <li class="icon-sec" onclick="toggleTree(this, event)">Security Settings
+                                                            <ul>
+                                                                <li class="icon-folder" onclick="toggleTree(this, event)">Account Policies
+                                                                    <ul>
+                                                                        <li class="icon-folder selectable" onclick="selectPolicyFolder('password-policy', this, event)">Password Policy</li>
+                                                                        <li class="icon-folder selectable" onclick="selectPolicyFolder('lockout-policy', this, event)">Account Lockout Policy</li>
+                                                                        <li class="icon-folder selectable">Kerberos Policy</li>
+                                                                    </ul>
+                                                                </li>
+                                                                <li class="icon-folder">Local Policies</li>
+                                                            </ul>
+                                                        </li>
+                                                    </ul>
+                                                </li>
+                                                <li class="icon-folder">Administrative Templates</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li class="icon-folder" onclick="toggleTree(this, event)">User Configuration</li>
+                            </ul>
+                        </div>
+                        <div style="width: 56%; padding: 12px; overflow:auto;">
+                            <div id="gpme-placeholder" style="color:#555; font-size:12.5px; padding:10px; line-height:1.5;">
+                                Navigate to <b>Computer Configuration &gt; Policies &gt; Windows Settings &gt; Security Settings &gt; Account Policies &gt; Account Lockout Policy</b>.
+                            </div>
+                            <table id="lockout-policy-list" class="mmc-table" style="display:none;">
+                                <tr>
+                                    <th>Policy</th>
+                                    <th>Policy Setting</th>
+                                </tr>
+                                <tr class="policy-row" ondblclick="openThresholdSetting()">
+                                    <td>🔒 Account lockout duration</td>
+                                    <td id="val-duration">Not Defined</td>
+                                </tr>
+                                <tr class="policy-row" ondblclick="openThresholdSetting()" style="background:#f4faff;">
+                                    <td><strong>🔒 Account lockout threshold</strong></td>
+                                    <td id="val-threshold"><strong>Not Defined</strong></td>
+                                </tr>
+                                <tr class="policy-row" ondblclick="openThresholdSetting()">
+                                    <td>🔒 Reset account lockout counter after</td>
+                                    <td id="val-reset">Not Defined</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Lockout Threshold Properties Dialog -->
+                <div id="policy-window" class="window">
+                    <div class="title-bar"><span>Account lockout threshold Properties</span><span class="close-btn" onclick="closeWindow('policy-window')">X</span></div>
+                    <div class="content" style="display:flex; flex-direction:column; gap:10px;">
+                        <div style="background:#fff; border:1px solid #ccc; padding:14px; border-radius:4px;">
+                            <label style="display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:12px; cursor:pointer;">
+                                <input type="checkbox" id="define-threshold-chk" onchange="toggleThresholdInput()">
+                                <span>Define this policy setting</span>
+                            </label>
+                            <div style="display:flex; align-items:center; gap:8px; padding-left:22px;">
+                                <span>Account will lock out after:</span>
+                                <input type="number" id="threshold-input" value="0" min="0" max="999" disabled style="width:74px;">
+                                <span>invalid logon attempts</span>
+                            </div>
+                        </div>
+                        <div style="border:1px solid #ccc; padding:12px; flex:1; background:#fff; border-radius:4px; font-size:12.5px; line-height:1.5; color:#333;">
+                            <strong>Explain:</strong><br>
+                            This security setting determines the number of failed logon attempts that causes a user account to be locked out. A locked-out account cannot be used until it is reset by an administrator or until the lockout duration expires.<br><br>
+                            <span style="color:#005a9e;"><strong>Lab Requirement:</strong> Set this value to <b>3</b> invalid logon attempts.</span>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button onclick="applyThreshold()">Apply</button>
+                        <button class="primary-btn" onclick="okThreshold()">OK</button>
+                        <button onclick="closeWindow('policy-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Authentic Windows "Suggested Value Changes" Popup -->
+                <div id="suggested-window" class="window">
+                    <div class="title-bar"><span>Suggested Value Changes</span><span class="close-btn" onclick="closeWindow('suggested-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px; line-height:1.5;">
+                        <p style="margin:0 0 10px 0;">
+                            Setting <b>Account lockout threshold</b> to <b>3 invalid logon attempts</b> also requires the following settings to be defined:
+                        </p>
+                        <table class="mmc-table" style="border:1px solid #ccc;">
+                            <tr>
+                                <th>Policy</th>
+                                <th>Suggested Value</th>
+                            </tr>
+                            <tr>
+                                <td>Account lockout duration</td>
+                                <td><strong>30 minutes</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Reset account lockout counter after</td>
+                                <td><strong>30 minutes</strong></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="acceptSuggestedValues()">OK</button>
+                        <button onclick="closeWindow('suggested-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server CMD Window -->
+                <div id="server-cmd-window" class="window">
+                    <div class="title-bar">
+                        <span style="display:flex; align-items:center; gap:6px;"><span style="background:#000; color:#fff; font-size:10px; padding:1px 4px; font-family:Consolas;">C:\_</span> Command Prompt</span>
+                        <span class="close-btn" onclick="closeWindow('server-cmd-window')">X</span>
+                    </div>
+                    <div class="content" id="server-cmd-content" style="background:#0c0c0c; color:#e2e8f0; cursor:text; font-family:Consolas, monospace; font-size:13px;" onclick="document.getElementById('server-cmd-input').focus()">
+                        Microsoft Windows [Version 10.0.26100.1]<br>
+                        (c) Microsoft Corporation. All rights reserved.<br><br>
+                        <div id="server-cmd-output" style="white-space:pre-wrap;"></div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span>C:\Users\Administrator&gt;</span>
+                            <input type="text" id="server-cmd-input" style="background:transparent; border:none; color:#fff; font-family:Consolas, monospace; outline:none; flex:1; padding:0;" onkeypress="handleServerCmd(event)" autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== CLIENT PC ==================== -->
+            <div class="pc-container" id="client-pc">
+
+                <!-- Client Login Overlay -->
+                <div id="client-login-screen">
+                    <div class="login-domain-info">
+                        💻 Client PC (PC-ARUN)
+                        <span>Domain Joined: smec.com | Correct Password: Password123</span>
+                    </div>
+
+                    <div class="login-avatar">👤</div>
+                    <h2 style="margin:6px 0 2px 0; font-weight:500;">Arun</h2>
+                    <p style="margin:0 0 10px 0; opacity:0.85; font-size:12.5px;">Sales Department (smec\arun)</p>
+
+                    <div class="attempt-counter" id="attempt-counter">Failed Attempts: 0 / 3</div>
+
+                    <div class="login-form">
+                        <div class="password-row">
+                            <input type="password" id="client-password-input" placeholder="Password" autocomplete="off" onkeypress="if(event.key==='Enter') clientSignIn()">
+                            <button onclick="clientSignIn()" title="Sign In">&rarr;</button>
+                        </div>
+                        <div id="client-login-msg" class="login-msg"></div>
+                    </div>
+                </div>
+
+                <div class="pc-label">
+                    PC-ARUN (Client)
+                    <span>IP: 192.168.1.101 | User: Arun</span>
+                </div>
+
+                <!-- Client Desktop Welcome Banner -->
+                <div id="client-desktop-banner">
+                    <div style="font-size:38px; margin-bottom:8px;">✅</div>
+                    <h3 style="margin:0 0 6px 0; color:#15803d;">Welcome, Arun!</h3>
+                    <p style="margin:0; font-size:13px; color:#374151; line-height:1.5;">
+                        Account successfully unlocked by Administrator on <b>SMEC-DC1</b> and signed in to <b>PC-ARUN</b>.
+                    </p>
+                </div>
+
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('client-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="client-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (Client)</h4>
+                    <div class="app-grid">
+                        <div class="app"><div class="app-icon">📁</div><span style="font-size:11.5px; font-weight:600;">Explorer</span></div>
+                        <div class="app"><div class="app-icon">⚙️</div><span style="font-size:11.5px; font-weight:600;">Settings</span></div>
+                        <div class="app"><div class="app-icon">🌐</div><span style="font-size:11.5px; font-weight:600;">Edge</span></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Dedicated Full-Width Lab Guide Bar at the Bottom -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 17</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+
+    </div>
+
+    <!-- Global Context Menu for Default Domain Policy -->
+    <div id="gpo-context" class="context-menu">
+        <div onclick="openGPME(event)"><strong>Edit...</strong></div>
+        <div class="disabled-item">Link Enabled (✓)</div>
+        <div class="disabled-item">Enforced</div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 'server';
+        let policyConfigured = false;
+        let failedAttempts = 0;
+        let accountLocked = false;
+        const CORRECT_PASSWORD = "Password123";
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => el.style.display = 'none');
+        });
+
+        function switchMachine(machine) {
+            activeMachine = machine;
+            document.getElementById('server-pc').classList.toggle('active-pc', machine === 'server');
+            document.getElementById('client-pc').classList.toggle('active-pc', machine === 'client');
+            document.getElementById('btn-switch-server').classList.toggle('active', machine === 'server');
+            document.getElementById('btn-switch-client').classList.toggle('active', machine === 'client');
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => el.style.display = 'none');
+            updateSidebarAttention();
+            if (machine === 'client' && (step === 14 || step === 17)) {
+                setTimeout(() => document.getElementById('client-password-input').focus(), 100);
+            }
+        }
+
+        function updateSidebarAttention() {
+            const srvBtn = document.getElementById('btn-switch-server');
+            const cliBtn = document.getElementById('btn-switch-client');
+            srvBtn.classList.remove('attention');
+            cliBtn.classList.remove('attention');
+
+            const needsClient = (step === 14 || step === 17);
+            const needsServer = (step < 14 || step === 15 || step === 16);
+
+            if (needsClient && activeMachine !== 'client') cliBtn.classList.add('attention');
+            if (needsServer && activeMachine !== 'server') srvBtn.classList.add('attention');
+        }
+
+        function toggleMenu(id, event) {
+            event.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu').forEach(el => {
+                if (el.id !== id) el.style.display = 'none';
+            });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function toggleTree(element, event) {
+            event.stopPropagation();
+            element.classList.toggle('expanded');
+            if (element.classList.contains('icon-folder')) {
+                element.classList.remove('icon-folder');
+                element.classList.add('icon-folder-open');
+            } else if (element.classList.contains('icon-folder-open')) {
+                element.classList.remove('icon-folder-open');
+                element.classList.add('icon-folder');
+            }
+        }
+
+        // --- LAB STEP GUIDE ---
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 17)} / 17`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER:</strong> Click the <b>Start</b> button and open <b>Run</b>."; break;
+                case 2: text = "<strong>SERVER:</strong> Type <code>dsa.msc</code> and click <b>OK</b> to open Active Directory Users and Computers (ADUC)."; break;
+                case 3: text = "<strong>SERVER:</strong> Expand <b>smec.com</b>, click the <b>Sales</b> OU to verify user <b>Arun</b> exists, then close ADUC."; break;
+                case 4: text = "<strong>SERVER:</strong> Click Start and open <b>Run</b> again."; break;
+                case 5: text = "<strong>SERVER:</strong> Type <code>gpmc.msc</code> and click <b>OK</b> to open Group Policy Management."; break;
+                case 6: text = "<strong>SERVER:</strong> Expand <b>Forest: smec.com &gt; Domains &gt; smec.com</b>. Right-click <b>Default Domain Policy</b> and click <b>Edit...</b>"; break;
+                case 7: text = "<strong>SERVER:</strong> Navigate to <b>Computer Configuration &gt; Policies &gt; Windows Settings &gt; Security Settings &gt; Account Policies &gt; Account Lockout Policy</b>."; break;
+                case 8: text = "<strong>SERVER:</strong> Double-click <b>Account lockout threshold</b> on the right pane."; break;
+                case 9: text = "<strong>SERVER:</strong> Check <b>Define this policy setting</b>, enter <code>3</code> invalid logon attempts, and click <b>Apply</b> or <b>OK</b>."; break;
+                case 10: text = "<strong>SERVER:</strong> Review the <b>Suggested Value Changes</b> (30 min duration &amp; 30 min reset counter) and click <b>OK</b>."; break;
+                case 11: text = "<strong>SERVER:</strong> ⚠️ Close both <b>Group Policy Management Editor</b> and <b>Group Policy Management</b> windows to proceed."; break;
+                case 12: text = "<strong>SERVER:</strong> Open <b>Run</b> from Start, type <code>cmd</code>, and click <b>OK</b>."; break;
+                case 13: text = "<strong>SERVER:</strong> Type <code>gpupdate /force</code> and press <b>Enter</b> to apply the Account Lockout Policy on the Domain Controller."; break;
+                case 14: text = "<strong>CLIENT:</strong> Click <b>💻 Client</b> on the left sidebar! Then enter any <b>wrong password</b> (e.g., <code>wrong1</code>) for <b>Arun</b> <b>3 times</b> to test lockout."; break;
+                case 15: text = "<strong>SERVER (Unlock):</strong> Arun is locked out! Switch to <b>🖥️ Server</b> on the left, open <b>ADUC</b> (Start &rarr; Run &rarr; <code>dsa.msc</code>), click <b>Sales</b> OU, and double-click <b>Arun</b>."; break;
+                case 16: text = "<strong>SERVER (Unlock):</strong> On the <b>Account</b> tab, check <b>Unlock account</b> and click <b>OK</b>."; break;
+                case 17: text = "<strong>CLIENT:</strong> Switch back to <b>💻 Client</b> and sign in as <b>Arun</b> using the correct password <code>Password123</code> to verify the unlock!"; break;
+                case 18:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> You configured Account Lockout Policy in Default Domain Policy, verified lockout after 3 failed attempts, and unlocked the account in ADUC.";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        // --- SERVER FUNCTIONS ---
+        function openServerRun(e) {
+            e.stopPropagation();
+            document.getElementById('server-start-menu').style.display = 'none';
+            if (step === 11) {
+                alert("Please close the Group Policy Management Editor and Group Policy Management windows first!");
+                return;
+            }
+            document.getElementById('server-run-window').style.display = 'flex';
+            document.getElementById('server-run-input').value = '';
+            document.getElementById('server-run-input').focus();
+            if (step === 1) { step = 2; updateGuide(); }
+            if (step === 4) { step = 5; updateGuide(); }
+        }
+
+        function openDirectADUC(e) {
+            e.stopPropagation();
+            document.getElementById('server-start-menu').style.display = 'none';
+            if (step === 15) {
+                document.getElementById('aduc-window').style.display = 'flex';
+                return;
+            }
+            alert("Use Start -> Run -> dsa.msc to follow the authentic admin workflow.");
+        }
+
+        function executeServerRun() {
+            const cmd = document.getElementById('server-run-input').value.toLowerCase().trim();
+            closeWindow('server-run-window');
+            if (cmd === 'dsa.msc') {
+                document.getElementById('aduc-window').style.display = 'flex';
+                if (step === 2) { step = 3; updateGuide(); }
+            } else if (cmd === 'gpmc.msc') {
+                if (step < 4) { alert("Please verify user Arun in ADUC (dsa.msc) first!"); return; }
+                document.getElementById('gpm-window').style.display = 'flex';
+                if (step === 5) { step = 6; updateGuide(); }
+            } else if (cmd === 'cmd') {
+                if (step < 12) { alert("Please finish configuring the Default Domain Policy and close the GPO windows first!"); return; }
+                document.getElementById('server-cmd-window').style.display = 'flex';
+                document.getElementById('server-cmd-input').focus();
+                if (step === 12) { step = 13; updateGuide(); }
+            } else if (cmd !== "") {
+                alert(`Windows cannot find '${cmd}'. Make sure you typed the name correctly.`);
+            }
+        }
+
+        function showUsers(el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('#aduc-window .icon-ou').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('ou-contents').style.display = 'block';
+        }
+
+        function handleADUCClose() {
+            closeWindow('aduc-window');
+            if (step === 3) { step = 4; updateGuide(); }
+        }
+
+        function openArunProperties() {
+            const chk = document.getElementById('unlock-account-chk');
+            const note = document.getElementById('lockout-status-note');
+            chk.checked = false;
+            if (accountLocked) {
+                chk.disabled = false;
+                note.innerHTML = "<span style='color:#b91c1c; font-weight:600;'>This account is currently locked out on this Active Directory Domain Controller.</span>";
+                if (step === 15) { step = 16; updateGuide(); }
+            } else {
+                chk.disabled = true;
+                note.innerText = "This account is currently active (not locked out).";
+            }
+            switchUserTab('account');
+            document.getElementById('user-props-window').style.display = 'flex';
+        }
+
+        function switchUserTab(tab) {
+            document.getElementById('pane-general').style.display = tab === 'general' ? 'block' : 'none';
+            document.getElementById('pane-account').style.display = tab === 'account' ? 'block' : 'none';
+            document.getElementById('tab-general').classList.toggle('active', tab === 'general');
+            document.getElementById('tab-account').classList.toggle('active', tab === 'account');
+        }
+
+        function okArunProperties() {
+            const chk = document.getElementById('unlock-account-chk');
+            if (accountLocked && chk.checked) {
+                accountLocked = false;
+                failedAttempts = 0;
+                document.getElementById('arun-ad-status').innerText = 'Active (Unlocked)';
+                document.getElementById('arun-ad-status').style.color = '#15803d';
+                document.getElementById('attempt-counter').innerText = 'Failed Attempts: 0 / 3 (Account Unlocked)';
+                const msg = document.getElementById('client-login-msg');
+                msg.className = 'login-msg';
+                msg.innerText = '';
+                document.getElementById('client-password-input').value = '';
+                if (step === 16) { step = 17; updateGuide(); }
+            }
+            closeWindow('user-props-window');
+        }
+
+        function selectDefaultGpo(el, e) {
+            e.stopPropagation();
+            document.querySelectorAll('#gpm-window li').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        function showDefaultGPOContext(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectDefaultGpo(e.currentTarget, e);
+            const menu = document.getElementById('gpo-context');
+            menu.style.display = 'flex';
+            const left = Math.min(e.clientX, window.innerWidth - 220);
+            const top = Math.min(e.clientY, window.innerHeight - 110);
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+        }
+
+        function openGPME(e) {
+            e.stopPropagation();
+            document.getElementById('gpo-context').style.display = 'none';
+            document.getElementById('gpme-window').style.display = 'flex';
+            if (step === 6) { step = 7; updateGuide(); }
+        }
+
+        function selectPolicyFolder(folder, element, event) {
+            event.stopPropagation();
+            document.querySelectorAll('#gpme-window .selectable').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            if (folder === 'lockout-policy') {
+                document.getElementById('gpme-placeholder').style.display = 'none';
+                document.getElementById('lockout-policy-list').style.display = 'table';
+                if (step === 7) { step = 8; updateGuide(); }
+            } else {
+                document.getElementById('gpme-placeholder').style.display = 'block';
+                document.getElementById('gpme-placeholder').innerHTML = 'Select <b>Account Lockout Policy</b> under Account Policies.';
+                document.getElementById('lockout-policy-list').style.display = 'none';
+            }
+        }
+
+        function openThresholdSetting() {
+            document.getElementById('policy-window').style.display = 'flex';
+            if (step === 8) { step = 9; updateGuide(); }
+        }
+
+        function toggleThresholdInput() {
+            const checked = document.getElementById('define-threshold-chk').checked;
+            const inp = document.getElementById('threshold-input');
+            inp.disabled = !checked;
+            if (checked && inp.value === '0') {
+                inp.value = '';
+                inp.focus();
+            }
+        }
+
+        function applyThreshold() {
+            const checked = document.getElementById('define-threshold-chk').checked;
+            const val = parseInt(document.getElementById('threshold-input').value, 10);
+            if (!checked) {
+                alert("Please check 'Define this policy setting' first.");
+                return false;
+            }
+            if (val !== 3) {
+                alert("For this lab, please set the Account lockout threshold to 3 invalid logon attempts.");
+                return false;
+            }
+            document.getElementById('suggested-window').style.display = 'flex';
+            if (step === 9) { step = 10; updateGuide(); }
+            return true;
+        }
+
+        function okThreshold() {
+            if (!policyConfigured) {
+                applyThreshold();
+            } else {
+                closeWindow('policy-window');
+            }
+        }
+
+        function acceptSuggestedValues() {
+            policyConfigured = true;
+            closeWindow('suggested-window');
+            closeWindow('policy-window');
+            document.getElementById('val-threshold').innerHTML = '<strong style="color:#005a9e;">3 invalid logon attempts</strong>';
+            document.getElementById('val-duration').innerHTML = '<span style="color:#005a9e;">30 minutes</span>';
+            document.getElementById('val-reset').innerHTML = '<span style="color:#005a9e;">30 minutes</span>';
+            if (step === 10) { step = 11; updateGuide(); }
+        }
+
+        function handleGPMEclose() {
+            closeWindow('gpme-window');
+            checkGpoWindowsClosed();
+        }
+        function handleGPMClose() {
+            closeWindow('gpm-window');
+            checkGpoWindowsClosed();
+        }
+        function checkGpoWindowsClosed() {
+            if (step === 11) {
+                const gpme = document.getElementById('gpme-window').style.display;
+                const gpm = document.getElementById('gpm-window').style.display;
+                if (gpme === 'none' && gpm === 'none') {
+                    step = 12;
+                    updateGuide();
+                }
+            }
+        }
+
+        function handleServerCmd(e) {
+            if (e.key === 'Enter') {
+                const input = document.getElementById('server-cmd-input');
+                const val = input.value.trim();
+                const out = document.getElementById('server-cmd-output');
+
+                let response = `C:\\Users\\Administrator> ${val}\n`;
+                if (val.toLowerCase() === 'gpupdate /force') {
+                    response += "Updating policy...\n\nComputer Policy update has completed successfully.\nUser Policy update has completed successfully.\n\n";
+                    if (step === 13) {
+                        step = 14;
+                        updateGuide();
+                    }
+                } else if (val !== '') {
+                    response += `'${val}' is not recognized as an internal or external command.\n\n`;
+                }
+
+                out.textContent += response;
+                input.value = '';
+                const container = document.getElementById('server-cmd-content');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // --- CLIENT FUNCTIONS ---
+        function clientSignIn() {
+            if (step < 14) {
+                alert("Please finish configuring the Account Lockout Policy and run 'gpupdate /force' on SMEC-DC1 first!");
+                return;
+            }
+
+            const pwdInput = document.getElementById('client-password-input');
+            const pwd = pwdInput.value;
+            const msg = document.getElementById('client-login-msg');
+            const counter = document.getElementById('attempt-counter');
+
+            if (accountLocked) {
+                msg.className = 'login-msg locked';
+                msg.innerText = "The referenced account is currently locked out and may not be logged on to.";
+                pwdInput.value = '';
+                return;
+            }
+
+            if (step === 14 && pwd === CORRECT_PASSWORD) {
+                msg.className = 'login-msg error';
+                msg.innerText = "Please enter an INCORRECT password 3 times to test the Account Lockout Policy!";
+                pwdInput.value = '';
+                return;
+            }
+
+            if (pwd !== CORRECT_PASSWORD) {
+                failedAttempts++;
+                pwdInput.value = '';
+                if (failedAttempts >= 3 && policyConfigured) {
+                    accountLocked = true;
+                    counter.innerText = `Failed Attempts: 3 / 3 (LOCKED OUT)`;
+                    msg.className = 'login-msg locked';
+                    msg.innerText = "The referenced account is currently locked out and may not be logged on to.";
+                    document.getElementById('arun-ad-status').innerText = 'Locked Out 🔒';
+                    document.getElementById('arun-ad-status').style.color = '#b91c1c';
+                    document.getElementById('aduc-hint').innerHTML = "<strong style='color:#b91c1c;'>Arun is locked out!</strong> Double-click <b>Arun</b> &rarr; Account tab &rarr; check <b>Unlock account</b>.";
+                    if (step === 14) { step = 15; updateGuide(); }
+                } else {
+                    counter.innerText = `Failed Attempts: ${failedAttempts} / 3`;
+                    msg.className = 'login-msg error';
+                    msg.innerText = `The user name or password is incorrect. Try again. (Attempt ${failedAttempts} of 3)`;
+                }
+            } else {
+                document.getElementById('client-login-screen').style.display = 'none';
+                document.getElementById('client-desktop-banner').style.display = 'block';
+                if (step === 17) { step = 18; updateGuide(); }
+            }
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
