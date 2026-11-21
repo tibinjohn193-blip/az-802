@@ -4,7 +4,7 @@
 
 ### 📦 GPO Software Deployment — Interactive Windows Server 2025 & Client Lab
 
-[![Click to Launch Interactive Lab](https://img.shields.io/badge/▶_CLICK_TO_START-INTERACTIVE_LAB-28a745?style=for-the-badge)](https://tibinjohn193-blip.github.io/<REPO-NAME>/gpo_software_installation_chrome_lab_v4.html)
+[![Click to Launch Interactive Lab](https://img.shields.io/badge/▶_CLICK_TO_START-INTERACTIVE_LAB-28a745?style=for-the-badge)](https://tibinjohn193-blip.github.io/az-802/lab10.html)
 
 *(Replace `<REPO-NAME>` and the HTML filename in the link above with your actual GitHub repository and uploaded filename once GitHub Pages is enabled.)*
 
@@ -168,18 +168,10 @@ When a user accesses a folder over the network, Windows evaluates **both** Share
 ---
 
 ## How to Run & Deploy
+## 🚀 Access the Interactive Lab
+You can run this simulation directly in your web browser without downloading any files:
 
-### Run Locally
-1. Download `gpo_software_installation_chrome_lab_v4.html`.
-2. Double-click the file to open it in any modern browser (Chrome, Edge, Firefox, or Safari).
-3. Works **100% offline** — no external libraries, servers, or build tools required.
-
-### Deploy on GitHub Pages
-1. Upload the HTML file to your GitHub repository (e.g., as `lab10.html` or `gpo_software_installation_chrome_lab_v4.html`).
-2. Go to **Repository Settings → Pages**.
-3. Under **Build and deployment**, select **Deploy from a branch** (`main` / `root`) and click **Save**.
-4. Update `<REPO-NAME>` and the filename in the launch button URL at the top of this README so students can launch it with one click.
-
+**[▶ Start Lab 10: Active Directory Group Policy - software installation Policy ](https://tibinjohn193-blip.github.io/az-802/lab10.html)**
 ---
 
 ## Technology Stack
