@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: Remote Access Routing — Install, Static &amp; Default Routing (RRAS)</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea, select { user-select: text; }
+
+        /* ==================== LEFT MACHINE SELECTOR SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 265px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .machine-btn:hover { background: #273549; border-color: #60a5fa; }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+        .machine-btn-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .machine-btn-sub { font-size: 10.5px; opacity: 0.88; }
+        .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+
+        .status-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            color: #cbd5e1;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3.5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .status-row:last-child { border-bottom: none; }
+        .s-badge {
+            font-family: Consolas, monospace;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .s-pending { background: #334155; color: #94a3b8; }
+        .s-done { background: #14532d; color: #86efac; }
+
+        .concept-card {
+            background: #1e1b4b;
+            border: 1px solid #6366f1;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.5;
+            color: #e0e7ff;
+        }
+        .concept-card strong { color: #a5b4fc; }
+        .concept-card code {
+            background: rgba(0,0,0,0.35);
+            color: #fff;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc { display: block; }
+
+        #srv-pc { background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%); }
+        #cli-pc { background: radial-gradient(circle at 75% 20%, #1d4e89 0%, #0d2b4e 60%, #061426 100%); }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 108px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 7px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 28px; margin-bottom: 3px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 390px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 10px 6px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 24px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 15px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus, select:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #srv-run-window, #cli-run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10030; }
+        #srv-sm-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10002; }
+        #srv-rras-window { width: 90%; height: 82%; top: 34px; left: 5%; z-index: 10010; }
+        #srv-addroles-window { width: 760px; height: 500px; top: 32px; left: 50%; transform: translateX(-50%); z-index: 10018; }
+        .wiz-layout { display: flex; flex: 1; min-height: 0; background: #fff; }
+        .wiz-side { width: 210px; background: #f4f6f9; border-right: 1px solid #d4d4d4; padding: 12px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+        .wiz-step { padding: 6px 8px; border-radius: 4px; color: #64748b; }
+        .wiz-step.active { background: #e5f1fb; color: #005a9e; font-weight: 700; border-left: 3px solid var(--win-blue); }
+        .wiz-step.done { color: #15803d; }
+        .wiz-main { flex: 1; padding: 16px 20px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; }
+        .prog-track { width: 100%; height: 14px; background: #e2e8f0; border-radius: 7px; overflow: hidden; margin: 12px 0; }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0078D7, #16a34a); transition: width 0.45s ease; }
+        #rras-cfg-window { width: 540px; height: 400px; top: 60px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #new-route-window { width: 470px; height: 385px; top: 68px; left: 50%; transform: translateX(-50%); z-index: 10030; }
+        #cli-ncpa-window { width: 620px; height: 380px; top: 60px; left: 50%; transform: translateX(-50%); z-index: 10004; }
+        #cli-eth-window { width: 410px; height: 370px; top: 80px; left: 50%; transform: translateX(-50%); z-index: 10014; }
+        #cli-ipv4-window { width: 430px; height: 435px; top: 50px; left: 50%; transform: translateX(-50%); z-index: 10024; }
+        #cli-cmd-window { width: 82%; height: 74%; top: 52px; left: 9%; background: #0c0c0c; color: #e5e5e5; font-family: Consolas, monospace; z-index: 10012; }
+
+        /* Server Manager Header & Tools */
+        .sm-header {
+            background: #005a9e;
+            color: #fff;
+            padding: 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12.5px;
+        }
+        .sm-tools-btn {
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.16);
+            font-weight: 700;
+        }
+        .sm-tools-btn:hover { background: rgba(255,255,255,0.28); }
+        .sm-tools-dropdown {
+            display: none;
+            position: absolute;
+            top: 72px;
+            right: 16px;
+            width: 265px;
+            background: #fff;
+            border: 1px solid #999;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 10050;
+            padding: 4px;
+            color: #222;
+            font-size: 12.5px;
+        }
+        .sm-tools-dropdown div { padding: 7px 12px; cursor: pointer; border-radius: 3px; }
+        .sm-tools-dropdown div:hover { background: var(--win-blue); color: #fff; }
+        .sm-tools-dropdown div.muted { color: #888; cursor: default; }
+        .sm-tools-dropdown div.muted:hover { background: transparent; color: #888; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 230px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 18px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .icon-srv-down::before { content: '🔴 '; }
+        .icon-srv-up::before { content: '🟢 '; }
+        .icon-folder::before { content: '📁 '; }
+        .icon-net::before { content: '🌐 '; }
+        .icon-route::before { content: '🔀 '; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 9px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 9px; border-bottom: 1px solid #efefef; }
+
+        /* CMD */
+        .cmd-body {
+            flex: 1;
+            background: #0c0c0c;
+            color: #e5e5e5;
+            padding: 12px 14px;
+            overflow-y: auto;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            cursor: text;
+            user-select: text;
+        }
+        .cmd-output { white-space: pre-wrap; word-break: break-word; }
+        .cmd-input-line { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+        .cmd-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #38bdf8;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            outline: none;
+            padding: 0;
+        }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🔀 Remote Access Routing</h2>
+            <span>Static &amp; Default Routing (RRAS)</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Machine</div>
+
+        <button id="btn-switch-srv" class="machine-btn active" onclick="switchMachine('srv')">
+            <div class="machine-btn-header"><span>🖥️ Server (SMEC-DC1)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">IP: 192.168.1.1 | smec.com</div>
+            <div class="machine-btn-sub" id="srv-side-sub">Remote Access: Not Installed</div>
+        </button>
+
+        <button id="btn-switch-cli" class="machine-btn" onclick="switchMachine('cli')">
+            <div class="machine-btn-header"><span>💻 Client PC (Win 11)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub" id="cli-side-ip">IP: Not Configured</div>
+            <div class="machine-btn-sub" id="cli-side-gw">Gateway: None</div>
+        </button>
+
+        <!-- Live Progress Checklist -->
+        <div class="status-card">
+            <div style="font-weight:700; color:#f8fafc; margin-bottom:5px;">📊 Lab Progress</div>
+            <div class="status-row"><span>1. Install Remote Access</span><span id="st-install" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>2. Enable RRAS LAN Routing</span><span id="st-rras" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>3. Static Route (192.168.2.0)</span><span id="st-static" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>4. Client Static Ping Test</span><span id="st-sping" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>5. Default Route (0.0.0.0)</span><span id="st-default" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>6. Client Any-IP Ping Test</span><span id="st-dping" class="s-badge s-pending">Pending</span></div>
+        </div>
+
+        <div class="concept-card">
+            <strong>Static vs. Default Routing:</strong><br>
+            • <b>Static Route:</b> Routes a specific network (e.g. <code>192.168.2.0 / 255.255.255.0</code>) via Gateway <code>192.168.1.1</code>.<br>
+            • <b>Default Route:</b> Uses <code>0.0.0.0</code> / <code>0.0.0.0</code> &rarr; Gateway <code>192.168.1.1</code> so <b>any IP</b> whose gateway points to the server reaches it automatically!
+        </div>
+
+        <div class="lab-info-card">
+            <div><strong>Server IP:</strong> <code>192.168.1.1</code></div>
+            <div><strong>Static Net:</strong> <code>192.168.2.0/24</code></div>
+            <div><strong>Default Net:</strong> <code>0.0.0.0 / 0.0.0.0</code></div>
+            <div><strong>Console:</strong> <code>rrasmgmt.msc</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <!-- ==================== SERVER: SMEC-DC1 (RRAS) ==================== -->
+            <div class="pc-container active-pc" id="srv-pc">
+                <div class="pc-label">
+                    SMEC-DC1 (Remote Access · RRAS Router)
+                    <span id="srv-top-sub">IP: 192.168.1.1 | Domain: smec.com | Remote Access: Not Installed</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openServerManager()">
+                        <div class="ico">🗄️</div>
+                        <span>Server Manager</span>
+                    </div>
+                    <div class="d-icon" id="desktop-rras-icon" style="display:none;" onclick="openRrasConsole()">
+                        <div class="ico">🔀</div>
+                        <span><strong>Routing &amp; Remote Access</strong></span>
+                    </div>
+                </div>
+
+                <!-- Server Run Window -->
+                <div id="srv-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('srv-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>rrasmgmt.msc</code> to open Routing and Remote Access.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="srv-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun('srv')">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeRun('srv')">OK</button>
+                        <button onclick="closeWindow('srv-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server Manager -->
+                <div id="srv-sm-window" class="window">
+                    <div class="title-bar"><span>Server Manager - SMEC-DC1</span><span class="close-btn" onclick="closeWindow('srv-sm-window')">X</span></div>
+                    <div class="sm-header">
+                        <div style="font-weight:700;">Dashboard · Server Manager (SMEC-DC1)</div>
+                        <div class="sm-tools-btn" onclick="toggleToolsMenu(event)">🔧 Tools &#9662;</div>
+                    </div>
+                    <div id="sm-tools-menu" class="sm-tools-dropdown">
+                        <div class="muted">Active Directory Users and Computers</div>
+                        <div class="muted">DNS</div>
+                        <div id="sm-tools-rras" style="display:none;" onclick="openRrasConsole(event)"><strong>🔀 Routing and Remote Access</strong></div>
+                    </div>
+                    <div class="content" style="background:#f8fafc; padding:18px; display:flex; flex-direction:column; gap:16px;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <h3 style="margin:0 0 4px 0; color:#0f172a;">Configure this local server</h3>
+                                <div style="font-size:12px; color:#475569;">Server: <strong>SMEC-DC1.smec.com</strong> | IP: <strong>192.168.1.1</strong></div>
+                            </div>
+                            <button class="primary-btn" onclick="openAddRolesWizard()">+ Add roles and features</button>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; font-size:12px;">
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">Remote Access Role</div>
+                                <div id="sm-ra-status" style="font-weight:700; color:#b45309; margin-top:4px;">Not Installed</div>
+                            </div>
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">Routing Role Service</div>
+                                <div id="sm-rt-status" style="font-weight:700; color:#64748b; margin-top:4px;">Not Installed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Roles and Features Wizard (Remote Access -> Routing) -->
+                <div id="srv-addroles-window" class="window">
+                    <div class="title-bar"><span>Add Roles and Features Wizard (Remote Access)</span><span class="close-btn" onclick="closeWindow('srv-addroles-window')">X</span></div>
+                    <div class="wiz-layout">
+                        <div class="wiz-side">
+                            <div class="wiz-step active" id="ar-nav-1">Before You Begin</div>
+                            <div class="wiz-step" id="ar-nav-2">Installation Type</div>
+                            <div class="wiz-step" id="ar-nav-3">Server Selection</div>
+                            <div class="wiz-step" id="ar-nav-4">Server Roles</div>
+                            <div class="wiz-step" id="ar-nav-5">Features</div>
+                            <div class="wiz-step" id="ar-nav-6">Remote Access</div>
+                            <div class="wiz-step" id="ar-nav-7">Role Services</div>
+                            <div class="wiz-step" id="ar-nav-8">Confirmation</div>
+                            <div class="wiz-step" id="ar-nav-9">Results</div>
+                        </div>
+                        <div class="wiz-main" id="ar-main-pane"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button id="ar-prev-btn" onclick="arPrev()" style="display:none;">&lt; Previous</button>
+                        <button id="ar-next-btn" class="primary-btn" onclick="arNext()">Next &gt;</button>
+                        <button onclick="closeWindow('srv-addroles-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Routing and Remote Access Console (rrasmgmt.msc) -->
+                <div id="srv-rras-window" class="window">
+                    <div class="title-bar"><span>Routing and Remote Access [SMEC-DC1.smec.com]</span><span class="close-btn" onclick="closeWindow('srv-rras-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <!-- Left Tree -->
+                        <div style="width: 36%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="icon-folder expanded" onclick="toggleTree(this, event)">Routing and Remote Access
+                                    <ul>
+                                        <li id="rras-srv-node" class="icon-srv-down expanded" onclick="selectRrasNode('server', this, event)" oncontextmenu="showRrasSrvCtx(event)" style="font-weight:700; color:#b91c1c;">SMEC-DC1 (local)
+                                            <ul id="rras-children" style="display:none;">
+                                                <li class="icon-folder">Network Interfaces</li>
+                                                <li class="icon-net expanded" onclick="toggleTree(this, event)" style="color:#005a9e; font-weight:700;">IPv4
+                                                    <ul>
+                                                        <li class="icon-folder" onclick="selectRrasNode('general', this, event)">General</li>
+                                                        <li id="rras-static-node" class="icon-route" onclick="selectRrasNode('static', this, event)" oncontextmenu="showContext('ctx-static-routes', event)" style="color:#005a9e; font-weight:700;">Static Routes</li>
+                                                        <li class="icon-folder">IGMP</li>
+                                                    </ul>
+                                                </li>
+                                                <li class="icon-net">IPv6</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <!-- Right Details Pane -->
+                        <div style="width: 64%; padding: 14px; overflow:auto;" id="rras-right" oncontextmenu="if(selectedRrasNode==='static') showContext('ctx-static-routes', event)"></div>
+                    </div>
+                </div>
+
+                <!-- Configure and Enable RRAS Wizard (Custom -> LAN routing) -->
+                <div id="rras-cfg-window" class="window">
+                    <div class="title-bar"><span>Routing and Remote Access Server Setup Wizard</span><span class="close-btn" onclick="closeWindow('rras-cfg-window')">X</span></div>
+                    <div class="content" id="rras-wiz-pane" style="background:#fff; padding:18px; font-size:12.5px; line-height:1.55;"></div>
+                    <div class="dialog-footer">
+                        <button id="rw-prev" onclick="rwPrev()" style="display:none;">&lt; Back</button>
+                        <button id="rw-next" class="primary-btn" onclick="rwNext()">Next &gt;</button>
+                        <button onclick="closeWindow('rras-cfg-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- IPv4 New Static Route Modal (Used for BOTH Static Route & Default Route 0.0.0.0!) -->
+                <div id="new-route-window" class="window">
+                    <div class="title-bar"><span>IPv4 Static Route</span><span class="close-btn" onclick="closeWindow('new-route-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px; display:flex; flex-direction:column; gap:11px;">
+                        <div style="padding:8px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; font-size:11.5px; color:#1e40af;" id="nr-hint-box">
+                            Enter Destination, Network mask, and Gateway IP to add a route.
+                        </div>
+                        <div style="display:grid; grid-template-columns:125px 1fr; gap:9px; align-items:center;">
+                            <label style="font-weight:600;">Interface:</label>
+                            <select id="nr-iface">
+                                <option value="Ethernet">Ethernet (192.168.1.1)</option>
+                            </select>
+                            <label style="font-weight:600;">Destination:</label>
+                            <input type="text" id="nr-dest" placeholder="e.g. 192.168.2.0 or 0.0.0.0" style="font-family:Consolas, monospace;" autocomplete="off">
+                            <label style="font-weight:600;">Network mask:</label>
+                            <input type="text" id="nr-mask" placeholder="e.g. 255.255.255.0 or 0.0.0.0" style="font-family:Consolas, monospace;" autocomplete="off">
+                            <label style="font-weight:600;">Gateway:</label>
+                            <input type="text" id="nr-gw" placeholder="192.168.1.1" style="font-family:Consolas, monospace;" autocomplete="off" onkeypress="if(event.key==='Enter') saveStaticRoute()">
+                            <label style="font-weight:600;">Metric:</label>
+                            <input type="text" id="nr-metric" value="1" style="width:90px; font-family:Consolas, monospace;">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="saveStaticRoute()">OK</button>
+                        <button onclick="closeWindow('new-route-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('srv-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="srv-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openRun('srv', event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openServerManager(); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">🗄️</div>
+                            <span style="font-size:11px; font-weight:600;">Server Manager</span>
+                        </div>
+                        <div class="app" id="start-rras-app" style="display:none;" onclick="openRrasConsole(); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">🔀</div>
+                            <span style="font-size:11px; font-weight:600;">RRAS Console</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== CLIENT PC (Windows 11) ==================== -->
+            <div class="pc-container" id="cli-pc">
+                <div class="pc-label">
+                    CLIENT-PC (Windows 11)
+                    <span id="cli-top-sub">IP: Not Set | Gateway: None</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openCliCmd()">
+                        <div class="ico">💻</div>
+                        <span>Command Prompt</span>
+                    </div>
+                </div>
+
+                <!-- Client Run Window -->
+                <div id="cli-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('cli-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>ncpa.cpl</code> (Network Connections) or <code>cmd</code>.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="cli-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun('cli')">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeRun('cli')">OK</button>
+                        <button onclick="closeWindow('cli-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Client ncpa.cpl -->
+                <div id="cli-ncpa-window" class="window">
+                    <div class="title-bar"><span>Network Connections (CLIENT-PC)</span><span class="close-btn" onclick="closeWindow('cli-ncpa-window')">X</span></div>
+                    <div class="content" style="background:#fff; padding:18px;">
+                        <div oncontextmenu="showContext('ctx-cli-eth', event)" style="display:inline-flex; align-items:center; gap:12px; padding:12px 16px; border:1px solid #99d1ff; background:#e5f1fb; border-radius:5px; cursor:pointer;">
+                            <div style="font-size:32px;">🔌</div>
+                            <div>
+                                <div style="font-weight:700;">Ethernet</div>
+                                <div id="cli-eth-sub" style="font-size:11.5px; color:#475569;">Network (Not Configured)</div>
+                            </div>
+                        </div>
+                        <p style="font-size:12px; color:#64748b; margin-top:16px;">Right-click <b>Ethernet</b> &rarr; <b>Properties</b> &rarr; <b>IPv4</b> to assign Client IP and Default Gateway (<code>192.168.1.1</code>).</p>
+                    </div>
+                </div>
+
+                <!-- Client Ethernet Properties -->
+                <div id="cli-eth-window" class="window">
+                    <div class="title-bar"><span>Ethernet Properties (CLIENT-PC)</span><span class="close-btn" onclick="closeWindow('cli-eth-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <p style="margin:0 0 8px 0;">This connection uses the following items:</p>
+                        <div style="border:1px solid #ccc; padding:6px; height:190px; background:#fafafa; display:flex; flex-direction:column; gap:4px;">
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> Client for Microsoft Networks</div>
+                            <div style="padding:4px 6px;"><input type="checkbox" checked disabled> Internet Protocol Version 6 (TCP/IPv6)</div>
+                            <div ondblclick="openCliIPv4()" style="padding:5px 6px; border-radius:3px; cursor:pointer; background:#cce8ff; font-weight:600;">
+                                <input type="checkbox" checked disabled> Internet Protocol Version 4 (TCP/IPv4)
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+                            <button class="primary-btn" onclick="openCliIPv4()">Properties</button>
+                        </div>
+                    </div>
+                    <div class="dialog-footer"><button onclick="closeWindow('cli-eth-window')">Close</button></div>
+                </div>
+
+                <!-- Client IPv4 Properties (NO AUTO-FILL!) -->
+                <div id="cli-ipv4-window" class="window">
+                    <div class="title-bar"><span>TCP/IPv4 Properties (CLIENT-PC)</span><span class="close-btn" onclick="closeWindow('cli-ipv4-window')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <div style="font-weight:600; margin-bottom:8px;">Use the following IP address:</div>
+                        <div style="display:grid; grid-template-columns:145px 1fr; gap:8px; align-items:center; padding-left:12px; margin-bottom:14px;">
+                            <label>IP address:</label><input type="text" id="cli-ip-inp" placeholder="e.g. 192.168.2.10" autocomplete="off">
+                            <label>Subnet mask:</label><input type="text" id="cli-mask-inp" placeholder="e.g. 255.255.255.0" autocomplete="off">
+                            <label style="font-weight:700; color:#005a9e;">Default gateway:</label><input type="text" id="cli-gw-inp" placeholder="192.168.1.1" autocomplete="off" onkeypress="if(event.key==='Enter') saveCliIPv4()">
+                        </div>
+                        <div style="font-weight:600; margin-bottom:8px;">Use the following DNS server addresses:</div>
+                        <div style="display:grid; grid-template-columns:145px 1fr; gap:8px; align-items:center; padding-left:12px;">
+                            <label>Preferred DNS server:</label><input type="text" id="cli-dns-inp" placeholder="192.168.1.1 (Optional)" autocomplete="off" onkeypress="if(event.key==='Enter') saveCliIPv4()">
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="saveCliIPv4()">OK</button>
+                        <button onclick="closeWindow('cli-ipv4-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Client Command Prompt -->
+                <div id="cli-cmd-window" class="window">
+                    <div class="title-bar">
+                        <span style="display:flex; align-items:center; gap:6px;"><span style="background:#000; color:#fff; font-size:10px; padding:1px 4px; font-family:Consolas;">C:\_</span> Command Prompt (CLIENT-PC)</span>
+                        <span class="close-btn" onclick="closeWindow('cli-cmd-window')">X</span>
+                    </div>
+                    <div class="cmd-body" id="cli-cmd-body" onclick="document.getElementById('cli-cmd-input').focus()">
+                        <div id="cli-cmd-output" class="cmd-output">Microsoft Windows [Version 10.0.26100.1]
+(c) Microsoft Corporation. All rights reserved.
+
+</div>
+                        <div class="cmd-input-line">
+                            <span style="color:#f8fafc; font-weight:700;">C:\Users\Client&gt;</span>
+                            <input type="text" id="cli-cmd-input" class="cmd-input" autocomplete="off" onkeypress="if(event.key==='Enter') runCliCmd()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('cli-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="cli-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (CLIENT-PC)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openRun('cli', event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openCliCmd(); document.getElementById('cli-start-menu').style.display='none';">
+                            <div class="app-icon">💻</div>
+                            <span style="font-size:11px; font-weight:600;">Command Prompt</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 12</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Global Context Menus -->
+    <div id="ctx-rras-srv" class="context-menu">
+        <div onclick="openRrasSetupWizard(event)"><strong>Configure and Enable Routing and Remote Access</strong></div>
+    </div>
+    <div id="ctx-static-routes" class="context-menu">
+        <div onclick="openNewRouteModal(event)"><strong>🔀 New Static Route...</strong></div>
+    </div>
+    <div id="ctx-cli-eth" class="context-menu">
+        <div onclick="document.getElementById('cli-eth-window').style.display='flex'"><strong>Properties</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 'srv';
+
+        // RRAS & Routing states
+        let raInstalled = false;
+        let arPage = 1, raRoleChecked = false, routingSvcChecked = false;
+        let rrasEnabled = false;
+        let selectedRrasNode = 'server';
+        let rwPage = 1, rwCustom = true, rwLanChecked = false;
+        let routes = []; // { iface, dest, mask, gw, metric, type }
+        let staticRouteAdded = false;
+        let defaultRouteAdded = false;
+
+        // Client IP states
+        let cliIp = '', cliMask = '', cliGw = '';
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu, .sm-tools-dropdown').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3100);
+        }
+
+        function markBadge(id, text) {
+            const el = document.getElementById(id);
+            el.innerText = text || 'Done ✓';
+            el.className = 's-badge s-done';
+        }
+
+        function switchMachine(m) {
+            activeMachine = m;
+            document.getElementById('srv-pc').classList.toggle('active-pc', m === 'srv');
+            document.getElementById('cli-pc').classList.toggle('active-pc', m === 'cli');
+            document.getElementById('btn-switch-srv').classList.toggle('active', m === 'srv');
+            document.getElementById('btn-switch-cli').classList.toggle('active', m === 'cli');
+            updateSidebarAttention();
+        }
+
+        function updateSidebarAttention() {
+            const b1 = document.getElementById('btn-switch-srv');
+            const b2 = document.getElementById('btn-switch-cli');
+            b1.classList.remove('attention');
+            b2.classList.remove('attention');
+            if ((step <= 5 || step === 9) && activeMachine !== 'srv') b1.classList.add('attention');
+            if ((step >= 6 && step <= 8 || step >= 10 && step <= 12) && activeMachine !== 'cli') b2.classList.add('attention');
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu, .sm-tools-dropdown').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleToolsMenu(e) {
+            e.stopPropagation();
+            const m = document.getElementById('sm-tools-menu');
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+        function toggleTree(el, e) { e.stopPropagation(); el.classList.toggle('expanded'); }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.context-menu').forEach(el => el.style.display = 'none');
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 245) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 12)} / 12`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER (Install Remote Access):</strong> Open <b>Server Manager</b> &rarr; click <b>+ Add roles and features</b> &rarr; go to <b>Server Roles</b> &rarr; check <b>Remote Access</b> &rarr; Next."; break;
+                case 2: text = "<strong>SERVER (Select Routing Role Service):</strong> On <b>Role Services</b>, check <b>Routing</b> &rarr; Next &rarr; click <b>Install</b> &rarr; Close."; break;
+                case 3: text = "<strong>SERVER (Open RRAS):</strong> Open <b>Routing &amp; Remote Access</b> (Server Manager &rarr; Tools &rarr; Routing and Remote Access, Desktop icon, or <code>Start &rarr; Run &rarr; rrasmgmt.msc</code>)."; break;
+                case 4: text = "<strong>SERVER (Configure &amp; Enable LAN Routing):</strong> Right-click <b>🔴 SMEC-DC1 (local)</b> &rarr; <b>Configure and Enable Routing and Remote Access</b> &rarr; <b>Custom configuration</b> &rarr; check <b>LAN routing</b> &rarr; Finish &rarr; Start service."; break;
+                case 5: text = "<strong>SERVER (Add Static Route):</strong> Expand <b>IPv4</b> &rarr; right-click <b>Static Routes</b> &rarr; <b>New Static Route...</b> &rarr; Destination: <code>192.168.2.0</code>, Mask: <code>255.255.255.0</code>, Gateway: <code>192.168.1.1</code> &rarr; OK."; break;
+                case 6: text = "<strong>CLIENT PC (Switch &amp; Open Network):</strong> Switch to <b>💻 Client PC</b> on the left sidebar! Open <b>Start &rarr; Run</b>, type <code>ncpa.cpl</code> &rarr; right-click <b>Ethernet</b> &rarr; <b>Properties</b> &rarr; <b>IPv4</b>."; break;
+                case 7: text = "<strong>CLIENT PC (Assign Static Network IP):</strong> Set Client IP to <code>192.168.2.10</code>, Subnet mask <code>255.255.255.0</code>, and Default gateway <code>192.168.1.1</code> &rarr; OK."; break;
+                case 8: text = "<strong>CLIENT PC (Test Static Route Ping):</strong> Open <b>Command Prompt</b> (<code>cmd</code>) on Client PC and run <code>ping 192.168.1.1</code> to verify Static Routing from <code>192.168.2.10</code>!"; break;
+                case 9: text = "<strong>SERVER (Add Default Route 0.0.0.0):</strong> Switch back to <b>🖥️ Server (SMEC-DC1)</b>! In RRAS, right-click <b>IPv4 &rarr; Static Routes</b> &rarr; <b>New Static Route...</b> &rarr; Destination: <code>0.0.0.0</code>, Mask: <code>0.0.0.0</code>, Gateway: <code>192.168.1.1</code> &rarr; OK."; break;
+                case 10: text = "<strong>CLIENT PC (Switch &amp; Set ANY IP):</strong> Switch to <b>💻 Client PC</b>! Open <code>ncpa.cpl</code> &rarr; <b>Ethernet &rarr; Properties &rarr; IPv4</b> to test Default Routing with a brand-new network."; break;
+                case 11: text = "<strong>CLIENT PC (Configure ANY Network IP):</strong> Enter <b>ANY</b> different network IP (e.g. <code>10.10.10.5</code> or <code>172.16.5.20</code>), Subnet mask <code>255.255.255.0</code>, and Default gateway <code>192.168.1.1</code> &rarr; OK."; break;
+                case 12: text = "<strong>CLIENT PC (Test Default Route Ping):</strong> Open <b>Command Prompt</b> on Client PC and run <code>ping 192.168.1.1</code>. Notice it connects automatically via the <code>0.0.0.0</code> Default Route!"; break;
+                case 13:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Lab Complete!</strong> You installed <b>Remote Access (Routing)</b>, configured RRAS LAN Routing, added both a <b>Static Route</b> (<code>192.168.2.0/24</code>) and a <b>Default Route</b> (<code>0.0.0.0/0 &rarr; 192.168.1.1</code>), and verified ping connectivity from multiple networks!";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        // --- RUN DIALOGS ---
+        function openRun(m, e) {
+            e.stopPropagation();
+            document.getElementById(m + '-start-menu').style.display = 'none';
+            document.getElementById(m + '-run-window').style.display = 'flex';
+            const inp = document.getElementById(m + '-run-input');
+            inp.value = ''; inp.focus();
+        }
+        function executeRun(m) {
+            const cmd = document.getElementById(m + '-run-input').value.trim().toLowerCase();
+            closeWindow(m + '-run-window');
+            if (m === 'srv') {
+                if (cmd === 'rrasmgmt.msc') openRrasConsole();
+                else if (cmd !== '') alert(`Windows cannot find '${cmd}'. Type rrasmgmt.msc.`);
+            } else {
+                if (cmd === 'ncpa.cpl') {
+                    if (!staticRouteAdded) { alert("First enable RRAS and add the Static Route (192.168.2.0) on Server!"); return; }
+                    document.getElementById('cli-ncpa-window').style.display = 'flex';
+                    if (step === 6) { step = 7; updateGuide(); }
+                    else if (step === 10) { step = 11; updateGuide(); }
+                } else if (cmd === 'cmd') openCliCmd();
+                else if (cmd !== '') alert(`Windows cannot find '${cmd}'. Type ncpa.cpl or cmd.`);
+            }
+        }
+
+        // --- SERVER: INSTALL REMOTE ACCESS (ROUTING) ROLE ---
+        function openServerManager() { document.getElementById('srv-sm-window').style.display = 'flex'; }
+
+        function openAddRolesWizard() {
+            if (raInstalled) { showToast("Remote Access (Routing) role is already installed!"); return; }
+            arPage = 1;
+            document.getElementById('srv-addroles-window').style.display = 'flex';
+            renderArPage();
+        }
+
+        function renderArPage() {
+            for (let i = 1; i <= 9; i++) {
+                const el = document.getElementById('ar-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === arPage) el.classList.add('active');
+                else if (i < arPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('ar-main-pane');
+            const prev = document.getElementById('ar-prev-btn');
+            const next = document.getElementById('ar-next-btn');
+            prev.style.display = (arPage > 1 && arPage < 9) ? 'inline-block' : 'none';
+            next.disabled = false;
+
+            if (arPage === 1) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Before You Begin</h3><p>Install the <b>Remote Access</b> role with the <b>Routing</b> role service on <b>SMEC-DC1</b>.</p>`;
+            } else if (arPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select installation type</h3><label style="font-weight:600;"><input type="radio" checked> Role-based or feature-based installation</label>`;
+            } else if (arPage === 3) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select destination server</h3><table class="mmc-table" style="border:1px solid #ccc;"><tr><th>Name</th><th>IP Address</th><th>OS</th></tr><tr style="background:#e5f1fb;"><td><strong>SMEC-DC1.smec.com</strong></td><td>192.168.1.1</td><td>Windows Server 2025</td></tr></table>`;
+            } else if (arPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select server roles</h3>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; display:flex; flex-direction:column; gap:8px;">
+                        <label style="color:#64748b;"><input type="checkbox" checked disabled> Active Directory Domain Services (Installed)</label>
+                        <label style="color:#64748b;"><input type="checkbox" checked disabled> DNS Server (Installed)</label>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-ra-role" ${raRoleChecked?'checked':''} onchange="raRoleChecked=this.checked;"> 🔀 Remote Access</label>
+                    </div>`;
+            } else if (arPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select features</h3><p>Required management tools are automatically included. Click <b>Next</b>.</p>`;
+            } else if (arPage === 6) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Remote Access</h3><p>Remote Access provides seamless connectivity through DirectAccess, VPN, and <b>Routing</b> (Static &amp; Default LAN Routing). Click <b>Next</b> to select <b>Role Services</b>.</p>`;
+            } else if (arPage === 7) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select role services (Remote Access)</h3>
+                    <div style="border:1px solid #ccc; padding:12px; border-radius:4px; background:#fafafa; display:flex; flex-direction:column; gap:9px;">
+                        <label style="color:#64748b;"><input type="checkbox" disabled ${routingSvcChecked?'checked':''}> DirectAccess and VPN (RAS)</label>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-routing-svc" ${routingSvcChecked?'checked':''} onchange="routingSvcChecked=this.checked; if(this.checked) showToast('Included DirectAccess/VPN & Routing Management Tools.'); renderArPage();"> 🔀 Routing</label>
+                        <label style="color:#64748b;"><input type="checkbox" disabled> Web Application Proxy</label>
+                    </div>`;
+            } else if (arPage === 8) {
+                next.innerText = 'Install';
+                pane.innerHTML = `<h3 style="margin-top:0;">Confirm installation selections</h3>
+                    <ul>
+                        <li>Server: <b>SMEC-DC1.smec.com (192.168.1.1)</b></li>
+                        <li>Role: <b>Remote Access</b></li>
+                        <li>Role Services: <b>Routing</b>, <b>DirectAccess and VPN (RAS)</b>, <b>Remote Access Management Tools</b></li>
+                    </ul><p>Click <b>Install</b> to begin.</p>`;
+            } else if (arPage === 9) {
+                next.innerText = 'Close';
+                next.disabled = !raInstalled;
+                pane.innerHTML = `<h3 style="margin-top:0;">Installation progress</h3>
+                    <div id="ar-prog-txt">Installing Remote Access and Routing role services...</div>
+                    <div class="prog-track"><div id="ar-prog-fill" class="prog-fill"></div></div>
+                    <div id="ar-done-msg" style="display:none; padding:10px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; color:#15803d; font-weight:600;">
+                        ✓ Remote Access (Routing) installed! Click Close, then open Tools &rarr; Routing and Remote Access.
+                    </div>`;
+                if (!raInstalled) runRaInstall();
+            }
+        }
+
+        function arPrev() { if (arPage > 1 && arPage < 9) { arPage--; renderArPage(); } }
+        function arNext() {
+            if (arPage === 4) {
+                if (!raRoleChecked) { alert("Please check 'Remote Access' under Server Roles!"); return; }
+                if (step === 1) { step = 2; updateGuide(); }
+            }
+            if (arPage === 7 && !routingSvcChecked) {
+                alert("Please check 'Routing' under Role Services!");
+                return;
+            }
+            if (arPage === 9) { closeWindow('srv-addroles-window'); return; }
+            arPage++;
+            renderArPage();
+        }
+
+        function runRaInstall() {
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '50%'; }, 350);
+            setTimeout(() => {
+                raInstalled = true;
+                const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '100%';
+                const t = document.getElementById('ar-prog-txt'); if (t) t.innerText = 'Installation succeeded.';
+                const d = document.getElementById('ar-done-msg'); if (d) d.style.display = 'block';
+                document.getElementById('ar-next-btn').disabled = false;
+                document.getElementById('sm-ra-status').innerText = 'Installed ✓';
+                document.getElementById('sm-ra-status').style.color = '#15803d';
+                document.getElementById('sm-rt-status').innerText = 'Installed ✓';
+                document.getElementById('sm-rt-status').style.color = '#15803d';
+                document.getElementById('srv-side-sub').innerText = 'RRAS: Installed (Stopped)';
+                document.getElementById('srv-top-sub').innerText = 'IP: 192.168.1.1 | Domain: smec.com | RRAS: Installed (Stopped)';
+                document.getElementById('desktop-rras-icon').style.display = 'flex';
+                document.getElementById('start-rras-app').style.display = 'flex';
+                document.getElementById('sm-tools-rras').style.display = 'block';
+                markBadge('st-install', 'Done ✓');
+                if (step === 2) { step = 3; updateGuide(); }
+            }, 1350);
+        }
+
+        // --- SERVER: RRAS CONSOLE & SETUP WIZARD ---
+        function openRrasConsole(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('sm-tools-menu').style.display = 'none';
+            if (!raInstalled) { alert("First install the Remote Access (Routing) role via Server Manager -> Add roles and features!"); return; }
+            document.getElementById('srv-rras-window').style.display = 'flex';
+            renderRrasRight();
+            if (step === 3) { step = 4; updateGuide(); }
+        }
+
+        function showRrasSrvCtx(e) {
+            if (!rrasEnabled) showContext('ctx-rras-srv', e);
+        }
+
+        function selectRrasNode(node, el, e) {
+            if (e) e.stopPropagation();
+            selectedRrasNode = node;
+            document.querySelectorAll('#srv-rras-window li').forEach(x => x.classList.remove('selected'));
+            if (el) el.classList.add('selected');
+            renderRrasRight();
+        }
+
+        function renderRrasRight() {
+            const r = document.getElementById('rras-right');
+            if (!rrasEnabled) {
+                r.innerHTML = `<div style="padding:14px; background:#fef2f2; border:1px solid #fca5a5; border-radius:6px; color:#991b1b; font-size:12.5px; line-height:1.6;">
+                    <strong>🔴 Routing and Remote Access is Not Configured</strong><br><br>
+                    Right-click <b>🔴 SMEC-DC1 (local)</b> on the left pane &rarr; click <b>Configure and Enable Routing and Remote Access</b> to enable <b>LAN routing</b>!
+                </div>`;
+                return;
+            }
+            if (selectedRrasNode === 'static') {
+                const rows = routes.map(rt => `<tr style="background:${rt.type==='Default'?'#eef2ff':'#ecfdf5'};">
+                    <td>${rt.iface}</td>
+                    <td style="font-family:Consolas; font-weight:700;">${rt.dest}</td>
+                    <td style="font-family:Consolas;">${rt.mask}</td>
+                    <td style="font-family:Consolas; font-weight:700; color:#005a9e;">${rt.gw}</td>
+                    <td>${rt.metric}</td>
+                    <td><strong>${rt.type} Route ✓</strong></td>
+                </tr>`).join('');
+                r.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">IPv4 Static Routes (SMEC-DC1)</h3>
+                    <table class="mmc-table" style="border:1px solid #e2e8f0;">
+                        <tr><th>Interface</th><th>Destination</th><th>Network Mask</th><th>Gateway</th><th>Metric</th><th>Type</th></tr>
+                        ${rows || '<tr><td colspan="6" style="color:#64748b; font-style:italic;">No static or default routes configured yet. Right-click Static Routes -> New Static Route...</td></tr>'}
+                    </table>
+                    <p style="font-size:12px; color:#475569; margin-top:12px;">💡 <b>Right-click</b> <code>Static Routes</code> (or here) &rarr; <b>New Static Route...</b> to add a Static Route or Default Route (<code>0.0.0.0</code>).</p>`;
+            } else {
+                r.innerHTML = `<div style="padding:14px; background:#ecfdf5; border:1px solid #86efac; border-radius:6px; color:#166534; font-size:12.5px; line-height:1.6;">
+                    <strong>🟢 RRAS LAN Routing is Running!</strong><br>
+                    Expand <b>IPv4</b> on the left pane, click <b>Static Routes</b>, and right-click it &rarr; <b>New Static Route...</b>
+                </div>`;
+            }
+        }
+
+        function openRrasSetupWizard(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-rras-srv').style.display = 'none';
+            rwPage = 1; rwCustom = false; rwLanChecked = false;
+            document.getElementById('rras-cfg-window').style.display = 'flex';
+            renderRrasWiz();
+        }
+
+        function renderRrasWiz() {
+            const p = document.getElementById('rras-wiz-pane');
+            document.getElementById('rw-prev').style.display = rwPage > 1 ? 'inline-block' : 'none';
+            document.getElementById('rw-next').innerText = rwPage === 4 ? 'Finish & Start Service' : 'Next >';
+
+            if (rwPage === 1) {
+                p.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Welcome to the Routing and Remote Access Server Setup Wizard</h3><p>Enable IPv4 LAN Routing on <b>SMEC-DC1 (192.168.1.1)</b>.</p>`;
+            } else if (rwPage === 2) {
+                p.innerHTML = `<h3 style="margin-top:0;">Configuration</h3>
+                    <label style="display:block; color:#64748b; margin-bottom:8px;"><input type="radio" name="rwc" ${!rwCustom?'checked':''} onchange="rwCustom=false"> Remote access (dial-up or VPN)</label>
+                    <label style="display:block; color:#64748b; margin-bottom:8px;"><input type="radio" name="rwc" onchange="rwCustom=false"> Network address translation (NAT)</label>
+                    <label style="display:block; font-weight:700; color:#005a9e; padding:8px; border:1px solid #93c5fd; background:#eff6ff; border-radius:4px; cursor:pointer;"><input type="radio" name="rwc" ${rwCustom?'checked':''} onchange="rwCustom=true"> Custom configuration (Select any combination of routing features)</label>`;
+            } else if (rwPage === 3) {
+                p.innerHTML = `<h3 style="margin-top:0;">Custom Configuration</h3>
+                    <p>Select the services you want to enable on this server:</p>
+                    <label style="display:block; color:#64748b; margin-bottom:6px;"><input type="checkbox" disabled> VPN access</label>
+                    <label style="display:block; color:#64748b; margin-bottom:6px;"><input type="checkbox" disabled> NAT</label>
+                    <label style="display:block; font-weight:700; color:#005a9e; padding:8px; border:1px solid #93c5fd; background:#eff6ff; border-radius:4px; cursor:pointer;"><input type="checkbox" id="chk-lan-route" ${rwLanChecked?'checked':''} onchange="rwLanChecked=this.checked"> 🔀 LAN routing</label>`;
+            } else if (rwPage === 4) {
+                p.innerHTML = `<h3 style="margin-top:0; color:#15803d;">Completing the Setup Wizard</h3>
+                    <p>You have selected <b>LAN routing</b> on <b>SMEC-DC1</b>.</p>
+                    <p>Click <b>Finish &amp; Start Service</b> to start the Routing and Remote Access service.</p>`;
+            }
+        }
+
+        function rwPrev() { if (rwPage > 1) { rwPage--; renderRrasWiz(); } }
+        function rwNext() {
+            if (rwPage === 2 && !rwCustom) { alert("Please select 'Custom configuration'!"); return; }
+            if (rwPage === 3 && !rwLanChecked) { alert("Please check 'LAN routing'!"); return; }
+            if (rwPage === 4) {
+                rrasEnabled = true;
+                closeWindow('rras-cfg-window');
+                const srvNode = document.getElementById('rras-srv-node');
+                srvNode.classList.remove('icon-srv-down');
+                srvNode.classList.add('icon-srv-up');
+                srvNode.style.color = '#15803d';
+                document.getElementById('rras-children').style.display = 'block';
+                document.getElementById('srv-side-sub').innerText = 'RRAS LAN Routing: Running ✓';
+                document.getElementById('srv-top-sub').innerText = 'IP: 192.168.1.1 | Domain: smec.com | RRAS LAN Routing: Active ✓';
+                markBadge('st-rras', 'Active ✓');
+                selectRrasNode('static', document.getElementById('rras-static-node'));
+                showToast("✓ RRAS LAN Routing started! Right-click IPv4 -> Static Routes -> New Static Route.");
+                if (step === 4) { step = 5; updateGuide(); }
+                return;
+            }
+            rwPage++;
+            renderRrasWiz();
+        }
+
+        // --- NEW STATIC ROUTE / DEFAULT ROUTE MODAL ---
+        function openNewRouteModal(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-static-routes').style.display = 'none';
+            document.getElementById('nr-dest').value = '';
+            document.getElementById('nr-mask').value = '';
+            document.getElementById('nr-gw').value = '';
+            document.getElementById('nr-metric').value = '1';
+
+            const hint = document.getElementById('nr-hint-box');
+            if (!staticRouteAdded) {
+                hint.innerHTML = `<b>Part 1 — Static Route:</b> Enter Destination <code>192.168.2.0</code>, Network mask <code>255.255.255.0</code>, Gateway <code>192.168.1.1</code>.`;
+            } else if (!defaultRouteAdded) {
+                hint.innerHTML = `<b>Part 2 — Default Route:</b> Enter Destination <code>0.0.0.0</code>, Network mask <code>0.0.0.0</code>, Gateway <code>192.168.1.1</code>.`;
+            } else {
+                hint.innerHTML = `Both Static and Default routes are configured! You can still add another route if needed.`;
+            }
+
+            document.getElementById('new-route-window').style.display = 'flex';
+            setTimeout(() => document.getElementById('nr-dest').focus(), 40);
+        }
+
+        function saveStaticRoute() {
+            const iface = document.getElementById('nr-iface').value;
+            const dest = document.getElementById('nr-dest').value.trim();
+            const mask = document.getElementById('nr-mask').value.trim();
+            const gw = document.getElementById('nr-gw').value.trim();
+            const metric = document.getElementById('nr-metric').value.trim() || '1';
+
+            if (gw !== '192.168.1.1') {
+                alert("Please set Gateway to the Server IP: 192.168.1.1");
+                return;
+            }
+
+            // Part 1: Static Route (192.168.2.0 / 255.255.255.0)
+            if (!staticRouteAdded) {
+                if (dest !== '192.168.2.0' || mask !== '255.255.255.0') {
+                    alert("For Static Route, enter:\nDestination: 192.168.2.0\nNetwork mask: 255.255.255.0\nGateway: 192.168.1.1");
+                    return;
+                }
+                staticRouteAdded = true;
+                routes.push({ iface, dest, mask, gw, metric, type: 'Static' });
+                closeWindow('new-route-window');
+                renderRrasRight();
+                markBadge('st-static', 'Added ✓');
+                showToast("✓ Static Route (192.168.2.0/24) added! Now switch to Client PC to test.");
+                if (step === 5) { step = 6; updateGuide(); }
+                return;
+            }
+
+            // Part 2: Default Route (0.0.0.0 / 0.0.0.0)
+            if (!defaultRouteAdded) {
+                if (dest !== '0.0.0.0' || mask !== '0.0.0.0') {
+                    alert("For Default Route, enter:\nDestination: 0.0.0.0\nNetwork mask: 0.0.0.0\nGateway: 192.168.1.1");
+                    return;
+                }
+                defaultRouteAdded = true;
+                routes.push({ iface, dest, mask, gw, metric, type: 'Default' });
+                closeWindow('new-route-window');
+                renderRrasRight();
+                markBadge('st-default', '0.0.0.0 ✓');
+                showToast("✓ Default Route (0.0.0.0/0 -> 192.168.1.1) added! Switch to Client PC and try ANY IP.");
+                if (step === 9) { step = 10; updateGuide(); }
+                return;
+            }
+
+            routes.push({ iface, dest, mask, gw, metric, type: dest === '0.0.0.0' ? 'Default' : 'Static' });
+            closeWindow('new-route-window');
+            renderRrasRight();
+        }
+
+        // --- CLIENT PC: IPv4 CONFIG & CMD PING TEST ---
+        function openCliIPv4() {
+            document.getElementById('cli-ipv4-window').style.display = 'flex';
+            document.getElementById('cli-ip-inp').value = '';
+            document.getElementById('cli-mask-inp').value = '';
+            document.getElementById('cli-gw-inp').value = '';
+            document.getElementById('cli-dns-inp').value = '';
+            document.getElementById('cli-ip-inp').placeholder = !defaultRouteAdded ? '192.168.2.10' : 'Any IP (e.g. 10.10.10.5)';
+            setTimeout(() => document.getElementById('cli-ip-inp').focus(), 40);
+        }
+
+        function isValidIpv4(ip) {
+            const parts = ip.split('.');
+            if (parts.length !== 4) return false;
+            return parts.every(p => /^\d+$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
+        }
+
+        function saveCliIPv4() {
+            const ip = document.getElementById('cli-ip-inp').value.trim();
+            const mask = document.getElementById('cli-mask-inp').value.trim();
+            const gw = document.getElementById('cli-gw-inp').value.trim();
+
+            if (!isValidIpv4(ip) || ip === '192.168.1.1' || ip === '0.0.0.0') {
+                alert("Please enter a valid Client IPv4 address.");
+                return;
+            }
+            if (!isValidIpv4(mask) || mask === '0.0.0.0') {
+                alert("Please enter a valid Subnet mask (e.g. 255.255.255.0).");
+                return;
+            }
+            if (gw !== '192.168.1.1') {
+                alert("Please set Default gateway to the Server IP: 192.168.1.1");
+                return;
+            }
+
+            if (!defaultRouteAdded) {
+                if (!ip.startsWith('192.168.2.')) {
+                    alert("For Part 1 (Static Route test), assign an IP in the 192.168.2.0 network (e.g. 192.168.2.10)!");
+                    return;
+                }
+            } else {
+                if (ip.startsWith('192.168.1.') || ip.startsWith('192.168.2.')) {
+                    alert("For Part 2 (Default Route test), enter ANY OTHER network IP (e.g. 10.10.10.5 or 172.16.5.20) to prove 0.0.0.0 routes any network!");
+                    return;
+                }
+            }
+
+            cliIp = ip; cliMask = mask; cliGw = gw;
+            closeWindow('cli-ipv4-window');
+            closeWindow('cli-eth-window');
+            closeWindow('cli-ncpa-window');
+            document.getElementById('cli-eth-sub').innerText = `IP: ${cliIp} | GW: ${cliGw}`;
+            document.getElementById('cli-side-ip').innerText = `IP: ${cliIp}`;
+            document.getElementById('cli-side-gw').innerText = `Gateway: ${cliGw}`;
+            document.getElementById('cli-top-sub').innerText = `IP: ${cliIp} | Mask: ${cliMask} | Gateway: ${cliGw}`;
+
+            if (step === 7) {
+                step = 8; updateGuide();
+                showToast(`Client IP set to ${cliIp}! Open CMD and run: ping 192.168.1.1`);
+            } else if (step === 11) {
+                step = 12; updateGuide();
+                showToast(`Client IP changed to ${cliIp}! Open CMD and run: ping 192.168.1.1`);
+            }
+        }
+
+        function openCliCmd() {
+            document.getElementById('cli-cmd-window').style.display = 'flex';
+            setTimeout(() => document.getElementById('cli-cmd-input').focus(), 40);
+        }
+
+        function runCliCmd() {
+            const inp = document.getElementById('cli-cmd-input');
+            const out = document.getElementById('cli-cmd-output');
+            const raw = inp.value.trim();
+            const cmd = raw.toLowerCase().replace(/\s+/g, ' ');
+            inp.value = '';
+            let res = `C:\\Users\\Client> ${raw}\n`;
+
+            if (cmd === 'cls') { out.textContent = ''; return; }
+            if (cmd === 'ipconfig') {
+                res += `\nEthernet adapter Ethernet:\n   IPv4 Address. . . . . . . . . . . : ${cliIp || '(Not set)'}\n   Subnet Mask . . . . . . . . . . . : ${cliMask || '(Not set)'}\n   Default Gateway . . . . . . . . . : ${cliGw || '(Not set)'}\n\n`;
+            } else if (cmd === 'ping 192.168.1.1') {
+                if (!cliIp || cliGw !== '192.168.1.1') {
+                    res += `PING: transmit failed. General failure. Configure Client IP and Gateway 192.168.1.1 first.\n\n`;
+                } else {
+                    const matchedStatic = staticRouteAdded && cliIp.startsWith('192.168.2.');
+                    const matchedDefault = defaultRouteAdded;
+                    if (matchedStatic || matchedDefault) {
+                        const routeLabel = matchedStatic ? 'Static Route (192.168.2.0/24)' : 'Default Route (0.0.0.0/0 -> 192.168.1.1)';
+                        res += `[RRAS Matched: ${routeLabel} | Client IP: ${cliIp}]\n
+Pinging 192.168.1.1 with 32 bytes of data:
+Reply from 192.168.1.1: bytes=32 time<1ms TTL=128
+Reply from 192.168.1.1: bytes=32 time<1ms TTL=128
+Reply from 192.168.1.1: bytes=32 time<1ms TTL=128
+Reply from 192.168.1.1: bytes=32 time<1ms TTL=128
+
+Ping statistics for 192.168.1.1:
+    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss)\n\n`;
+
+                        if (step === 8 && matchedStatic) {
+                            markBadge('st-sping', 'Pass ✓');
+                            step = 9; updateGuide();
+                            showToast("✓ Static Route Ping succeeded! Switch back to Server to add Default Route (0.0.0.0).");
+                        } else if (step === 12 && defaultRouteAdded && !cliIp.startsWith('192.168.2.')) {
+                            markBadge('st-dping', 'Pass ✓');
+                            step = 13; updateGuide();
+                            showToast("🎉 Static & Default Routing Lab 100% Complete!");
+                        }
+                    } else {
+                        res += `\nPinging 192.168.1.1 with 32 bytes of data:\nRequest timed out. (No matching route on SMEC-DC1 for ${cliIp})\n\n`;
+                    }
+                }
+            } else if (cmd !== '') {
+                res += `'${raw}' is not recognized. Try 'ping 192.168.1.1' or 'ipconfig'.\n\n`;
+            }
+
+            out.textContent += res;
+            document.getElementById('cli-cmd-body').scrollTop = document.getElementById('cli-cmd-body').scrollHeight;
+        }
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
