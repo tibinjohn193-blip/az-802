@@ -62,6 +62,9 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *   [🖥️ Lab 23:Windows Server Backup — Backup Schedule](lab23.md)
 
+*  [🖥️ Lab 24:Remote Access Routing — Static & Default Routing Lab ](lab24.md)
+
+
 
 
 
