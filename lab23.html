@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: Windows Server Backup — Backup Schedule (C: to D:) - smec.com</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea, select { user-select: text; }
+
+        /* ==================== LEFT SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 265px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 14px 12px;
+            gap: 10px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+        .server-card {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border: 2px solid #93c5fd;
+            border-radius: 8px;
+            padding: 10px 11px;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .server-card-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .server-card-sub { font-size: 10.5px; opacity: 0.9; margin-top: 2px; }
+        .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; }
+
+        /* Live Simulated Server Clock Card */
+        .clock-card {
+            background: #111c33;
+            border: 1px solid #38bdf8;
+            border-radius: 8px;
+            padding: 9px 10px;
+            text-align: center;
+        }
+        .clock-card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: #7dd3fc; font-weight: 700; }
+        .clock-display {
+            font-family: Consolas, monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+            margin: 3px 0;
+            letter-spacing: 1px;
+        }
+        .clock-sub { font-size: 10.5px; color: #94a3b8; }
+        .clock-ff-btn {
+            margin-top: 7px;
+            width: 100%;
+            background: #0284c7;
+            border: 1px solid #38bdf8;
+            color: #fff;
+            padding: 5px 8px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            display: none;
+        }
+        .clock-ff-btn:hover { background: #0369a1; }
+
+        .status-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            color: #cbd5e1;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3.5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .status-row:last-child { border-bottom: none; }
+        .s-badge {
+            font-family: Consolas, monospace;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .s-pending { background: #334155; color: #94a3b8; }
+        .s-done { background: #14532d; color: #86efac; }
+        .s-running { background: #854d0e; color: #fef08a; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-size: 10.5px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%);
+        }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 108px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 30px; margin-bottom: 4px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .taskbar-clock {
+            position: absolute;
+            right: 16px;
+            text-align: right;
+            font-size: 11px;
+            line-height: 1.25;
+            color: #1e293b;
+            font-weight: 600;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 390px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 10px 6px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 24px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 15px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus, select:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10030; }
+        #sm-window { width: 88%; height: 80%; top: 40px; left: 6%; z-index: 10002; }
+        #addroles-window { width: 760px; height: 495px; top: 34px; left: 50%; transform: translateX(-50%); z-index: 10018; }
+        #explorer-window { width: 84%; height: 78%; top: 44px; left: 8%; z-index: 10008; }
+        #wsb-window { width: 92%; height: 83%; top: 32px; left: 4%; z-index: 10012; }
+        #bsw-window { width: 760px; height: 500px; top: 32px; left: 50%; transform: translateX(-50%); z-index: 10025; }
+        #select-items-modal { width: 470px; height: 350px; top: 85px; left: 50%; transform: translateX(-50%); z-index: 10040; }
+        #select-vol-modal { width: 440px; height: 290px; top: 110px; left: 50%; transform: translateX(-50%); z-index: 10040; }
+        #vol-warn-modal { width: 460px; height: 210px; top: 145px; left: 50%; transform: translateX(-50%); z-index: 10050; }
+
+        /* Server Manager Header & Tools */
+        .sm-header {
+            background: #005a9e;
+            color: #fff;
+            padding: 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12.5px;
+        }
+        .sm-tools-btn {
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.16);
+            font-weight: 700;
+        }
+        .sm-tools-btn:hover { background: rgba(255,255,255,0.28); }
+        .sm-tools-dropdown {
+            display: none;
+            position: absolute;
+            top: 72px;
+            right: 16px;
+            width: 260px;
+            background: #fff;
+            border: 1px solid #999;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 10050;
+            padding: 4px;
+            color: #222;
+            font-size: 12.5px;
+        }
+        .sm-tools-dropdown div { padding: 7px 12px; cursor: pointer; border-radius: 3px; }
+        .sm-tools-dropdown div:hover { background: var(--win-blue); color: #fff; }
+        .sm-tools-dropdown div.muted { color: #888; cursor: default; }
+        .sm-tools-dropdown div.muted:hover { background: transparent; color: #888; }
+
+        /* Wizard Layout */
+        .wiz-layout { display: flex; flex: 1; min-height: 0; background: #fff; }
+        .wiz-side { width: 215px; background: #f4f6f9; border-right: 1px solid #d4d4d4; padding: 12px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+        .wiz-step { padding: 6px 8px; border-radius: 4px; color: #64748b; }
+        .wiz-step.active { background: #e5f1fb; color: #005a9e; font-weight: 700; border-left: 3px solid var(--win-blue); }
+        .wiz-step.done { color: #15803d; }
+        .wiz-main { flex: 1; padding: 16px 20px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; }
+
+        .prog-track { width: 100%; height: 14px; background: #e2e8f0; border-radius: 7px; overflow: hidden; margin: 12px 0; }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0078D7, #16a34a); transition: width 0.45s ease; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 215px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 16px; margin: 0; font-size: 13px; }
+        .tree-view li { cursor: pointer; padding: 5px 6px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 9px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 9px; border-bottom: 1px solid #efefef; }
+
+        /* File Explorer */
+        .exp-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #fafafa;
+            border-bottom: 1px solid #d4d4d4;
+        }
+        .exp-path {
+            flex: 1;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            color: #0f172a;
+        }
+        .exp-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 11px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            margin-bottom: 6px;
+        }
+        .exp-item:hover { background: #e5f1fb; border-color: #93c5fd; }
+
+        .drive-bar-bg { width: 170px; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+        .drive-bar-fill { height: 100%; background: #0078D7; }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>💾 Windows Server Backup</h2>
+            <span>Backup Schedule Lab (C: &rarr; D:)</span>
+        </div>
+
+        <div class="server-card">
+            <div class="server-card-header"><span>🖥️ SMEC-DC1</span><span class="status-dot"></span></div>
+            <div class="server-card-sub">IP: 192.168.1.1 | Domain: smec.com</div>
+            <div class="server-card-sub" id="side-wsb-lbl">WSB Feature: Not Installed</div>
+        </div>
+
+        <!-- Live Simulated Server Clock -->
+        <div class="clock-card">
+            <div class="clock-card-label">🕒 Server System Clock</div>
+            <div id="sim-clock" class="clock-display">10:29:45 AM</div>
+            <div id="sim-clock-sub" class="clock-sub">Schedule Target: 10:30 AM</div>
+            <button id="btn-ff-clock" class="clock-ff-btn" onclick="fastForwardToSchedule()">⏩ Fast-Forward to 10:30 AM</button>
+        </div>
+
+        <!-- Live Progress Checklist -->
+        <div class="status-card">
+            <div style="font-weight:700; color:#f8fafc; margin-bottom:5px;">📊 Lab Progress</div>
+            <div class="status-row"><span>1. Install WSB Feature</span><span id="st-wsb" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>2. Create File on C:\</span><span id="st-file" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>3. Configure Schedule</span><span id="st-sched" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>4. Auto-Run at 10:30 AM</span><span id="st-run" class="s-badge s-pending">Waiting</span></div>
+            <div class="status-row"><span>5. Verify Backup on D:\</span><span id="st-verify" class="s-badge s-pending">Pending</span></div>
+        </div>
+
+        <div class="lab-info-card">
+            <div><strong>Source Drive:</strong> <code>Local Disk (C:)</code></div>
+            <div><strong>Destination Drive:</strong> <code>Backup Disk (D:)</code></div>
+            <div><strong>Backup Type:</strong> <code>Custom (File on C:)</code></div>
+            <div><strong>Schedule Time:</strong> <code>10:30 AM</code></div>
+            <div><strong>WSB Command:</strong> <code>wbadmin.msc</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <div class="pc-label">
+                SMEC-DC1 (Windows Server 2025)
+                <span id="top-sub">Drives: C:\ (Source) &amp; D:\ (Backup Volume)</span>
+            </div>
+
+            <!-- Desktop Icons -->
+            <div class="desktop-icons">
+                <div class="d-icon" onclick="openServerManager()">
+                    <div class="ico">🗄️</div>
+                    <span>Server Manager</span>
+                </div>
+                <div class="d-icon" onclick="openExplorer('thispc')">
+                    <div class="ico">💻</div>
+                    <span>This PC (C: &amp; D:)</span>
+                </div>
+                <div class="d-icon" id="desktop-wsb-icon" style="display:none;" onclick="openWsbConsole()">
+                    <div class="ico">💾</div>
+                    <span><strong>Windows Server Backup</strong></span>
+                </div>
+            </div>
+
+            <!-- Run Window -->
+            <div id="run-window" class="window">
+                <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('run-window')">X</span></div>
+                <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                    <div style="flex:1;">
+                        <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>wbadmin.msc</code> (Windows Server Backup) or <code>explorer</code>.</p>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label style="font-weight:600;">Open:</label>
+                            <input type="text" id="run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun()">
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="executeRun()">OK</button>
+                    <button onclick="closeWindow('run-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Server Manager -->
+            <div id="sm-window" class="window">
+                <div class="title-bar"><span>Server Manager - SMEC-DC1</span><span class="close-btn" onclick="closeWindow('sm-window')">X</span></div>
+                <div class="sm-header">
+                    <div style="font-weight:700;">Dashboard · Server Manager (SMEC-DC1)</div>
+                    <div class="sm-tools-btn" onclick="toggleToolsMenu(event)">🔧 Tools &#9662;</div>
+                </div>
+                <div id="sm-tools-menu" class="sm-tools-dropdown">
+                    <div class="muted">Active Directory Users and Computers</div>
+                    <div class="muted">DNS</div>
+                    <div id="sm-tools-wsb" style="display:none;" onclick="openWsbConsole(event)"><strong>💾 Windows Server Backup</strong></div>
+                </div>
+                <div class="content" style="background:#f8fafc; padding:18px; display:flex; flex-direction:column; gap:16px;">
+                    <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h3 style="margin:0 0 4px 0; color:#0f172a;">Configure this local server</h3>
+                            <div style="font-size:12px; color:#475569;">Install the <b>Windows Server Backup</b> feature under <b>Features</b>.</div>
+                        </div>
+                        <button class="primary-btn" onclick="openAddRolesWizard()">+ Add roles and features</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; font-size:12px;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                            <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">Windows Server Backup Feature</div>
+                            <div id="sm-wsb-status" style="font-weight:700; color:#b45309; margin-top:4px;">Not Installed</div>
+                        </div>
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                            <div style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase;">Attached Volumes</div>
+                            <div style="font-weight:700; color:#0f172a; margin-top:4px;">C:\ (100 GB) &amp; D:\ (100 GB)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Roles & Features Wizard (Install Windows Server Backup Feature) -->
+            <div id="addroles-window" class="window">
+                <div class="title-bar"><span>Add Roles and Features Wizard (Windows Server Backup)</span><span class="close-btn" onclick="closeWindow('addroles-window')">X</span></div>
+                <div class="wiz-layout">
+                    <div class="wiz-side">
+                        <div class="wiz-step active" id="ar-nav-1">Before You Begin</div>
+                        <div class="wiz-step" id="ar-nav-2">Installation Type</div>
+                        <div class="wiz-step" id="ar-nav-3">Server Selection</div>
+                        <div class="wiz-step" id="ar-nav-4">Server Roles</div>
+                        <div class="wiz-step" id="ar-nav-5">Features</div>
+                        <div class="wiz-step" id="ar-nav-6">Confirmation</div>
+                        <div class="wiz-step" id="ar-nav-7">Results</div>
+                    </div>
+                    <div class="wiz-main" id="ar-main-pane"></div>
+                </div>
+                <div class="dialog-footer">
+                    <button id="ar-prev-btn" onclick="arPrev()" style="display:none;">&lt; Previous</button>
+                    <button id="ar-next-btn" class="primary-btn" onclick="arNext()">Next &gt;</button>
+                    <button onclick="closeWindow('addroles-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- File Explorer (This PC -> C:\ and D:\) -->
+            <div id="explorer-window" class="window">
+                <div class="title-bar"><span>File Explorer (SMEC-DC1)</span><span class="close-btn" onclick="closeWindow('explorer-window')">X</span></div>
+                <div class="exp-toolbar">
+                    <button onclick="expGoUp()">&#8593; Up</button>
+                    <button onclick="openExplorer('thispc')">💻 This PC</button>
+                    <div id="exp-path-bar" class="exp-path">This PC</div>
+                    <span id="exp-hint-lbl" style="font-size:11px; color:#005a9e; font-weight:600;"></span>
+                </div>
+                <div class="content" style="background:#fff; padding:16px;" id="exp-body" oncontextmenu="handleExpCtx(event)"></div>
+            </div>
+
+            <!-- Windows Server Backup Console (wbadmin.msc) -->
+            <div id="wsb-window" class="window">
+                <div class="title-bar"><span>Windows Server Backup [wbadmin.msc - SMEC-DC1]</span><span class="close-btn" onclick="closeWindow('wsb-window')">X</span></div>
+                <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                <div class="content" style="display:flex; padding:0; background:#fff;">
+                    <!-- Left Tree -->
+                    <div style="width: 24%; border-right: 1px solid #ccc; padding: 12px;">
+                        <ul class="tree-view">
+                            <li onclick="selectWsbRoot(this)">🗄️ Windows Server Backup
+                                <ul style="display:block; list-style:none; padding-left:16px;">
+                                    <li id="wsb-local-node" class="selected" onclick="selectWsbLocal(this, event)">💾 Local Backup</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                    <!-- Center Status / Schedule / Live Progress -->
+                    <div style="width: 54%; padding: 14px; overflow-y: auto; border-right: 1px solid #e2e8f0;" id="wsb-center"></div>
+                    <!-- Right Actions Pane -->
+                    <div style="width: 22%; background:#f8fafc; padding: 12px; font-size:12px;">
+                        <div style="font-weight:700; color:#0f172a; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:10px;">Actions (Local Backup)</div>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <a href="#" onclick="openBackupScheduleWizard(event)" style="color:#0078D7; font-weight:700; text-decoration:none;">🕒 Backup Schedule...</a>
+                            <span style="color:#94a3b8;">📄 Backup Once...</span>
+                            <span style="color:#94a3b8;">↺ Recover...</span>
+                            <span style="color:#94a3b8;">⚙️ Configure Performance Settings...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backup Schedule Wizard (All Authentic Windows Server Options) -->
+            <div id="bsw-window" class="window">
+                <div class="title-bar"><span>Backup Schedule Wizard</span><span class="close-btn" onclick="closeWindow('bsw-window')">X</span></div>
+                <div class="wiz-layout">
+                    <div class="wiz-side">
+                        <div class="wiz-step active" id="bsw-nav-1">Getting Started</div>
+                        <div class="wiz-step" id="bsw-nav-2">Select Backup Configuration</div>
+                        <div class="wiz-step" id="bsw-nav-3">Select Items for Backup</div>
+                        <div class="wiz-step" id="bsw-nav-4">Specify Backup Time</div>
+                        <div class="wiz-step" id="bsw-nav-5">Specify Destination Type</div>
+                        <div class="wiz-step" id="bsw-nav-6">Select Destination Volume</div>
+                        <div class="wiz-step" id="bsw-nav-7">Confirmation</div>
+                        <div class="wiz-step" id="bsw-nav-8">Summary</div>
+                    </div>
+                    <div class="wiz-main" id="bsw-main-pane"></div>
+                </div>
+                <div class="dialog-footer">
+                    <button id="bsw-prev-btn" onclick="bswPrev()" style="display:none;">&lt; Back</button>
+                    <button id="bsw-next-btn" class="primary-btn" onclick="bswNext()">Next &gt;</button>
+                    <button onclick="closeWindow('bsw-window')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Select Items Modal (Tree showing C:\ and the created file) -->
+            <div id="select-items-modal" class="window">
+                <div class="title-bar"><span>Select Items</span><span class="close-btn" onclick="closeWindow('select-items-modal')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px;">
+                    <p style="margin:0 0 10px 0; color:#334155;">Select the file on <b>Local Disk (C:)</b> to include in the scheduled backup:</p>
+                    <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px; background:#fafafa; line-height:1.9;">
+                        <div style="color:#64748b;"><input type="checkbox" disabled> Bare metal recovery</div>
+                        <div style="color:#64748b;"><input type="checkbox" disabled> System state</div>
+                        <div><strong>▼ 💾 Local Disk (C:)</strong></div>
+                        <div style="padding-left:24px; color:#64748b;"><input type="checkbox" disabled> 📁 Windows</div>
+                        <div style="padding-left:24px;">
+                            <label style="font-weight:700; color:#005a9e; cursor:pointer;">
+                                <input type="checkbox" id="chk-pick-cfile"> 📝 <span id="pick-cfile-name">report.txt</span> (C:\)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="confirmSelectItems()">OK</button>
+                    <button onclick="closeWindow('select-items-modal')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Select Destination Volume Modal (Pick D: Drive) -->
+            <div id="select-vol-modal" class="window">
+                <div class="title-bar"><span>Select Volumes</span><span class="close-btn" onclick="closeWindow('select-vol-modal')">X</span></div>
+                <div class="content" style="background:#fff; font-size:12.5px;">
+                    <p style="margin:0 0 10px 0; color:#334155;">Select the destination volume to store scheduled backups:</p>
+                    <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px; background:#fafafa;">
+                        <label style="display:flex; align-items:center; gap:8px; font-weight:700; color:#005a9e; cursor:pointer;">
+                            <input type="checkbox" id="chk-pick-dvol"> 💾 Backup Disk (D:) — 100.0 GB Free (NTFS)
+                        </label>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="confirmSelectVol()">OK</button>
+                    <button onclick="closeWindow('select-vol-modal')">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Authentic Windows Server Backup Volume Warning Modal -->
+            <div id="vol-warn-modal" class="window">
+                <div class="title-bar"><span>Windows Server Backup</span><span class="close-btn" onclick="closeWindow('vol-warn-modal')">X</span></div>
+                <div class="content" style="background:#fff; display:flex; align-items:flex-start; gap:14px; padding:16px;">
+                    <div style="width:36px; height:36px; border-radius:50%; background:#f59e0b; color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; flex-shrink:0;">!</div>
+                    <div style="font-size:12.5px; line-height:1.55; color:#1f2937;">
+                        You have chosen to store backups on volume <b>D:\</b>. Note that storing backups on a local volume can slightly reduce performance for other data on that volume. Click <b>OK</b> to continue.
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="primary-btn" onclick="ackVolWarning()">OK</button>
+                </div>
+            </div>
+
+            <!-- Taskbar & Start Menu -->
+            <div class="taskbar">
+                <div class="start-btn" onclick="toggleMenu('start-menu', event)" title="Start">
+                    <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                </div>
+                <div class="taskbar-clock">
+                    <div id="tb-clock">10:29:45 AM</div>
+                    <div>23-11-2026</div>
+                </div>
+            </div>
+
+            <div id="start-menu" class="start-menu">
+                <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                <div class="app-grid">
+                    <div class="app" onclick="openRun(event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                        <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                    </div>
+                    <div class="app" onclick="openServerManager(); document.getElementById('start-menu').style.display='none';">
+                        <div class="app-icon">🗄️</div>
+                        <span style="font-size:11px; font-weight:600;">Server Manager</span>
+                    </div>
+                    <div class="app" onclick="openExplorer('thispc'); document.getElementById('start-menu').style.display='none';">
+                        <div class="app-icon">💻</div>
+                        <span style="font-size:11px; font-weight:600;">This PC</span>
+                    </div>
+                    <div class="app" id="start-wsb-app" style="display:none;" onclick="openWsbConsole(); document.getElementById('start-menu').style.display='none';">
+                        <div class="app-icon">💾</div>
+                        <span style="font-size:11px; font-weight:600;">Windows Server Backup</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 9</span>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <!-- Context Menus -->
+    <div id="ctx-c-empty" class="context-menu">
+        <div onclick="createSourceFile(event)"><strong>📝 New &rarr; Text Document</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+
+        // Feature & File states
+        let wsbInstalled = false;
+        let arPage = 1, wsbFeatureChecked = false;
+        let currentExpPath = 'thispc'; // 'thispc' | 'c' | 'd' | 'd_backup'
+        let cFileName = '';
+        let cFileCreated = false;
+
+        // Backup Schedule Wizard states
+        let bswPage = 1;
+        let bswConfigType = 'full'; // 'full' | 'custom'
+        let bswItemAdded = false;
+        let bswTimeMode = 'once'; // 'once' | 'more'
+        let bswSelectedTime = '10:30 AM';
+        let bswDestType = 'disk'; // 'disk' | 'volume' | 'network'
+        let bswDestVolAdded = false;
+        let scheduleCreated = false;
+
+        // Simulated Clock: starts at 10:29:45 AM; triggers auto-backup when it reaches 10:30:00 AM!
+        let simHour = 10, simMin = 29, simSec = 45;
+        let clockTimer = null;
+        let backupRunning = false;
+        let backupCompleted = false;
+        let backupProgress = 0;
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu, .sm-tools-dropdown').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3200);
+        }
+
+        function setBadge(id, text, cls) {
+            const el = document.getElementById(id);
+            el.innerText = text;
+            el.className = 's-badge ' + cls;
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu, .sm-tools-dropdown').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleToolsMenu(e) {
+            e.stopPropagation();
+            const m = document.getElementById('sm-tools-menu');
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.context-menu').forEach(el => el.style.display = 'none');
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 225) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+        }
+
+        function formatClock(h, m, s) {
+            const mm = String(m).padStart(2, '0');
+            const ss = String(s).padStart(2, '0');
+            return `${h}:${mm}:${ss} AM`;
+        }
+
+        function updateClockDisplay() {
+            const str = formatClock(simHour, simMin, simSec);
+            document.getElementById('sim-clock').innerText = str;
+            document.getElementById('tb-clock').innerText = str;
+        }
+
+        function startScheduledClockCountdown() {
+            // Reset clock to 10:29:50 AM so user clearly sees 10:29 -> 10:30 live!
+            simHour = 10; simMin = 29; simSec = 50;
+            updateClockDisplay();
+            document.getElementById('btn-ff-clock').style.display = 'block';
+            document.getElementById('sim-clock-sub').innerText = `Next Backup: ${bswSelectedTime} (Starting in 10s...)`;
+
+            if (clockTimer) clearInterval(clockTimer);
+            clockTimer = setInterval(() => {
+                if (backupRunning || backupCompleted) { clearInterval(clockTimer); return; }
+                simSec++;
+                if (simSec >= 60) {
+                    simSec = 0;
+                    simMin++;
+                }
+                updateClockDisplay();
+                if (simMin >= 30) {
+                    clearInterval(clockTimer);
+                    triggerScheduledBackup();
+                } else {
+                    const left = 60 - simSec;
+                    document.getElementById('sim-clock-sub').innerText = `Next Backup: ${bswSelectedTime} (in ${left}s...)`;
+                }
+            }, 1000);
+        }
+
+        function fastForwardToSchedule() {
+            if (!scheduleCreated || backupRunning || backupCompleted) return;
+            if (clockTimer) clearInterval(clockTimer);
+            simHour = 10; simMin = 30; simSec = 0;
+            updateClockDisplay();
+            triggerScheduledBackup();
+        }
+
+        function triggerScheduledBackup() {
+            backupRunning = true;
+            document.getElementById('btn-ff-clock').style.display = 'none';
+            document.getElementById('sim-clock-sub').innerText = '🔄 Running Scheduled Backup (10:30 AM)...';
+            setBadge('st-run', 'Running...', 's-running');
+            showToast(`🕒 Clock hit ${bswSelectedTime}! Scheduled Backup started automatically...`);
+            renderWsbCenter();
+
+            setTimeout(() => { backupProgress = 35; renderWsbCenter(); }, 500);
+            setTimeout(() => { backupProgress = 75; renderWsbCenter(); }, 1150);
+            setTimeout(() => {
+                backupProgress = 100;
+                backupRunning = false;
+                backupCompleted = true;
+                document.getElementById('sim-clock-sub').innerText = '✓ Backup Completed at 10:30 AM!';
+                setBadge('st-run', 'Done ✓', 's-done');
+                renderWsbCenter();
+                showToast(`✓ Scheduled backup of C:\\${cFileName} to D:\\ completed at 10:30 AM!`);
+                if (step === 8) { step = 9; updateGuide(); }
+            }, 1850);
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 9)} / 9`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>INSTALL FEATURE:</strong> Open <b>Server Manager</b> &rarr; click <b>+ Add roles and features</b> &rarr; go to <b>Features</b> &rarr; check <b>Windows Server Backup</b> &rarr; Install &rarr; Close."; break;
+                case 2: text = "<strong>CREATE FILE ON C:\\:</strong> Open <b>This PC (C: &amp; D:)</b> &rarr; open <b>Local Disk (C:)</b> &rarr; <b>Right-click</b> empty space &rarr; <b>New &rarr; Text Document</b> (e.g. <code>company_data.txt</code>)."; break;
+                case 3: text = "<strong>OPEN WINDOWS SERVER BACKUP:</strong> Open <b>Windows Server Backup</b> (Desktop icon, Server Manager &rarr; Tools, or <code>Start &rarr; Run &rarr; wbadmin.msc</code>)."; break;
+                case 4: text = "<strong>START BACKUP SCHEDULE:</strong> In the right <b>Actions</b> pane, click <b>🕒 Backup Schedule...</b> to open the Backup Schedule Wizard."; break;
+                case 5: text = "<strong>SELECT CUSTOM &amp; C:\\ FILE:</strong> Click Next &rarr; select <b>Custom</b> &rarr; Next &rarr; click <b>Add Items...</b> &rarr; check your file under <code>Local Disk (C:)</code> &rarr; OK &rarr; Next."; break;
+                case 6: text = "<strong>SPECIFY BACKUP TIME (10:30 AM):</strong> Keep <b>Once a day</b> selected, set time to <code>10:30 AM</code> (notice Server Clock is at <code>10:29 AM</code>!) &rarr; Next."; break;
+                case 7: text = "<strong>SELECT DESTINATION D:\\:</strong> Select <b>Back up to a volume</b> &rarr; Next &rarr; click <b>Add...</b> &rarr; check <b>Backup Disk (D:)</b> &rarr; OK &rarr; Next &rarr; click <b>OK</b> on the warning &rarr; click <b>Finish</b> &rarr; Close."; break;
+                case 8: text = "<strong>WAIT FOR 10:30 AM AUTO-BACKUP:</strong> Watch the Server Clock count from <code>10:29 AM</code> to <code>10:30 AM</code> (or click <b>⏩ Fast-Forward to 10:30 AM</b> on the left sidebar) to see the scheduled backup run automatically!"; break;
+                case 9: text = "<strong>VERIFY BACKUP ON D:\\:</strong> Open <b>This PC</b> &rarr; open <b>Backup Disk (D:)</b> &rarr; click <b>WindowsImageBackup</b> to verify your file from <code>C:\\</code> is safely backed up on <code>D:\\</code>!"; break;
+                case 10:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = `<strong>🎉 Lab Complete!</strong> You installed <b>Windows Server Backup</b>, created <code>C:\\${cFileName}</code>, configured a <b>10:30 AM Backup Schedule</b> to <code>D:\\</code>, watched it execute automatically at 10:30 AM, and verified the backup on <code>D:\\</code>!`;
+                    break;
+            }
+            guide.innerHTML = text;
+        }
+
+        // --- RUN DIALOG ---
+        function openRun(e) {
+            e.stopPropagation();
+            document.getElementById('start-menu').style.display = 'none';
+            document.getElementById('run-window').style.display = 'flex';
+            const inp = document.getElementById('run-input');
+            inp.value = ''; inp.focus();
+        }
+        function executeRun() {
+            const cmd = document.getElementById('run-input').value.trim().toLowerCase();
+            closeWindow('run-window');
+            if (cmd === 'wbadmin.msc') openWsbConsole();
+            else if (cmd === 'explorer') openExplorer('thispc');
+            else if (cmd !== '') alert(`Windows cannot find '${cmd}'. Try wbadmin.msc or explorer.`);
+        }
+
+        // --- STEP 1: INSTALL WINDOWS SERVER BACKUP FEATURE ---
+        function openServerManager() { document.getElementById('sm-window').style.display = 'flex'; }
+
+        function openAddRolesWizard() {
+            if (wsbInstalled) { showToast("Windows Server Backup feature is already installed!"); return; }
+            arPage = 1;
+            document.getElementById('addroles-window').style.display = 'flex';
+            renderArPage();
+        }
+
+        function renderArPage() {
+            for (let i = 1; i <= 7; i++) {
+                const el = document.getElementById('ar-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === arPage) el.classList.add('active');
+                else if (i < arPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('ar-main-pane');
+            const prev = document.getElementById('ar-prev-btn');
+            const next = document.getElementById('ar-next-btn');
+            prev.style.display = (arPage > 1 && arPage < 7) ? 'inline-block' : 'none';
+            next.disabled = false;
+
+            if (arPage === 1) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Before You Begin</h3><p>Install the <b>Windows Server Backup</b> feature on <b>SMEC-DC1</b>.</p>`;
+            } else if (arPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select installation type</h3><label style="font-weight:600;"><input type="radio" checked> Role-based or feature-based installation</label>`;
+            } else if (arPage === 3) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select destination server</h3><table class="mmc-table" style="border:1px solid #ccc;"><tr><th>Name</th><th>IP Address</th><th>OS</th></tr><tr style="background:#e5f1fb;"><td><strong>SMEC-DC1.smec.com</strong></td><td>192.168.1.1</td><td>Windows Server 2025</td></tr></table>`;
+            } else if (arPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select server roles</h3><p>Windows Server Backup is a <b>Feature</b> (not a Server Role). Click <b>Next</b> to go to <b>Features</b>.</p>`;
+            } else if (arPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select features</h3>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; display:flex; flex-direction:column; gap:8px;">
+                        <label style="color:#64748b;"><input type="checkbox" disabled> BitLocker Drive Encryption</label>
+                        <label style="color:#64748b;"><input type="checkbox" disabled> Failover Clustering</label>
+                        <label style="color:#64748b;"><input type="checkbox" disabled> Telnet Client</label>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" id="chk-wsb" ${wsbFeatureChecked?'checked':''} onchange="wsbFeatureChecked=this.checked;"> 💾 Windows Server Backup</label>
+                    </div>`;
+            } else if (arPage === 6) {
+                next.innerText = 'Install';
+                pane.innerHTML = `<h3 style="margin-top:0;">Confirm installation selections</h3><ul><li>Server: <b>SMEC-DC1.smec.com</b></li><li>Feature: <b>Windows Server Backup</b></li></ul><p>Click <b>Install</b>.</p>`;
+            } else if (arPage === 7) {
+                next.innerText = 'Close';
+                next.disabled = !wsbInstalled;
+                pane.innerHTML = `<h3 style="margin-top:0;">Installation progress</h3>
+                    <div id="ar-prog-txt">Installing Windows Server Backup feature...</div>
+                    <div class="prog-track"><div id="ar-prog-fill" class="prog-fill"></div></div>
+                    <div id="ar-done-msg" style="display:none; padding:10px; background:#ecfdf5; border:1px solid #16a34a; border-radius:4px; color:#15803d; font-weight:600;">
+                        ✓ Windows Server Backup installed! Click Close, then open This PC to create a file on C:\.
+                    </div>`;
+                if (!wsbInstalled) runWsbInstall();
+            }
+        }
+
+        function arPrev() { if (arPage > 1 && arPage < 7) { arPage--; renderArPage(); } }
+        function arNext() {
+            if (arPage === 5 && !wsbFeatureChecked) { alert("Please check 'Windows Server Backup' under Features!"); return; }
+            if (arPage === 7) { closeWindow('addroles-window'); closeWindow('sm-window'); return; }
+            arPage++;
+            renderArPage();
+        }
+
+        function runWsbInstall() {
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '50%'; }, 350);
+            setTimeout(() => {
+                wsbInstalled = true;
+                const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '100%';
+                const t = document.getElementById('ar-prog-txt'); if (t) t.innerText = 'Installation succeeded.';
+                const d = document.getElementById('ar-done-msg'); if (d) d.style.display = 'block';
+                document.getElementById('ar-next-btn').disabled = false;
+                document.getElementById('sm-wsb-status').innerText = 'Installed ✓';
+                document.getElementById('sm-wsb-status').style.color = '#15803d';
+                document.getElementById('side-wsb-lbl').innerText = 'WSB Feature: Installed ✓';
+                document.getElementById('desktop-wsb-icon').style.display = 'flex';
+                document.getElementById('start-wsb-app').style.display = 'flex';
+                document.getElementById('sm-tools-wsb').style.display = 'block';
+                setBadge('st-wsb', 'Done ✓', 's-done');
+                if (step === 1) { step = 2; updateGuide(); }
+            }, 1250);
+        }
+
+        // --- STEP 2 & STEP 9: FILE EXPLORER (C: & D: DRIVES) ---
+        function openExplorer(path) {
+            currentExpPath = path || 'thispc';
+            document.getElementById('explorer-window').style.display = 'flex';
+            renderExplorer();
+        }
+
+        function expGoUp() {
+            if (currentExpPath === 'd_backup') currentExpPath = 'd';
+            else if (currentExpPath === 'c' || currentExpPath === 'd') currentExpPath = 'thispc';
+            renderExplorer();
+        }
+
+        function handleExpCtx(e) {
+            if (currentExpPath === 'c') showContext('ctx-c-empty', e);
+        }
+
+        function renderExplorer() {
+            const p = document.getElementById('exp-path-bar');
+            const body = document.getElementById('exp-body');
+            const hint = document.getElementById('exp-hint-lbl');
+
+            if (currentExpPath === 'thispc') {
+                p.innerText = 'This PC';
+                hint.innerText = backupCompleted ? 'Open Backup Disk (D:) to verify backup!' : 'Open Local Disk (C:) to create a file';
+                body.innerHTML = `
+                    <div style="font-size:11.5px; font-weight:700; color:#64748b; margin-bottom:10px;">Devices and drives (2)</div>
+                    <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; max-width:680px;">
+                        <div class="exp-item" style="border:1px solid #cbd5e1; background:#f8fafc;" onclick="openExplorer('c')">
+                            <span style="font-size:34px;">💾</span>
+                            <div>
+                                <strong>Local Disk (C:)</strong>
+                                <div class="drive-bar-bg"><div class="drive-bar-fill" style="width:42%;"></div></div>
+                                <div style="font-size:11px; color:#475569; margin-top:3px;">58.0 GB free of 100 GB · Source</div>
+                            </div>
+                        </div>
+                        <div class="exp-item" style="border:1px solid ${backupCompleted?'#16a34a':'#cbd5e1'}; background:${backupCompleted?'#ecfdf5':'#f8fafc'};" onclick="openExplorer('d')">
+                            <span style="font-size:34px;">💿</span>
+                            <div>
+                                <strong style="color:${backupCompleted?'#15803d':'#0f172a'};">Backup Disk (D:)</strong>
+                                <div class="drive-bar-bg"><div class="drive-bar-fill" style="width:${backupCompleted?'12%':'2%'}; background:${backupCompleted?'#16a34a':'#0078D7'};"></div></div>
+                                <div style="font-size:11px; color:${backupCompleted?'#15803d':'#475569'}; margin-top:3px;">${backupCompleted ? 'WindowsImageBackup Saved ✓' : '99.8 GB free of 100 GB · Target'}</div>
+                            </div>
+                        </div>
+                    </div>`;
+            } else if (currentExpPath === 'c') {
+                p.innerText = 'Local Disk (C:\\)';
+                hint.innerText = 'Right-click empty space -> New -> Text Document';
+                let fileHtml = cFileCreated
+                    ? `<div class="exp-item" style="background:#ecfdf5; border-color:#86efac;">
+                           <span style="font-size:24px;">📝</span>
+                           <div><strong style="color:#15803d;">${cFileName}</strong><div style="font-size:11px; color:#15803d;">Source file on C:\ · Ready for Backup Schedule</div></div>
+                       </div>`
+                    : '';
+                body.innerHTML = `
+                    <div class="exp-item" style="opacity:0.6; cursor:default;"><span style="font-size:24px;">📁</span><div>Windows</div></div>
+                    <div class="exp-item" style="opacity:0.6; cursor:default;"><span style="font-size:24px;">📁</span><div>Users</div></div>
+                    ${fileHtml}
+                    <div style="margin-top:16px; padding:10px 12px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12px;">
+                        💡 <b>Right-click</b> anywhere in this white area &rarr; click <b>New &rarr; Text Document</b> to create a file on <code>C:\</code>.
+                    </div>`;
+            } else if (currentExpPath === 'd') {
+                p.innerText = 'Backup Disk (D:\\)';
+                hint.innerText = backupCompleted ? 'Click WindowsImageBackup to verify!' : 'Destination drive for scheduled backups';
+                if (!backupCompleted) {
+                    body.innerHTML = `<div style="color:#64748b; padding:16px;">This drive is empty. Scheduled backups from <code>C:\</code> will appear here at <b>10:30 AM</b>.</div>`;
+                } else {
+                    body.innerHTML = `
+                        <div class="exp-item" style="background:#ecfdf5; border-color:#16a34a;" onclick="openExplorer('d_backup')">
+                            <span style="font-size:28px;">📁</span>
+                            <div>
+                                <strong style="color:#15803d;">WindowsImageBackup</strong>
+                                <div style="font-size:11.5px; color:#166534;">Scheduled Backup Folder (Created at 10:30:00 AM) · Click to inspect</div>
+                            </div>
+                        </div>`;
+                }
+            } else if (currentExpPath === 'd_backup') {
+                p.innerText = 'D:\\WindowsImageBackup\\SMEC-DC1\\Backup 2026-11-23 103000';
+                hint.innerText = 'Backup Verified ✓';
+                body.innerHTML = `
+                    <div style="padding:12px 14px; background:#ecfdf5; border:1px solid #16a34a; border-radius:6px; color:#15803d; margin-bottom:12px; font-size:12.5px;">
+                        <strong>✓ Scheduled Backup Verified on D:\!</strong><br>
+                        Timestamp: <b>10:30:00 AM</b> | Source: <code>C:\${cFileName}</code> | Destination: <code>D:\</code>
+                    </div>
+                    <div class="exp-item" style="background:#f8fafc; border-color:#cbd5e1;">
+                        <span style="font-size:24px;">📦</span>
+                        <div><strong>${cFileName} (Backed Up Copy)</strong><div style="font-size:11px; color:#475569;">Stored inside VHDX backup image on Backup Disk (D:)</div></div>
+                    </div>`;
+                setBadge('st-verify', 'Done ✓', 's-done');
+                if (step === 9) {
+                    step = 10;
+                    updateGuide();
+                    showToast("🎉 Windows Server Backup Schedule Lab Complete!");
+                }
+            }
+        }
+
+        function createSourceFile(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-c-empty').style.display = 'none';
+            if (!wsbInstalled) { alert("First install Windows Server Backup feature in Server Manager!"); return; }
+            const name = prompt("Enter file name to create on Local Disk (C:):", "company_data.txt");
+            if (name === null || !name.trim()) return;
+            cFileName = name.trim().endsWith('.txt') ? name.trim() : name.trim() + '.txt';
+            cFileCreated = true;
+            renderExplorer();
+            setBadge('st-file', 'Done ✓', 's-done');
+            showToast(`Created C:\\${cFileName}! Now open Windows Server Backup (wbadmin.msc).`);
+            if (step === 2) { step = 3; updateGuide(); }
+        }
+
+        // --- STEP 3-8: WINDOWS SERVER BACKUP CONSOLE & BACKUP SCHEDULE WIZARD ---
+        function openWsbConsole(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('sm-tools-menu').style.display = 'none';
+            if (!wsbInstalled) { alert("First install Windows Server Backup via Server Manager -> Features!"); return; }
+            if (!cFileCreated) { alert("First create a file on Local Disk (C:) in This PC!"); return; }
+            document.getElementById('wsb-window').style.display = 'flex';
+            renderWsbCenter();
+            if (step === 3) { step = 4; updateGuide(); }
+        }
+
+        function selectWsbRoot(el) {}
+        function selectWsbLocal(el, e) { if (e) e.stopPropagation(); renderWsbCenter(); }
+
+        function renderWsbCenter() {
+            const c = document.getElementById('wsb-center');
+            let statusBlock = '';
+
+            if (backupRunning) {
+                statusBlock = `
+                    <div style="border:1px solid #0284c7; background:#f0f9ff; border-radius:6px; padding:14px; margin-bottom:14px;">
+                        <div style="font-weight:700; color:#0369a1; margin-bottom:4px;">🔄 Scheduled Backup In Progress (Triggered at 10:30:00 AM)</div>
+                        <div style="font-size:12px; color:#334155;">Backing up <code>C:\\${cFileName}</code> &rarr; <code>D:\\WindowsImageBackup</code>...</div>
+                        <div class="prog-track"><div class="prog-fill" style="width:${backupProgress}%;"></div></div>
+                        <div style="font-size:11.5px; color:#0369a1; font-weight:700;">${backupProgress}% completed</div>
+                    </div>`;
+            } else if (backupCompleted) {
+                statusBlock = `
+                    <div style="border:1px solid #16a34a; background:#ecfdf5; border-radius:6px; padding:14px; margin-bottom:14px;">
+                        <div style="font-weight:700; color:#15803d; margin-bottom:4px;">✓ Last Backup: Succeeded at 10:30:00 AM</div>
+                        <div style="font-size:12px; color:#166534;">Successfully backed up <code>C:\\${cFileName}</code> to <b>Backup Disk (D:)</b>. Open <b>This PC &rarr; D:\</b> to verify!</div>
+                    </div>`;
+            } else if (scheduleCreated) {
+                statusBlock = `
+                    <div style="border:1px solid #f59e0b; background:#fffbeb; border-radius:6px; padding:14px; margin-bottom:14px;">
+                        <div style="font-weight:700; color:#b45309; margin-bottom:4px;">🕒 Backup Schedule Active — Waiting for ${bswSelectedTime}</div>
+                        <div style="font-size:12px; color:#92400e;">Current Server Clock: <b>${formatClock(simHour, simMin, simSec)}</b>. Backup will start automatically at <b>10:30:00 AM</b> (or click <b>⏩ Fast-Forward</b> on the left sidebar).</div>
+                    </div>`;
+            } else {
+                statusBlock = `
+                    <div style="border:1px solid #cbd5e1; background:#f8fafc; border-radius:6px; padding:14px; margin-bottom:14px; font-size:12.5px; color:#475569;">
+                        No backup schedule has been configured for this computer yet. Click <b>🕒 Backup Schedule...</b> in the right Actions pane to begin.
+                    </div>`;
+            }
+
+            let schedSummary = scheduleCreated
+                ? `<table class="mmc-table" style="border:1px solid #e2e8f0;">
+                    <tr><th>Setting</th><th>Configured Value</th></tr>
+                    <tr><td>Status</td><td>${backupCompleted ? '<strong style="color:#15803d;">Completed (10:30 AM) ✓</strong>' : (backupRunning ? '<strong style="color:#0284c7;">Running...</strong>' : '<strong>Scheduled (Waiting for 10:30 AM)</strong>')}</td></tr>
+                    <tr><td>Backup Items</td><td style="font-family:Consolas;">C:\\${cFileName}</td></tr>
+                    <tr><td>Backup Time</td><td><strong>Once a day at ${bswSelectedTime}</strong></td></tr>
+                    <tr><td>Destination</td><td><strong>Local Disk (D:)</strong></td></tr>
+                   </table>`
+                : '';
+
+            c.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Local Backup (SMEC-DC1)</h3>${statusBlock}${schedSummary}`;
+        }
+
+        function openBackupScheduleWizard(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            if (scheduleCreated) { showToast("Backup schedule is already configured!"); return; }
+            bswPage = 1;
+            bswConfigType = 'full';
+            bswItemAdded = false;
+            bswTimeMode = 'once';
+            bswSelectedTime = '10:30 AM';
+            bswDestType = 'disk';
+            bswDestVolAdded = false;
+            document.getElementById('bsw-window').style.display = 'flex';
+            renderBswPage();
+            if (step === 4) { step = 5; updateGuide(); }
+        }
+
+        function renderBswPage() {
+            for (let i = 1; i <= 8; i++) {
+                const el = document.getElementById('bsw-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === bswPage) el.classList.add('active');
+                else if (i < bswPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('bsw-main-pane');
+            const prev = document.getElementById('bsw-prev-btn');
+            const next = document.getElementById('bsw-next-btn');
+            prev.style.display = (bswPage > 1 && bswPage < 8) ? 'inline-block' : 'none';
+
+            if (bswPage === 1) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Getting Started</h3>
+                    <p>This wizard helps you schedule regular backups of your server data.</p>
+                    <p>You will configure:</p>
+                    <ul>
+                        <li><b>What to back up:</b> Custom file on <code>C:\\${cFileName}</code></li>
+                        <li><b>When to back up:</b> Scheduled time (<code>10:30 AM</code>)</li>
+                        <li><b>Where to store backups:</b> Destination volume <code>D:\\</code></li>
+                    </ul>`;
+            } else if (bswPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select Backup Configuration</h3>
+                    <p>What type of configuration do you want to schedule?</p>
+                    <label style="display:block; padding:10px; border:1px solid #e2e8f0; border-radius:5px; margin-bottom:10px; color:#555; cursor:pointer;">
+                        <input type="radio" name="bswcfg" value="full" ${bswConfigType==='full'?'checked':''} onchange="bswConfigType='full'"> <strong>Full server (recommended)</strong>
+                        <div style="font-size:11.5px; padding-left:22px; margin-top:2px;">Back up all server data, applications, and system state.</div>
+                    </label>
+                    <label style="display:block; padding:10px; border:1px solid #93c5fd; background:#eff6ff; border-radius:5px; color:#005a9e; cursor:pointer;">
+                        <input type="radio" name="bswcfg" value="custom" ${bswConfigType==='custom'?'checked':''} onchange="bswConfigType='custom'"> <strong>Custom</strong>
+                        <div style="font-size:11.5px; color:#334155; padding-left:22px; margin-top:2px;">Choose custom volumes, folders, or specific files (like <code>C:\\${cFileName}</code>) for backup.</div>
+                    </label>`;
+            } else if (bswPage === 3) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select Items for Backup</h3>
+                    <p>Click <b>Add Items...</b> to pick the file on <code>C:\</code> to back up:</p>
+                    <div style="margin-bottom:10px;"><button class="primary-btn" onclick="openSelectItemsModal()">Add Items...</button></div>
+                    <div style="border:1px solid #cbd5e1; border-radius:4px; min-height:110px; background:#fafafa; padding:10px;">
+                        ${bswItemAdded
+                            ? `<div style="color:#15803d; font-weight:700; font-family:Consolas;">✓ C:\\${cFileName} (Selected for Backup)</div>`
+                            : `<div style="color:#64748b; font-style:italic;">No items added yet. Click 'Add Items...' above.</div>`}
+                    </div>`;
+            } else if (bswPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Specify Backup Time</h3>
+                    <p>Specify when and how often you want to run backups (Current Server Clock is <b>10:29 AM</b>):</p>
+                    <div style="border:1px solid #93c5fd; background:#eff6ff; padding:12px; border-radius:5px; margin-bottom:12px;">
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;">
+                            <input type="radio" name="bswtime" value="once" ${bswTimeMode==='once'?'checked':''} onchange="bswTimeMode='once'"> Once a day
+                        </label>
+                        <div style="margin-top:10px; padding-left:22px; display:flex; align-items:center; gap:10px;">
+                            <label style="font-weight:600;">Time of day:</label>
+                            <select id="bsw-time-sel" onchange="bswSelectedTime=this.value" style="width:150px; font-weight:700;">
+                                <option value="10:30 AM" ${bswSelectedTime==='10:30 AM'?'selected':''}>10:30 AM</option>
+                                <option value="12:00 PM" ${bswSelectedTime==='12:00 PM'?'selected':''}>12:00 PM</option>
+                                <option value="9:00 PM" ${bswSelectedTime==='9:00 PM'?'selected':''}>9:00 PM</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; padding:10px 12px; border-radius:5px; color:#64748b;">
+                        <label><input type="radio" name="bswtime" value="more" ${bswTimeMode==='more'?'checked':''} onchange="bswTimeMode='more'"> More than once a day</label>
+                    </div>`;
+            } else if (bswPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Specify Destination Type</h3>
+                    <p>Where do you want to store the backups?</p>
+                    <label style="display:block; padding:9px; border:1px solid #e2e8f0; border-radius:5px; margin-bottom:8px; color:#555; cursor:pointer;">
+                        <input type="radio" name="bswdest" value="disk" ${bswDestType==='disk'?'checked':''} onchange="bswDestType='disk'"> Back up to a hard disk that is dedicated for backups (recommended)
+                    </label>
+                    <label style="display:block; padding:9px; border:1px solid #93c5fd; background:#eff6ff; border-radius:5px; margin-bottom:8px; color:#005a9e; cursor:pointer;">
+                        <input type="radio" name="bswdest" value="volume" ${bswDestType==='volume'?'checked':''} onchange="bswDestType='volume'"> <strong>Back up to a volume</strong>
+                        <div style="font-size:11.5px; color:#334155; padding-left:22px; margin-top:2px;">Store backups on an existing volume such as <b>Backup Disk (D:)</b>.</div>
+                    </label>
+                    <label style="display:block; padding:9px; border:1px solid #e2e8f0; border-radius:5px; color:#555; cursor:pointer;">
+                        <input type="radio" name="bswdest" value="network" ${bswDestType==='network'?'checked':''} onchange="bswDestType='network'"> Back up to a shared network folder
+                    </label>`;
+            } else if (bswPage === 6) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select Destination Volume</h3>
+                    <p>Click <b>Add...</b> to select <b>Backup Disk (D:)</b> as the destination volume:</p>
+                    <div style="margin-bottom:10px;"><button class="primary-btn" onclick="openSelectVolModal()">Add...</button></div>
+                    <div style="border:1px solid #cbd5e1; border-radius:4px; min-height:105px; background:#fafafa; padding:10px;">
+                        ${bswDestVolAdded
+                            ? `<div style="color:#15803d; font-weight:700;">✓ Backup Disk (D:) — 100.0 GB Free</div>`
+                            : `<div style="color:#64748b; font-style:italic;">No destination volume added yet. Click 'Add...' above.</div>`}
+                    </div>`;
+            } else if (bswPage === 7) {
+                next.innerText = 'Finish';
+                pane.innerHTML = `<h3 style="margin-top:0;">Confirmation</h3>
+                    <p>Review your backup schedule settings and click <b>Finish</b>:</p>
+                    <table class="mmc-table" style="border:1px solid #ccc;">
+                        <tr><th>Parameter</th><th>Value</th></tr>
+                        <tr><td>Backup Configuration</td><td>Custom</td></tr>
+                        <tr><td>Items to Back Up</td><td style="font-family:Consolas; font-weight:700;">C:\\${cFileName}</td></tr>
+                        <tr><td>Backup Time</td><td><strong>Once a day at ${bswSelectedTime}</strong></td></tr>
+                        <tr><td>Destination Type</td><td>Volume</td></tr>
+                        <tr><td>Destination Volume</td><td><strong>Backup Disk (D:)</strong></td></tr>
+                    </table>`;
+            } else if (bswPage === 8) {
+                next.innerText = 'Close';
+                pane.innerHTML = `<h3 style="margin-top:0; color:#15803d;">Summary</h3>
+                    <div style="padding:12px; background:#ecfdf5; border:1px solid #16a34a; border-radius:5px; color:#15803d; font-weight:600; margin-bottom:12px;">
+                        ✓ You have successfully created the backup schedule!
+                    </div>
+                    <p>Your first scheduled backup of <code>C:\\${cFileName}</code> to <b>D:\</b> will start automatically when the server clock reaches <b>${bswSelectedTime}</b>.</p>
+                    <p>Click <b>Close</b> and watch the clock hit <b>10:30 AM</b>!</p>`;
+            }
+        }
+
+        function bswPrev() { if (bswPage > 1 && bswPage < 8) { bswPage--; renderBswPage(); } }
+        function bswNext() {
+            if (bswPage === 2 && bswConfigType !== 'custom') {
+                alert("Please select 'Custom' so you can choose your specific file on C:\\!");
+                return;
+            }
+            if (bswPage === 3) {
+                if (!bswItemAdded) { alert("Please click 'Add Items...' and select your file on C:\\!"); return; }
+                if (step === 5) { step = 6; updateGuide(); }
+            }
+            if (bswPage === 4) {
+                if (bswTimeMode !== 'once' || bswSelectedTime !== '10:30 AM') {
+                    alert("Please select 'Once a day' and set Time to '10:30 AM' to match the 10:29 -> 10:30 simulation!");
+                    return;
+                }
+                if (step === 6) { step = 7; updateGuide(); }
+            }
+            if (bswPage === 5 && bswDestType !== 'volume') {
+                alert("Please select 'Back up to a volume' to store the backup on D:\\!");
+                return;
+            }
+            if (bswPage === 6) {
+                if (!bswDestVolAdded) { alert("Please click 'Add...' and select Backup Disk (D:)!"); return; }
+                document.getElementById('vol-warn-modal').style.display = 'flex';
+                return;
+            }
+            if (bswPage === 7) {
+                scheduleCreated = true;
+                setBadge('st-sched', '10:30 AM ✓', 's-done');
+                bswPage = 8;
+                renderBswPage();
+                return;
+            }
+            if (bswPage === 8) {
+                closeWindow('bsw-window');
+                renderWsbCenter();
+                if (step === 7) { step = 8; updateGuide(); }
+                startScheduledClockCountdown();
+                return;
+            }
+            bswPage++;
+            renderBswPage();
+        }
+
+        function openSelectItemsModal() {
+            document.getElementById('pick-cfile-name').innerText = cFileName;
+            document.getElementById('chk-pick-cfile').checked = bswItemAdded;
+            document.getElementById('select-items-modal').style.display = 'flex';
+        }
+
+        function confirmSelectItems() {
+            if (!document.getElementById('chk-pick-cfile').checked) {
+                alert(`Please check C:\\${cFileName} to include it in the backup!`);
+                return;
+            }
+            bswItemAdded = true;
+            closeWindow('select-items-modal');
+            renderBswPage();
+        }
+
+        function openSelectVolModal() {
+            document.getElementById('chk-pick-dvol').checked = bswDestVolAdded;
+            document.getElementById('select-vol-modal').style.display = 'flex';
+        }
+
+        function confirmSelectVol() {
+            if (!document.getElementById('chk-pick-dvol').checked) {
+                alert("Please check Backup Disk (D:)!");
+                return;
+            }
+            bswDestVolAdded = true;
+            closeWindow('select-vol-modal');
+            renderBswPage();
+        }
+
+        function ackVolWarning() {
+            closeWindow('vol-warn-modal');
+            bswPage = 7;
+            renderBswPage();
+        }
+
+        window.onload = () => {
+            updateClockDisplay();
+            updateGuide();
+        };
+    </script>
+</body>
+</html>
