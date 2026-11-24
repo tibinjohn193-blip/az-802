@@ -1,0 +1,2043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab: Windows Server Update Services (WSUS) Full Server &amp; Client Setup - smec.com</title>
+    <style>
+        :root {
+            --win-blue: #0078D7;
+            --win-blue-dark: #005a9e;
+            --sidebar-bg: #0f172a;
+            --sidebar-border: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            background: #0b1120;
+        }
+
+        input, textarea, select { user-select: text; }
+
+        /* ==================== LEFT MACHINE SELECTOR SIDEBAR ==================== */
+        #machine-sidebar {
+            width: 268px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 13px 12px;
+            gap: 9px;
+            z-index: 200;
+            overflow-y: auto;
+        }
+
+        .sidebar-title { border-bottom: 1px solid #1e293b; padding-bottom: 9px; }
+        .sidebar-title h2 { margin: 0; font-size: 13.5px; color: #fff; }
+        .sidebar-title span { display: block; font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: -4px;
+        }
+
+        .machine-btn {
+            width: 100%;
+            text-align: left;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 9px 11px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .machine-btn:hover { background: #273549; border-color: #60a5fa; }
+        .machine-btn.active {
+            background: linear-gradient(135deg, #005a9e, #0078D7);
+            border-color: #93c5fd;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 120, 215, 0.35);
+        }
+        .machine-btn.attention {
+            border-color: #facc15;
+            animation: attentionPulse 1.6s infinite;
+        }
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.12); }
+        }
+        .machine-btn-header { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 700; }
+        .machine-btn-sub { font-size: 10.5px; opacity: 0.88; }
+        .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+
+        .status-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 10px;
+            color: #cbd5e1;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .status-row:last-child { border-bottom: none; }
+        .s-badge {
+            font-family: Consolas, monospace;
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .s-pending { background: #334155; color: #94a3b8; }
+        .s-done { background: #14532d; color: #86efac; }
+        .s-warn { background: #854d0e; color: #fef08a; }
+
+        .lab-info-card {
+            background: #162032;
+            border: 1px solid #263449;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 10px;
+            line-height: 1.55;
+            color: #cbd5e1;
+        }
+        .lab-info-card strong { color: #f8fafc; }
+        .lab-info-card code {
+            background: #0f172a;
+            color: #7dd3fc;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 9.5px;
+        }
+
+        .sidebar-spacer { flex: 1; }
+
+        .reset-btn {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .reset-btn:hover { background: #334155; }
+
+        /* ==================== RIGHT MAIN WORKSPACE ==================== */
+        #workspace-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        #desktop-stage {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .pc-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        .pc-container.active-pc { display: block; }
+
+        #srv-pc { background: radial-gradient(circle at 25% 20%, #14365d 0%, #0a1f3a 60%, #051020 100%); }
+        #cli-pc { background: radial-gradient(circle at 75% 20%, #1d4e89 0%, #0d2b4e 60%, #061426 100%); }
+
+        .pc-label {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            background: rgba(10, 15, 25, 0.82);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: right;
+        }
+        .pc-label span { display: block; color: #9ed2ff; font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 11px;
+            z-index: 50;
+        }
+        .d-icon {
+            width: 108px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 7px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            color: #fff;
+            text-align: center;
+        }
+        .d-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+        .d-icon .ico { font-size: 27px; margin-bottom: 3px; }
+        .d-icon span { font-size: 11px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* ==================== BOTTOM LAB GUIDE ==================== */
+        #lab-guide {
+            flex-shrink: 0;
+            background: #ffffff;
+            border-top: 3px solid var(--win-blue);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 68px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.28);
+            z-index: 300;
+        }
+        .guide-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-right: 2px solid #e2e8f0;
+            padding-right: 16px;
+            flex-shrink: 0;
+        }
+        .guide-header h3 { margin: 0; color: var(--win-blue); font-size: 14px; white-space: nowrap; }
+        #step-badge {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e6f2fc;
+            color: #005a9e;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        #instructions { font-size: 13.5px; color: #1e293b; margin: 0; line-height: 1.48; flex: 1; }
+        #instructions code {
+            background: #e8f2fc;
+            color: #004c8c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-weight: 700;
+            font-size: 12.5px;
+        }
+
+        /* ==================== TASKBAR & START MENU ==================== */
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            background: rgba(243, 243, 243, 0.96);
+            border-top: 1px solid #cfcfcf;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            z-index: 99990;
+        }
+        .start-btn {
+            width: 42px;
+            height: 38px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        .win-icon { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; }
+        .win-icon div { background: var(--win-blue); border-radius: 1.5px; }
+
+        .start-menu {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+            background: rgba(248, 248, 248, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+            z-index: 99995;
+            display: none;
+            border: 1px solid #ccc;
+            padding: 18px;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 10px 6px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .app:hover { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .app-icon { font-size: 24px; margin-bottom: 4px; }
+
+        /* ==================== WINDOWS STANDARD DIALOGS ==================== */
+        .window {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #7f8c8d;
+            border-radius: 6px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+            display: none;
+            flex-direction: column;
+            font-size: 13px;
+            overflow: hidden;
+            max-width: calc(100% - 28px);
+            max-height: calc(100% - 66px);
+        }
+        .title-bar {
+            background: #ffffff;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .close-btn { cursor: pointer; padding: 2px 10px; font-weight: 600; border-radius: 4px; color: #444; }
+        .close-btn:hover { background: #e81123; color: #fff; }
+        .menu-bar {
+            border-bottom: 1px solid #d4d4d4;
+            background: #fafafa;
+            padding: 4px 10px;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .content { padding: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f3f3; }
+        .dialog-footer {
+            background: #f0f0f0;
+            padding: 9px 14px;
+            border-top: 1px solid #d8d8d8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 15px;
+            background: #e5e5e5;
+            border: 1px solid #adadad;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            color: #111;
+        }
+        button:hover { background: #e5f1fb; border-color: #0078d7; }
+        button.primary-btn { background: var(--win-blue); color: #fff; border-color: #005a9e; font-weight: 600; }
+        button.primary-btn:hover { background: #0063b1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="text"], select {
+            padding: 6px 9px;
+            border: 1px solid #b5b5b5;
+            font-size: 12.5px;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+        input:focus, select:focus { border-color: var(--win-blue); outline: none; }
+
+        /* Window Sizes */
+        #srv-run-window, #cli-run-window { width: 410px; height: 210px; top: 38%; left: 50%; transform: translate(-50%, -50%); z-index: 10035; }
+        #srv-exp-window { width: 82%; height: 76%; top: 44px; left: 9%; z-index: 10004; }
+        #srv-sm-window { width: 88%; height: 80%; top: 38px; left: 6%; z-index: 10006; }
+        #srv-addroles-window { width: 780px; height: 505px; top: 28px; left: 50%; transform: translateX(-50%); z-index: 10020; }
+        #wsus-wiz-window { width: 760px; height: 495px; top: 30px; left: 50%; transform: translateX(-50%); z-index: 10024; }
+        #wsus-console-window { width: 92%; height: 83%; top: 30px; left: 4%; z-index: 10012; }
+        #add-group-modal { width: 410px; height: 215px; top: 135px; left: 50%; transform: translateX(-50%); z-index: 10038; }
+        #approve-modal { width: 490px; height: 320px; top: 90px; left: 50%; transform: translateX(-50%); z-index: 10040; }
+        #gpmc-window { width: 88%; height: 80%; top: 38px; left: 6%; z-index: 10014; }
+        #gpo-editor-window { width: 90%; height: 82%; top: 32px; left: 5%; z-index: 10018; }
+        #gpo-setting-modal { width: 560px; height: 420px; top: 52px; left: 50%; transform: translateX(-50%); z-index: 10042; }
+        #cli-cmd-window { width: 84%; height: 74%; top: 50px; left: 8%; background: #0c0c0c; color: #e5e5e5; font-family: Consolas, monospace; z-index: 10012; }
+        #cli-wu-window { width: 82%; height: 78%; top: 42px; left: 9%; z-index: 10016; }
+
+        /* Server Manager Header, Flag & Tools */
+        .sm-header {
+            background: #005a9e;
+            color: #fff;
+            padding: 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12.5px;
+        }
+        .sm-right-btns { display: flex; align-items: center; gap: 10px; }
+        .sm-flag-btn {
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.14);
+            font-weight: 700;
+            position: relative;
+        }
+        .sm-flag-btn.has-alert {
+            background: #f59e0b;
+            color: #111;
+            animation: attentionPulse 1.5s infinite;
+        }
+        .sm-tools-btn {
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.16);
+            font-weight: 700;
+        }
+        .sm-tools-btn:hover { background: rgba(255,255,255,0.28); }
+        .sm-dropdown {
+            display: none;
+            position: absolute;
+            top: 72px;
+            right: 16px;
+            width: 300px;
+            background: #fff;
+            border: 1px solid #999;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 10050;
+            padding: 6px;
+            color: #222;
+            font-size: 12.5px;
+        }
+        .sm-dropdown div.menu-item { padding: 7px 12px; cursor: pointer; border-radius: 3px; }
+        .sm-dropdown div.menu-item:hover { background: var(--win-blue); color: #fff; }
+        .sm-dropdown div.muted { padding: 7px 12px; color: #888; cursor: default; }
+
+        /* Wizard Layout */
+        .wiz-layout { display: flex; flex: 1; min-height: 0; background: #fff; }
+        .wiz-side { width: 215px; background: #f4f6f9; border-right: 1px solid #d4d4d4; padding: 12px 10px; font-size: 11.5px; display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+        .wiz-step { padding: 5px 8px; border-radius: 4px; color: #64748b; }
+        .wiz-step.active { background: #e5f1fb; color: #005a9e; font-weight: 700; border-left: 3px solid var(--win-blue); }
+        .wiz-step.done { color: #15803d; }
+        .wiz-main { flex: 1; padding: 16px 20px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; }
+
+        .prog-track { width: 100%; height: 14px; background: #e2e8f0; border-radius: 7px; overflow: hidden; margin: 12px 0; }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0078D7, #16a34a); transition: width 0.45s ease; }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #bcbcbc;
+            border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 105000;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 235px;
+        }
+        .context-menu div { padding: 7px 14px; cursor: pointer; font-size: 12.5px; border-radius: 3px; color: #222; }
+        .context-menu div:hover { background: var(--win-blue); color: #fff; }
+
+        /* MMC Tree & Table */
+        .tree-view { list-style: none; padding-left: 16px; margin: 0; font-size: 12.5px; }
+        .tree-view li { cursor: pointer; padding: 4px 5px; display: block; white-space: nowrap; border-radius: 3px; }
+        .tree-view li:hover { background: #eef6fc; }
+        .tree-view ul { display: none; }
+        .tree-view li.expanded > ul { display: block; }
+        .tree-view li.selected { background: #cce8ff; outline: 1px solid #99d1ff; font-weight: 600; }
+
+        .mmc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .mmc-table th { border-bottom: 1px solid #ccc; text-align: left; background: #f5f5f5; padding: 7px 9px; font-weight: 600; color: #333; }
+        .mmc-table td { padding: 7px 9px; border-bottom: 1px solid #efefef; }
+
+        /* File Explorer */
+        .exp-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #fafafa;
+            border-bottom: 1px solid #d4d4d4;
+        }
+        .exp-path {
+            flex: 1;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            color: #0f172a;
+        }
+        .exp-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 11px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            margin-bottom: 6px;
+        }
+        .exp-item:hover { background: #e5f1fb; border-color: #93c5fd; }
+
+        /* CMD */
+        .cmd-body {
+            flex: 1;
+            background: #0c0c0c;
+            color: #e5e5e5;
+            padding: 12px 14px;
+            overflow-y: auto;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            cursor: text;
+            user-select: text;
+        }
+        .cmd-output { white-space: pre-wrap; word-break: break-word; }
+        .cmd-input-line { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+        .cmd-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #38bdf8;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            outline: none;
+            padding: 0;
+        }
+
+        #mini-toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12.5px;
+            border: 1px solid #38bdf8;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 200000;
+            display: none;
+        }
+    
+        /* ==================== COMPLETE WSUS 2025 DEPLOYMENT CHECKLIST ==================== */
+        #wsus-full-checklist {
+            position: fixed; inset: 0; z-index: 200000; display: none;
+            background: rgba(2, 6, 23, .78); padding: 22px; overflow: auto;
+        }
+        #wsus-full-checklist .checklist-shell {
+            max-width: 1120px; min-height: 80vh; margin: 0 auto; background: #f8fafc;
+            border: 1px solid #94a3b8; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 24px 70px rgba(0,0,0,.45); display: flex; flex-direction: column;
+        }
+        #wsus-full-checklist .checklist-head {
+            padding: 17px 22px; background: #0f2744; color: #fff; display: flex;
+            align-items: center; justify-content: space-between; gap: 14px;
+        }
+        #wsus-full-checklist .checklist-head h2 { margin: 0 0 5px; font-size: 19px; }
+        #wsus-full-checklist .checklist-head p { margin: 0; color: #cbd5e1; font-size: 12px; }
+        #wsus-full-checklist .checklist-body { padding: 18px 22px 24px; overflow: auto; }
+        #wsus-full-checklist .sim-warning { padding: 11px 13px; border-left: 4px solid #d97706; background: #fff7ed; color: #7c2d12; font-size: 12px; line-height: 1.55; margin-bottom: 16px; }
+        #wsus-full-checklist .phase-card { background: #fff; border: 1px solid #dbe3ee; border-radius: 8px; margin: 12px 0; overflow: hidden; }
+        #wsus-full-checklist .phase-card h3 { margin: 0; padding: 10px 13px; background: #eaf2fb; color: #075985; font-size: 14px; }
+        #wsus-full-checklist .phase-card ol { margin: 0; padding: 8px 18px 10px 38px; }
+        #wsus-full-checklist .phase-card li { padding: 8px 5px; border-bottom: 1px solid #eef2f7; color: #1e293b; font-size: 12.5px; line-height: 1.5; }
+        #wsus-full-checklist .phase-card li:last-child { border-bottom: 0; }
+        #wsus-full-checklist .phase-card label { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; }
+        #wsus-full-checklist .phase-card input[type=checkbox] { margin-top: 3px; flex-shrink: 0; accent-color: #0878c9; }
+        #wsus-full-checklist .phase-card code { font-family: Consolas, monospace; background: #eff6ff; color: #075985; padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+        #wsus-full-checklist .checklist-foot { position: sticky; bottom: 0; padding: 11px 20px; background: #fff; border-top: 1px solid #dbe3ee; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+        #wsus-check-progress { font-size: 12px; font-weight: 700; color: #0f172a; }
+        .checklist-open-btn { white-space: nowrap; background: #075985; color: #fff; border-color: #075985; font-weight: 700; }
+        .checklist-open-btn:hover { background: #0c4a6e; color:#fff; }
+        @media (max-width: 700px) {
+            #wsus-full-checklist { padding: 7px; }
+            #wsus-full-checklist .checklist-body { padding: 12px; }
+            #wsus-full-checklist .checklist-head { padding: 13px; }
+            #lab-guide { gap: 8px; padding: 8px; }
+            .guide-header { padding-right: 8px; }
+            .guide-header h3 { font-size: 12px; }
+            #instructions { font-size: 11px; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="mini-toast"></div>
+
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside id="machine-sidebar">
+        <div class="sidebar-title">
+            <h2>🔄 WSUS Full Setup Lab</h2>
+            <span>Server + GPO + Client Patching</span>
+        </div>
+
+        <div class="sidebar-section-label">Select Machine</div>
+
+        <button id="btn-switch-srv" class="machine-btn active" onclick="switchMachine('srv')">
+            <div class="machine-btn-header"><span>🖥️ Server (SMEC-DC1)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">IP: 192.168.1.1 | smec.com</div>
+            <div class="machine-btn-sub" id="srv-side-sub">WSUS: Not Installed</div>
+        </button>
+
+        <button id="btn-switch-cli" class="machine-btn" onclick="switchMachine('cli')">
+            <div class="machine-btn-header"><span>💻 Client PC (Win 11)</span><span class="status-dot"></span></div>
+            <div class="machine-btn-sub">IP: 192.168.1.10 | smec.com</div>
+            <div class="machine-btn-sub" id="cli-side-sub">WSUS GPO: Not Applied</div>
+        </button>
+
+        <!-- Live Progress Checklist -->
+        <div class="status-card">
+            <div style="font-weight:700; color:#f8fafc; margin-bottom:4px;">📊 Full Lab Progress (No Steps Skipped)</div>
+            <div class="status-row"><span>1. Create C:\WSUS Folder</span><span id="st-folder" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>2. Install WSUS Role</span><span id="st-install" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>3. Post-Install Tasks</span><span id="st-post" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>4. WSUS Config Wizard</span><span id="st-wiz" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>5. Create Group (Clients)</span><span id="st-grp" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>6. Configure WSUS GPO</span><span id="st-gpo" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>7. Client gpupdate &amp; Scan</span><span id="st-scan" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>8. Approve Update (WSUS)</span><span id="st-approve" class="s-badge s-pending">Pending</span></div>
+            <div class="status-row"><span>9. Client Update Install</span><span id="st-patch" class="s-badge s-pending">Pending</span></div>
+        </div>
+
+        <div class="lab-info-card">
+            <div><strong>Domain:</strong> <code>smec.com</code></div>
+            <div><strong>WSUS URL:</strong> <code>http://192.168.1.1:8530</code></div>
+            <div><strong>Content Path:</strong> <code>C:\WSUS</code></div>
+            <div><strong>Target Group:</strong> <code>Clients</code></div>
+            <div><strong>GPO Name:</strong> <code>WSUS Policy</code></div>
+            <div><strong>Consoles:</strong> <code>gpmc.msc</code>, <code>wsus.msc</code></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <button class="reset-btn" onclick="location.reload()">↻ Reset Lab</button>
+    </aside>
+
+    <!-- ==================== RIGHT WORKSPACE ==================== -->
+    <div id="workspace-wrapper">
+        <div id="desktop-stage">
+
+            <!-- ==================== MACHINE 1: SERVER (SMEC-DC1) ==================== -->
+            <div class="pc-container active-pc" id="srv-pc">
+                <div class="pc-label">
+                    SMEC-DC1 (AD DS · DNS · GPO · WSUS Server)
+                    <span id="srv-top-sub">IP: 192.168.1.1 | Domain: smec.com | WSUS Port: 8530</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openSrvExplorer('thispc')">
+                        <div class="ico">📁</div>
+                        <span>File Explorer</span>
+                    </div>
+                    <div class="d-icon" onclick="openServerManager()">
+                        <div class="ico">🗄️</div>
+                        <span>Server Manager</span>
+                    </div>
+                    <div class="d-icon" id="desktop-wsus-icon" style="display:none;" onclick="openWsusEntry()">
+                        <div class="ico">🔄</div>
+                        <span><strong>WSUS Console</strong></span>
+                    </div>
+                    <div class="d-icon" onclick="openGpmc()">
+                        <div class="ico">📜</div>
+                        <span>Group Policy (GPMC)</span>
+                    </div>
+                </div>
+
+                <!-- Server Run Window -->
+                <div id="srv-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('srv-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>gpmc.msc</code>, <code>wsus.msc</code>, or <code>explorer</code>.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="srv-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun('srv')">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeRun('srv')">OK</button>
+                        <button onclick="closeWindow('srv-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server File Explorer (Create C:\WSUS) -->
+                <div id="srv-exp-window" class="window">
+                    <div class="title-bar"><span>File Explorer (SMEC-DC1)</span><span class="close-btn" onclick="closeWindow('srv-exp-window')">X</span></div>
+                    <div class="exp-toolbar">
+                        <button onclick="openSrvExplorer('thispc')">💻 This PC</button>
+                        <div id="srv-exp-path" class="exp-path">This PC</div>
+                        <span id="srv-exp-hint" style="font-size:11px; color:#005a9e; font-weight:600;"></span>
+                    </div>
+                    <div class="content" style="background:#fff; padding:16px;" id="srv-exp-body" oncontextmenu="handleSrvExpCtx(event)"></div>
+                </div>
+
+                <!-- Server Manager (Add Roles + Notifications Flag for Post-Installation Tasks + Tools) -->
+                <div id="srv-sm-window" class="window">
+                    <div class="title-bar"><span>Server Manager - SMEC-DC1</span><span class="close-btn" onclick="closeWindow('srv-sm-window')">X</span></div>
+                    <div class="sm-header">
+                        <div style="font-weight:700;">Dashboard · Server Manager (SMEC-DC1)</div>
+                        <div class="sm-right-btns">
+                            <div id="sm-flag-btn" class="sm-flag-btn" onclick="toggleFlagMenu(event)" title="Notifications">🚩 <span id="sm-flag-count">0</span></div>
+                            <div class="sm-tools-btn" onclick="toggleToolsMenu(event)">🔧 Tools &#9662;</div>
+                        </div>
+                    </div>
+
+                    <!-- Notifications Flag Dropdown (Post-Installation Tasks) -->
+                    <div id="sm-flag-menu" class="sm-dropdown" style="right:115px; width:330px;">
+                        <div style="font-weight:700; color:#0f172a; padding:6px 10px; border-bottom:1px solid #e2e8f0;">Notifications</div>
+                        <div id="sm-flag-body" style="padding:10px; font-size:12px; color:#64748b;">No pending tasks.</div>
+                    </div>
+
+                    <!-- Tools Dropdown -->
+                    <div id="sm-tools-menu" class="sm-dropdown">
+                        <div class="muted">Active Directory Users and Computers</div>
+                        <div class="muted">DNS</div>
+                        <div class="menu-item" onclick="openGpmc(event)"><strong>📜 Group Policy Management</strong></div>
+                        <div class="menu-item" id="sm-tools-wsus" style="display:none;" onclick="openWsusEntry(event)"><strong>🔄 Windows Server Update Services</strong></div>
+                    </div>
+
+                    <div class="content" style="background:#f8fafc; padding:18px; display:flex; flex-direction:column; gap:14px;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:15px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <h3 style="margin:0 0 4px 0; color:#0f172a;">Configure this local server</h3>
+                                <div style="font-size:12px; color:#475569;">Server: <strong>SMEC-DC1.smec.com</strong> | IP: <strong>192.168.1.1</strong></div>
+                            </div>
+                            <button class="primary-btn" onclick="openAddRolesWizard()">+ Add roles and features</button>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; font-size:12px;">
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">WSUS Storage Folder</div>
+                                <div id="sm-card-folder" style="font-weight:700; color:#b45309; margin-top:4px;">Pending (C:\WSUS)</div>
+                            </div>
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">WSUS Role</div>
+                                <div id="sm-card-role" style="font-weight:700; color:#64748b; margin-top:4px;">Not Installed</div>
+                            </div>
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px;">
+                                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase;">Post-Install Tasks</div>
+                                <div id="sm-card-post" style="font-weight:700; color:#64748b; margin-top:4px;">Pending</div>
+                            </div>
+                        </div>
+                        <div id="sm-post-prog-box" style="display:none; background:#fff; border:1px solid #0284c7; border-radius:6px; padding:14px;">
+                            <div id="sm-post-txt" style="font-weight:700; color:#0369a1; font-size:12.5px;">Running WSUS Post-Installation Tasks (Creating SUSDB on WID &amp; IIS site on Port 8530)...</div>
+                            <div class="prog-track"><div id="sm-post-fill" class="prog-fill"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Roles and Features Wizard (WSUS -> WID + WSUS Services -> C:\WSUS) -->
+                <div id="srv-addroles-window" class="window">
+                    <div class="title-bar"><span>Add Roles and Features Wizard (WSUS)</span><span class="close-btn" onclick="closeWindow('srv-addroles-window')">X</span></div>
+                    <div class="wiz-layout">
+                        <div class="wiz-side">
+                            <div class="wiz-step active" id="ar-nav-1">Before You Begin</div>
+                            <div class="wiz-step" id="ar-nav-2">Installation Type</div>
+                            <div class="wiz-step" id="ar-nav-3">Server Selection</div>
+                            <div class="wiz-step" id="ar-nav-4">Server Roles</div>
+                            <div class="wiz-step" id="ar-nav-5">Features</div>
+                            <div class="wiz-step" id="ar-nav-6">WSUS</div>
+                            <div class="wiz-step" id="ar-nav-7">Role Services</div>
+                            <div class="wiz-step" id="ar-nav-8">Content</div>
+                            <div class="wiz-step" id="ar-nav-9">Confirmation</div>
+                            <div class="wiz-step" id="ar-nav-10">Results</div>
+                        </div>
+                        <div class="wiz-main" id="ar-main-pane"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button id="ar-prev-btn" onclick="arPrev()" style="display:none;">&lt; Previous</button>
+                        <button id="ar-next-btn" class="primary-btn" onclick="arNext()">Next &gt;</button>
+                        <button onclick="closeWindow('srv-addroles-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Authentic 10-Step WSUS Configuration Wizard -->
+                <div id="wsus-wiz-window" class="window">
+                    <div class="title-bar"><span>Windows Server Update Services Configuration Wizard</span><span class="close-btn" onclick="closeWindow('wsus-wiz-window')">X</span></div>
+                    <div class="wiz-layout">
+                        <div class="wiz-side">
+                            <div class="wiz-step active" id="ww-nav-1">Before You Begin</div>
+                            <div class="wiz-step" id="ww-nav-2">Improvement Program</div>
+                            <div class="wiz-step" id="ww-nav-3">Choose Upstream Server</div>
+                            <div class="wiz-step" id="ww-nav-4">Specify Proxy Server</div>
+                            <div class="wiz-step" id="ww-nav-5">Connect to Upstream</div>
+                            <div class="wiz-step" id="ww-nav-6">Choose Languages</div>
+                            <div class="wiz-step" id="ww-nav-7">Choose Products</div>
+                            <div class="wiz-step" id="ww-nav-8">Choose Classifications</div>
+                            <div class="wiz-step" id="ww-nav-9">Set Sync Schedule</div>
+                            <div class="wiz-step" id="ww-nav-10">Finished</div>
+                        </div>
+                        <div class="wiz-main" id="ww-main-pane"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button id="ww-prev-btn" onclick="wwPrev()" style="display:none;">&lt; Previous</button>
+                        <button id="ww-next-btn" class="primary-btn" onclick="wwNext()">Next &gt;</button>
+                        <button onclick="closeWindow('wsus-wiz-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- WSUS Management Console (wsus.msc) -->
+                <div id="wsus-console-window" class="window">
+                    <div class="title-bar"><span>Update Services [SMEC-DC1.smec.com : 8530]</span><span class="close-btn" onclick="closeWindow('wsus-console-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <!-- Left Tree -->
+                        <div style="width: 30%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="expanded" onclick="toggleTree(this, event)">🔄 Update Services
+                                    <ul>
+                                        <li class="expanded" onclick="selectWsusNode('overview', this, event)" style="font-weight:700; color:#005a9e;">🖥️ SMEC-DC1
+                                            <ul>
+                                                <li class="expanded" onclick="toggleTree(this, event)">📦 Updates
+                                                    <ul>
+                                                        <li onclick="selectWsusNode('all_updates', this, event)">All Updates</li>
+                                                        <li onclick="selectWsusNode('critical', this, event)">Critical Updates</li>
+                                                        <li id="wsus-sec-node" onclick="selectWsusNode('security', this, event)" style="color:#005a9e; font-weight:700;">🛡️ Security Updates</li>
+                                                    </ul>
+                                                </li>
+                                                <li class="expanded" onclick="toggleTree(this, event)">💻 Computers
+                                                    <ul>
+                                                        <li id="wsus-allcomp-node" class="expanded" onclick="selectWsusNode('all_comp', this, event)" oncontextmenu="showContext('ctx-wsus-allcomp', event)" style="color:#005a9e; font-weight:700;">All Computers
+                                                            <ul id="wsus-comp-groups">
+                                                                <li onclick="selectWsusNode('unassigned', this, event)">Unassigned Computers</li>
+                                                            </ul>
+                                                        </li>
+                                                    </ul>
+                                                </li>
+                                                <li onclick="selectWsusNode('sync', this, event)">🔁 Synchronizations</li>
+                                                <li onclick="selectWsusNode('options', this, event)">⚙️ Options</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <!-- Center Workspace -->
+                        <div style="width: 50%; padding: 14px; overflow-y: auto; border-right: 1px solid #e2e8f0;" id="wsus-center"></div>
+                        <!-- Right Actions -->
+                        <div style="width: 20%; background:#f8fafc; padding: 12px; font-size:12px;">
+                            <div style="font-weight:700; color:#0f172a; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:10px;">Actions</div>
+                            <div id="wsus-actions-body" style="display:flex; flex-direction:column; gap:9px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Computer Group Modal -->
+                <div id="add-group-modal" class="window">
+                    <div class="title-bar"><span>Add Computer Group</span><span class="close-btn" onclick="closeWindow('add-group-modal')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <label style="display:block; font-weight:600; margin-bottom:6px;">Name:</label>
+                        <input type="text" id="new-grp-inp" placeholder="Clients" style="width:100%;" autocomplete="off" onkeypress="if(event.key==='Enter') saveComputerGroup()">
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="saveComputerGroup()">Add</button>
+                        <button onclick="closeWindow('add-group-modal')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Approve Updates Modal -->
+                <div id="approve-modal" class="window">
+                    <div class="title-bar"><span>Approve Updates</span><span class="close-btn" onclick="closeWindow('approve-modal')">X</span></div>
+                    <div class="content" style="background:#fff; font-size:12.5px;">
+                        <div style="margin-bottom:10px; font-weight:700; color:#005a9e;">KB5046617 — Example only: Windows 11 version 24H2 (November 2024)</div>
+                        <table class="mmc-table" style="border:1px solid #cbd5e1;">
+                            <tr><th>Computer Group</th><th>Approval Action</th></tr>
+                            <tr>
+                                <td>All Computers</td>
+                                <td><select disabled><option>Not Approved</option></select></td>
+                            </tr>
+                            <tr style="background:#eff6ff;">
+                                <td><strong>💻 Clients</strong></td>
+                                <td>
+                                    <select id="sel-approve-clients" style="font-weight:700;">
+                                        <option value="none">Not Approved</option>
+                                        <option value="install">Approved for Install</option>
+                                        <option value="declined">Declined</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="saveUpdateApproval()">OK</button>
+                        <button onclick="closeWindow('approve-modal')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Group Policy Management Console (gpmc.msc) -->
+                <div id="gpmc-window" class="window">
+                    <div class="title-bar"><span>Group Policy Management [smec.com]</span><span class="close-btn" onclick="closeWindow('gpmc-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 40%; border-right: 1px solid #ccc; padding: 12px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="expanded" onclick="toggleTree(this, event)">🌲 Forest: smec.com
+                                    <ul>
+                                        <li class="expanded" onclick="toggleTree(this, event)">📁 Domains
+                                            <ul>
+                                                <li id="gpmc-domain-node" class="expanded" onclick="toggleTree(this, event)" oncontextmenu="showContext('ctx-gpmc-domain', event)" style="color:#005a9e; font-weight:700;">🏢 smec.com
+                                                    <ul id="gpmc-gpo-list">
+                                                        <li>📜 Default Domain Policy</li>
+                                                        <li>🗂️ Domain Controllers</li>
+                                                    </ul>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 60%; padding: 14px; font-size:12.5px; color:#334155;" id="gpmc-right">
+                            <h3 style="margin-top:0; color:#005a9e;">Group Policy Management (smec.com)</h3>
+                            <p>Right-click <b>🏢 smec.com</b> on the left pane &rarr; click <b>Create a GPO in this domain, and Link it here...</b> to create <code>WSUS Policy</code>.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group Policy Management Editor (3 WSUS Settings) -->
+                <div id="gpo-editor-window" class="window">
+                    <div class="title-bar"><span>Group Policy Management Editor [WSUS Policy - smec.com]</span><span class="close-btn" onclick="closeWindow('gpo-editor-window')">X</span></div>
+                    <div class="menu-bar"><span>File</span><span>Action</span><span>View</span><span>Help</span></div>
+                    <div class="content" style="display:flex; padding:0; background:#fff;">
+                        <div style="width: 34%; border-right: 1px solid #ccc; padding: 10px; overflow-y: auto;">
+                            <ul class="tree-view">
+                                <li class="expanded">📜 WSUS Policy
+                                    <ul>
+                                        <li class="expanded">💻 Computer Configuration
+                                            <ul>
+                                                <li class="expanded">📁 Policies
+                                                    <ul>
+                                                        <li class="expanded">📁 Administrative Templates
+                                                            <ul>
+                                                                <li class="expanded">📁 Windows Components
+                                                                    <ul>
+                                                                        <li class="expanded">📁 Windows Update
+                                                                            <ul>
+                                                                                <li class="selected" onclick="renderGpoPolicies()" style="color:#005a9e; font-weight:700;">🔄 Manage updates offered from WSUS</li>
+                                                                            </ul>
+                                                                        </li>
+                                                                    </ul>
+                                                                </li>
+                                                            </ul>
+                                                        </li>
+                                                    </ul>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <div style="width: 66%; padding: 14px; overflow:auto;" id="gpo-editor-right"></div>
+                    </div>
+                </div>
+
+                <!-- GPO Policy Setting Properties Modal -->
+                <div id="gpo-setting-modal" class="window">
+                    <div class="title-bar"><span id="gsm-title">Policy Setting</span><span class="close-btn" onclick="closeWindow('gpo-setting-modal')">X</span></div>
+                    <div class="content" id="gsm-body" style="background:#fff; font-size:12.5px;"></div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="saveGpoSetting()">OK</button>
+                        <button onclick="closeWindow('gpo-setting-modal')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Server Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('srv-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="srv-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (SMEC-DC1)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openRun('srv', event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openServerManager(); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">🗄️</div>
+                            <span style="font-size:11px; font-weight:600;">Server Manager</span>
+                        </div>
+                        <div class="app" onclick="openSrvExplorer('thispc'); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">📁</div>
+                            <span style="font-size:11px; font-weight:600;">File Explorer</span>
+                        </div>
+                        <div class="app" id="start-wsus-app" style="display:none;" onclick="openWsusEntry(); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">🔄</div>
+                            <span style="font-size:11px; font-weight:600;">WSUS Console</span>
+                        </div>
+                        <div class="app" onclick="openGpmc(); document.getElementById('srv-start-menu').style.display='none';">
+                            <div class="app-icon">📜</div>
+                            <span style="font-size:11px; font-weight:600;">GPMC</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== MACHINE 2: CLIENT PC (Windows 11) ==================== -->
+            <div class="pc-container" id="cli-pc">
+                <div class="pc-label">
+                    CLIENT-PC.smec.com (Windows 11)
+                    <span id="cli-top-sub">IP: 192.168.1.10 | Domain: smec.com | Update Source: Pending GPO</span>
+                </div>
+
+                <div class="desktop-icons">
+                    <div class="d-icon" onclick="openCliCmd()">
+                        <div class="ico">💻</div>
+                        <span>Command Prompt</span>
+                    </div>
+                    <div class="d-icon" onclick="openCliWu()">
+                        <div class="ico">⚙️</div>
+                        <span>Windows Update</span>
+                    </div>
+                </div>
+
+                <!-- Client Run Window -->
+                <div id="cli-run-window" class="window">
+                    <div class="title-bar"><span>Run</span><span class="close-btn" onclick="closeWindow('cli-run-window')">X</span></div>
+                    <div class="content" style="display:flex; gap:14px; background:#fff; align-items:flex-start;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/><line x1="12" y1="18" x2="17" y2="18"/></svg>
+                        <div style="flex:1;">
+                            <p style="margin:0 0 12px 0; font-size:12.5px;">Type <code>cmd</code> to open Command Prompt.</p>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-weight:600;">Open:</label>
+                                <input type="text" id="cli-run-input" style="flex:1;" autocomplete="off" onkeypress="if(event.key==='Enter') executeRun('cli')">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="primary-btn" onclick="executeRun('cli')">OK</button>
+                        <button onclick="closeWindow('cli-run-window')">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Client Command Prompt -->
+                <div id="cli-cmd-window" class="window">
+                    <div class="title-bar">
+                        <span style="display:flex; align-items:center; gap:6px;"><span style="background:#000; color:#fff; font-size:10px; padding:1px 4px; font-family:Consolas;">C:\_</span> Administrator: Command Prompt (CLIENT-PC)</span>
+                        <span class="close-btn" onclick="closeWindow('cli-cmd-window')">X</span>
+                    </div>
+                    <div class="cmd-body" id="cli-cmd-body" onclick="document.getElementById('cli-cmd-input').focus()">
+                        <div id="cli-cmd-output" class="cmd-output">Microsoft Windows [Version 10.0.26100.1]
+(c) Microsoft Corporation. All rights reserved.
+
+</div>
+                        <div class="cmd-input-line">
+                            <span style="color:#f8fafc; font-weight:700;">C:\Windows\System32&gt;</span>
+                            <input type="text" id="cli-cmd-input" class="cmd-input" autocomplete="off" onkeypress="if(event.key==='Enter') runCliCmd()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Windows Update Settings -->
+                <div id="cli-wu-window" class="window">
+                    <div class="title-bar"><span>Settings — Windows Update (CLIENT-PC)</span><span class="close-btn" onclick="closeWindow('cli-wu-window')">X</span></div>
+                    <div class="content" style="background:#f8fafc; padding:22px;" id="cli-wu-body"></div>
+                </div>
+
+                <!-- Client Taskbar & Start Menu -->
+                <div class="taskbar">
+                    <div class="start-btn" onclick="toggleMenu('cli-start-menu', event)" title="Start">
+                        <div class="win-icon"><div></div><div></div><div></div><div></div></div>
+                    </div>
+                </div>
+
+                <div id="cli-start-menu" class="start-menu">
+                    <h4 style="margin:0; color:#333; font-size:13px;">Pinned Apps (CLIENT-PC)</h4>
+                    <div class="app-grid">
+                        <div class="app" onclick="openRun('cli', event)" style="border: 1px solid #93c5fd; background: #eff6ff;">
+                            <span style="font-size:12px; font-weight:700; color:#005a9e; margin-bottom:4px;">Run</span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078D7" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><polyline points="7 12 10 15 7 18"/></svg>
+                        </div>
+                        <div class="app" onclick="openCliCmd(); document.getElementById('cli-start-menu').style.display='none';">
+                            <div class="app-icon">💻</div>
+                            <span style="font-size:11px; font-weight:600;">Command Prompt</span>
+                        </div>
+                        <div class="app" onclick="openCliWu(); document.getElementById('cli-start-menu').style.display='none';">
+                            <div class="app-icon">⚙️</div>
+                            <span style="font-size:11px; font-weight:600;">Windows Update</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Lab Guide -->
+        <div id="lab-guide">
+            <div class="guide-header">
+                <h3>📋 Lab Guide</h3>
+                <span id="step-badge">Step 1 / 12</span>
+                <button class="checklist-open-btn" onclick="openFullChecklist()">☷ Full WSUS 2025 Checklist</button>
+            </div>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+
+    <!-- Complete Windows Server 2025 WSUS deployment checklist (supplement to the interactive walkthrough) -->
+    <div id="wsus-full-checklist" role="dialog" aria-modal="true" aria-labelledby="wsus-checklist-title">
+        <div class="checklist-shell">
+            <div class="checklist-head">
+                <div><h2 id="wsus-checklist-title">Windows Server 2025 — Complete WSUS Deployment</h2>
+                <p>End-to-end deployment, security, client configuration, validation and maintenance checklist</p></div>
+                <button onclick="closeFullChecklist()" style="background:#fff;color:#0f172a;font-weight:700;">Close ✕</button>
+            </div>
+            <div class="checklist-body">
+                <div class="sim-warning"><strong>Training simulator notice:</strong> This HTML is a UI simulation. Its buttons do not install Windows roles, change real network settings, contact Microsoft Update, download patches, or install updates. Perform the real commands and checks on your own Windows Server 2025 / Windows 11 lab VMs. The existing 12-step walkthrough remains a simplified simulated path; use this checklist for the complete deployment workflow.</div>
+                <div class="phase-card"><h3>Phase 0 — Design and prerequisites</h3><ol>
+                    <li><label><input type="checkbox"><span>Choose a supported topology: one WSUS server synchronizing from Microsoft Update, or a downstream WSUS server. Decide whether this is a lab or production deployment.</span></label></li>
+                    <li><label><input type="checkbox"><span>Confirm Windows Server 2025 is fully patched, activated as required, joined to the intended domain (if using AD), and managed with a Local Administrator account for installation.</span></label></li>
+                    <li><label><input type="checkbox"><span>Plan a static server IP, subnet, gateway and DNS. Example lab: <code>192.168.1.1</code>; client: <code>192.168.1.10</code>. Ensure DNS resolves the server FQDN (example <code>SMEC-DC1.smec.com</code>).</span></label></li>
+                    <li><label><input type="checkbox"><span>Plan storage: choose a dedicated content volume/folder with sufficient free space, and choose Windows Internal Database (WID) for a small/simple lab or SQL Server for a suitable larger deployment.</span></label></li>
+                    <li><label><input type="checkbox"><span>Decide which client OS/products, languages, update classifications, pilot groups, maintenance windows and restart policy you will support. Avoid selecting every product/classification unnecessarily.</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 1 — Prepare server networking and security</h3><ol>
+                    <li><label><input type="checkbox"><span>Configure and verify the static IP, gateway and DNS on the WSUS server. Test name resolution and connectivity to the domain controller and internet.</span></label></li>
+                    <li><label><input type="checkbox"><span>Confirm the WSUS server can reach Microsoft Update endpoints over outbound TCP 80/443 (or the organization's approved proxy). Configure the proxy in WSUS if required.</span></label></li>
+                    <li><label><input type="checkbox"><span>Allow client computers to reach the WSUS server on the configured client ports. Defaults are TCP 8530 (HTTP) and 8531 (HTTPS); configure Windows Firewall and network firewalls accordingly.</span></label></li>
+                    <li><label><input type="checkbox"><span>For production, plan TLS/HTTPS with a trusted server certificate and client trust deployment. Do not simply enable “Require SSL” on the entire WSUS IIS website: Microsoft specifies selected WSUS virtual roots only.</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 2 — Install WSUS role on Windows Server 2025</h3><ol>
+                    <li><label><input type="checkbox"><span>Open Server Manager → Manage → Add Roles and Features → Role-based or feature-based installation → select the local Windows Server 2025 host.</span></label></li>
+                    <li><label><input type="checkbox"><span>Select <strong>Windows Server Update Services</strong>. Include the required management tools. Select <strong>WID Connectivity</strong> and <strong>WSUS Services</strong> for the simple WID lab; choose SQL connectivity only when using a prepared supported SQL instance.</span></label></li>
+                    <li><label><input type="checkbox"><span>Set the update content directory, for example <code>C:\WSUS</code> (or preferably a dedicated data volume such as <code>D:\WSUS</code> in a production design). Confirm the target volume has enough free space.</span></label></li>
+                    <li><label><input type="checkbox"><span>Review the confirmation page and install the role. Wait for the installation result; close the wizard only after the role installation completes.</span></label></li>
+                    <li><label><input type="checkbox"><span>In Server Manager notifications, run <strong>Launch Post-Installation tasks</strong>. Wait for successful completion before opening the WSUS console.</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 3 — Initial WSUS configuration and synchronization</h3><ol>
+                    <li><label><input type="checkbox"><span>Open Server Manager → Tools → Windows Server Update Services (or <code>wsus.msc</code>). Complete the first-run configuration wizard.</span></label></li>
+                    <li><label><input type="checkbox"><span>Choose Microsoft Update as upstream for a standalone lab, or specify the upstream WSUS server and port for a hierarchy. Configure proxy details only if your network requires them.</span></label></li>
+                    <li><label><input type="checkbox"><span>Select only the languages required by managed devices. Select products including Windows 11 (the actual release in use); select Windows Server 2025 only if you intend to manage updates for Server 2025 machines too. Include Edge/Office only if required.</span></label></li>
+                    <li><label><input type="checkbox"><span>Select relevant classifications such as Security Updates, Critical Updates and Updates. Add Definition Updates, Feature Packs, Drivers or Upgrades only when your patch policy requires them.</span></label></li>
+                    <li><label><input type="checkbox"><span>Choose a synchronization schedule (manual for the first lab sync, then a suitable daily schedule). Start initial synchronization and allow it to finish; the first sync can take a long time.</span></label></li>
+                    <li><label><input type="checkbox"><span>In Options, verify Update Source and Proxy Server, Products and Classifications, Update Files and Languages, and Synchronization Schedule. Confirm synchronization status and review errors before proceeding.</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 4 — WSUS groups and targeting mode</h3><ol>
+                    <li><label><input type="checkbox"><span>In WSUS Console → Computers → All Computers → Add Computer Group, create pilot/test and production groups (example: <code>Pilot</code>, <code>Clients</code>, <code>Servers</code>).</span></label></li>
+                    <li><label><input type="checkbox"><span>Choose one targeting model. Server-side targeting is the default and computers are moved into groups in the console. For client-side targeting, open Options → Computers → General and select <strong>Use Group Policy or registry settings on computers</strong>.</span></label></li>
+                    <li><label><input type="checkbox"><span>If using client-side targeting, create the matching WSUS group names before clients report and ensure the GPO group name exactly matches (example <code>Clients</code>).</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 5 — Secure WSUS with TLS (recommended for production)</h3><ol>
+                    <li><label><input type="checkbox"><span>Obtain a certificate whose subject/SAN matches the WSUS server FQDN (for example <code>SMEC-DC1.smec.com</code>) and bind it to the WSUS IIS site on the HTTPS port (default 8531).</span></label></li>
+                    <li><label><input type="checkbox"><span>Configure SSL requirements only for the WSUS virtual directories Microsoft identifies for TLS metadata/authentication; keep content-related virtual directories configured as required by WSUS guidance.</span></label></li>
+                    <li><label><input type="checkbox"><span>Run the WSUS SSL configuration command from an elevated prompt in the WSUS Tools directory: <code>wsusutil configuressl SMEC-DC1.smec.com</code>. Verify the certificate chain and HTTPS connection.</span></label></li>
+                    <li><label><input type="checkbox"><span>Deploy the issuing CA/root certificate to the Local Computer Trusted Root Certification Authorities store on every managed client (for example using AD CS and Group Policy). Use the FQDN and HTTPS port in client policy.</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 6 — Create and link the WSUS Group Policy</h3><ol>
+                    <li><label><input type="checkbox"><span>Open <code>gpmc.msc</code>. Create a dedicated GPO such as <code>WSUS Policy</code> and link it to the OU containing the intended client computers. Avoid linking broadly to the whole domain unless that is the deliberate design.</span></label></li>
+                    <li><label><input type="checkbox"><span>Edit Computer Configuration → Policies → Administrative Templates → Windows Components → Windows Update → <strong>Manage updates offered from Windows Server Update Service</strong> (Windows 11 policy path).</span></label></li>
+                    <li><label><input type="checkbox"><span>Enable <strong>Specify intranet Microsoft update service location</strong>. Enter the WSUS URL in both fields: HTTP example <code>http://SMEC-DC1.smec.com:8530</code>; when TLS is configured, use <code>https://SMEC-DC1.smec.com:8531</code>.</span></label></li>
+                    <li><label><input type="checkbox"><span>Configure <strong>Configure Automatic Updates</strong> according to the patch policy. Option 4 schedules installation; set the scheduled day/time and configure restart/deadline behavior in the applicable policies for your environment.</span></label></li>
+                    <li><label><input type="checkbox"><span>If using client-side targeting, enable <strong>Enable client-side targeting</strong> and enter the exact WSUS group name. If using server-side targeting, leave client-side targeting unconfigured.</span></label></li>
+                    <li><label><input type="checkbox"><span>Review GPO security filtering, OU link, inheritance and WMI filters. Confirm the target computer accounts have Read and Apply Group Policy permissions.</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 7 — Prepare and register Windows 11 clients</h3><ol>
+                    <li><label><input type="checkbox"><span>Configure client IP, gateway and DNS. For domain GPO, join Windows 11 to the correct AD domain and place the computer account in the OU linked to the WSUS GPO.</span></label></li>
+                    <li><label><input type="checkbox"><span>Verify client DNS resolution of the WSUS FQDN and TCP connectivity to the configured port (8530 HTTP or 8531 HTTPS). For TLS, verify the certificate is trusted and name-matched.</span></label></li>
+                    <li><label><input type="checkbox"><span>On the client, run elevated <code>gpupdate /force</code>, then restart the computer so the Windows Update client re-evaluates policy.</span></label></li>
+                    <li><label><input type="checkbox"><span>Open Settings → Windows Update → Check for updates to trigger a scan on Windows 11. Allow time for scan and first WSUS registration; do not treat a command returning immediately as proof of registration.</span></label></li>
+                    <li><label><input type="checkbox"><span>In WSUS Console → Computers, verify the client appears in the expected group. First registration/reporting can take time (Microsoft notes approximately 20 minutes in the documented flow).</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 8 — Approve, deploy and verify updates</h3><ol>
+                    <li><label><input type="checkbox"><span>After synchronization, review update title, product, classification, release date, supersedence and applicability. Do not rely on a hard-coded KB number in a training lab; choose an update actually synchronized and applicable to the target OS/build.</span></label></li>
+                    <li><label><input type="checkbox"><span>Approve the selected update for the <code>Pilot</code> group first. Choose an appropriate deadline/installation behavior if required. Validate successful installation and business compatibility before broader approval.</span></label></li>
+                    <li><label><input type="checkbox"><span>After pilot validation, approve for the production <code>Clients</code> group. Monitor Needed, Failed, Installed/Not Applicable and No Status counts.</span></label></li>
+                    <li><label><input type="checkbox"><span>On Windows 11, check Settings → Windows Update for download/install/restart status. Verify installed update history and use <code>Get-HotFix</code> or <code>Get-CimInstance Win32_QuickFixEngineering</code> where applicable (not every update type appears in Get-HotFix).</span></label></li>
+                    <li><label><input type="checkbox"><span>Confirm the client reports its updated status back to WSUS. Investigate failed or stale clients rather than assuming an install animation means the server received a successful report.</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Phase 9 — Health checks, troubleshooting and ongoing maintenance</h3><ol>
+                    <li><label><input type="checkbox"><span>Check WSUS synchronization results, WSUS/IIS health, Windows Event Viewer logs and client Windows Update logs. Use the WSUS console error details and client scan results to troubleshoot.</span></label></li>
+                    <li><label><input type="checkbox"><span>Run a WSUS health check from an elevated prompt: <code>"%ProgramFiles%\\Update Services\\Tools\\wsusutil.exe" checkhealth</code>; inspect the Application event log for the resulting health-check events.</span></label></li>
+                    <li><label><input type="checkbox"><span>Use client diagnostics: <code>gpresult /h C:\\Temp\\wsus-gpo.html</code>, <code>gpresult /r</code>, <code>nslookup SMEC-DC1.smec.com</code>, and <code>Test-NetConnection SMEC-DC1.smec.com -Port 8530</code> (or 8531 for HTTPS).</span></label></li>
+                    <li><label><input type="checkbox"><span>Schedule regular WSUS database backup and maintenance. For WID, plan the appropriate database backup/reindex maintenance procedure and test recovery.</span></label></li>
+                    <li><label><input type="checkbox"><span>Run the WSUS Server Cleanup Wizard periodically: obsolete updates/revisions, unneeded update files, expired updates, superseded updates (after validating policy), and computers that have not contacted the server.</span></label></li>
+                    <li><label><input type="checkbox"><span>Document sync schedule, approval process, exclusions, restart windows, certificate expiry, storage capacity, backup/restore process and escalation steps. Revisit products/classifications and remove unneeded selections.</span></label></li>
+                </ol></div>
+                <div class="phase-card"><h3>Important lab design notes</h3><ol>
+                    <li><label><input type="checkbox"><span>The existing simulator uses <code>192.168.1.1</code> and <code>192.168.1.10</code> as illustrative addresses. Replace these with the actual addresses in your isolated lab and make sure the DNS name maps to the WSUS server.</span></label></li>
+                    <li><label><input type="checkbox"><span>The original walkthrough's three GPO settings are a useful minimum, but they do not by themselves complete a secure, production-ready WSUS deployment. In particular, the WSUS console targeting-mode selection, TLS/certificate trust, firewall/network checks, restart/scan wait, verification and maintenance are covered above.</span></label></li>
+                    <li><label><input type="checkbox"><span>Windows Server 2025 is supported by Microsoft's WSUS deployment guidance. WSUS is deprecated/no longer receiving new feature development, but remains supported under the Windows Server product lifecycle.</span></label></li>
+                </ol></div>
+            </div>
+            <div class="checklist-foot"><span id="wsus-check-progress">0 items checked</span><div><button onclick="resetFullChecklist()">Reset checklist</button> <button class="primary-btn" onclick="closeFullChecklist()">Return to simulator</button></div></div>
+        </div>
+    </div>
+
+    <!-- Context Menus -->
+    <div id="ctx-srv-c" class="context-menu">
+        <div onclick="createWsusFolder(event)"><strong>📁 New &rarr; Folder</strong></div>
+    </div>
+    <div id="ctx-wsus-allcomp" class="context-menu">
+        <div onclick="openAddGroupModal(event)"><strong>➕ Add Computer Group...</strong></div>
+    </div>
+    <div id="ctx-wsus-update" class="context-menu">
+        <div onclick="openApproveModal(event)"><strong>✅ Approve...</strong></div>
+    </div>
+    <div id="ctx-gpmc-domain" class="context-menu">
+        <div onclick="createWsusGpo(event)"><strong>📜 Create a GPO in this domain, and Link it here...</strong></div>
+    </div>
+    <div id="ctx-gpmc-gpo" class="context-menu">
+        <div onclick="openGpoEditor(event)"><strong>✏️ Edit...</strong></div>
+    </div>
+
+    <script>
+        let step = 1;
+        let activeMachine = 'srv';
+
+        // Server states
+        let srvExpPath = 'thispc';
+        let wsusFolderCreated = false;
+        let wsusInstalled = false;
+        let postInstallDone = false;
+        let wsusWizDone = false;
+        let clientsGroupCreated = false;
+        let wsusGpoCreated = false;
+
+        // Add Roles Wizard
+        let arPage = 1, arWsusChecked = false, arWidChecked = true, arSvcChecked = true, arPathVal = '';
+
+        // WSUS Config Wizard
+        let wwPage = 1, wwUpstream = 'ms', wwConnected = false, wwLangEn = true, wwProdWin11 = false, wwClassCrit = false, wwClassSec = false, wwSyncManual = true, wwBeginSync = false;
+
+        // GPO Settings state
+        let gpoAutoUpd = false, gpoAutoOpt = '4';
+        let gpoIntranet = false, gpoWsusUrl = '';
+        let gpoTargeting = false, gpoTargetGrp = '';
+        let activeGpoSetting = '';
+
+        // Client & Patch states
+        let clientGpUpdated = false;
+        let clientReported = false;
+        let updateApproved = false;
+        let clientCheckedWu = false;
+        let clientUpdateInstalled = false;
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.start-menu, .context-menu, .sm-dropdown').forEach(el => el.style.display = 'none');
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('mini-toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3200);
+        }
+
+        function setBadge(id, text, cls) {
+            const el = document.getElementById(id);
+            el.innerText = text;
+            el.className = 's-badge ' + cls;
+        }
+
+        function switchMachine(m) {
+            activeMachine = m;
+            document.getElementById('srv-pc').classList.toggle('active-pc', m === 'srv');
+            document.getElementById('cli-pc').classList.toggle('active-pc', m === 'cli');
+            document.getElementById('btn-switch-srv').classList.toggle('active', m === 'srv');
+            document.getElementById('btn-switch-cli').classList.toggle('active', m === 'cli');
+            updateSidebarAttention();
+        }
+
+        function updateSidebarAttention() {
+            const b1 = document.getElementById('btn-switch-srv');
+            const b2 = document.getElementById('btn-switch-cli');
+            b1.classList.remove('attention');
+            b2.classList.remove('attention');
+            if ((step <= 8 || step === 10) && activeMachine !== 'srv') b1.classList.add('attention');
+            if ((step === 9 || step === 11 || step === 12) && activeMachine !== 'cli') b2.classList.add('attention');
+        }
+
+        function toggleMenu(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.start-menu, .context-menu, .sm-dropdown').forEach(el => { if (el.id !== id) el.style.display = 'none'; });
+            const m = document.getElementById(id);
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleToolsMenu(e) {
+            e.stopPropagation();
+            document.getElementById('sm-flag-menu').style.display = 'none';
+            const m = document.getElementById('sm-tools-menu');
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleFlagMenu(e) {
+            e.stopPropagation();
+            document.getElementById('sm-tools-menu').style.display = 'none';
+            const m = document.getElementById('sm-flag-menu');
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function closeWindow(id) { document.getElementById(id).style.display = 'none'; }
+        function toggleTree(el, e) { e.stopPropagation(); el.classList.toggle('expanded'); }
+
+        function showContext(id, e) {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.context-menu').forEach(el => el.style.display = 'none');
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            m.style.left = Math.min(e.clientX, window.innerWidth - 250) + 'px';
+            m.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+        }
+
+        function updateGuide() {
+            const guide = document.getElementById('instructions');
+            const badge = document.getElementById('step-badge');
+            badge.innerText = `Step ${Math.min(step, 12)} / 12`;
+            let text = "";
+            switch (step) {
+                case 1: text = "<strong>SERVER (Create C:\\WSUS):</strong> Open <b>File Explorer</b> &rarr; open <b>Local Disk (C:)</b> &rarr; <b>Right-click</b> empty space &rarr; <b>New &rarr; Folder</b> &rarr; name it <code>WSUS</code>."; break;
+                case 2: text = "<strong>SERVER (Install WSUS Role):</strong> Open <b>Server Manager</b> &rarr; <b>+ Add roles and features</b> &rarr; check <b>Windows Server Update Services</b> &rarr; keep <b>WID Connectivity</b> &amp; <b>WSUS Services</b> &rarr; enter content path <code>C:\\WSUS</code> &rarr; <b>Install</b> &rarr; Close."; break;
+                case 3: text = "<strong>SERVER (Post-Installation Tasks):</strong> In Server Manager top bar, click the glowing <b>🚩 1</b> notification flag &rarr; click <b>Launch Post-Installation tasks</b> and wait for completion."; break;
+                case 4: text = "<strong>SERVER (Open WSUS Config Wizard):</strong> Click <b>🔧 Tools &rarr; Windows Server Update Services</b> (or Desktop icon) to launch the <b>WSUS Configuration Wizard</b>."; break;
+                case 5: text = "<strong>SERVER (Complete WSUS Wizard):</strong> Upstream: <b>Microsoft Update</b> &rarr; Proxy: Next &rarr; click <b>Start Connecting</b> &rarr; Language: <b>English</b> &rarr; Product: check <b>Windows 11</b> &rarr; Classifications: check <b>Critical</b> &amp; <b>Security Updates</b> &rarr; Manual sync &rarr; check <b>Begin initial synchronization</b> &rarr; <b>Finish</b>."; break;
+                case 6: text = "<strong>SERVER (Create Computer Group):</strong> In WSUS Console, expand <b>Computers</b> &rarr; right-click <b>All Computers</b> &rarr; <b>Add Computer Group...</b> &rarr; name it <code>Clients</code> &rarr; Add."; break;
+                case 7: text = "<strong>SERVER (Create WSUS GPO):</strong> Open <b>Group Policy Management</b> (<code>gpmc.msc</code> or Desktop icon) &rarr; right-click <b>🏢 smec.com</b> &rarr; <b>Create a GPO in this domain, and Link it here...</b> &rarr; name it <code>WSUS Policy</code> &rarr; right-click <b>WSUS Policy</b> &rarr; <b>Edit...</b>"; break;
+                case 8: text = "<strong>SERVER (Configure 3 WSUS Policies):</strong> Enable all 3 policies: (1) <b>Configure Automatic Updates</b> (Option 4), (2) <b>Specify intranet Microsoft update service location</b> (<code>http://192.168.1.1:8530</code>), and (3) <b>Enable client-side targeting</b> (Group: <code>Clients</code>)."; break;
+                case 9: text = "<strong>CLIENT PC (Apply GPO &amp; Check-In):</strong> Switch to <b>💻 Client PC</b>! Open <b>Command Prompt</b> (<code>cmd</code>) &rarr; run <code>gpupdate /force</code>, then run <code>wuauclt /detectnow</code> (or <code>usoclient StartScan</code>) to report to WSUS."; break;
+                case 10: text = "<strong>SERVER (Verify Client &amp; Approve Update):</strong> Switch back to <b>🖥️ Server</b>! In WSUS Console, check <b>Computers &rarr; Clients</b> (verify <code>CLIENT-PC.smec.com</code>), then click <b>Updates &rarr; 🛡️ Security Updates</b> &rarr; right-click <code>KB5046617</code> &rarr; <b>Approve...</b> &rarr; set <b>Clients</b> to <b>Approved for Install</b> &rarr; OK."; break;
+                case 11: text = "<strong>CLIENT PC (Check for Updates):</strong> Switch to <b>💻 Client PC</b> &rarr; open <b>⚙️ Windows Update</b> &rarr; click <b>Check for updates</b> to fetch the approved patch from <code>http://192.168.1.1:8530</code>."; break;
+                case 12: text = "<strong>CLIENT PC (Install Approved Patch):</strong> Click <b>Download &amp; Install now</b> to install <code>KB5046617</code> from your local WSUS Server and complete the lab!"; break;
+                case 13:
+                    badge.innerText = "100% Complete";
+                    badge.style.background = "#dcfce7";
+                    badge.style.color = "#15803d";
+                    text = "<strong>🎉 Full WSUS Lab Complete!</strong> Every single step completed: <code>C:\\WSUS</code> &rarr; WSUS Role &rarr; Post-Install Tasks &rarr; WSUS Config Wizard &rarr; <code>Clients</code> Group &rarr; 3 GPO Policies &rarr; Client Check-in &rarr; Update Approval &rarr; Live Patch Installation!";
+                    break;
+            }
+            guide.innerHTML = text;
+            updateSidebarAttention();
+        }
+
+        // --- RUN DIALOGS ---
+        function openRun(m, e) {
+            e.stopPropagation();
+            document.getElementById(m + '-start-menu').style.display = 'none';
+            document.getElementById(m + '-run-window').style.display = 'flex';
+            const inp = document.getElementById(m + '-run-input');
+            inp.value = ''; inp.focus();
+        }
+        function executeRun(m) {
+            const cmd = document.getElementById(m + '-run-input').value.trim().toLowerCase();
+            closeWindow(m + '-run-window');
+            if (m === 'srv') {
+                if (cmd === 'gpmc.msc') openGpmc();
+                else if (cmd === 'wsus.msc') openWsusEntry();
+                else if (cmd === 'explorer') openSrvExplorer('thispc');
+                else if (cmd !== '') alert(`Windows cannot find '${cmd}'. Try gpmc.msc, wsus.msc, or explorer.`);
+            } else {
+                if (cmd === 'cmd') openCliCmd();
+                else if (cmd !== '') alert(`Windows cannot find '${cmd}'. Type cmd.`);
+            }
+        }
+
+        // --- STEP 1: FILE EXPLORER (CREATE C:\WSUS) ---
+        function openSrvExplorer(path) {
+            srvExpPath = path || 'thispc';
+            document.getElementById('srv-exp-window').style.display = 'flex';
+            renderSrvExp();
+        }
+        function handleSrvExpCtx(e) {
+            if (srvExpPath === 'c') showContext('ctx-srv-c', e);
+        }
+        function renderSrvExp() {
+            const p = document.getElementById('srv-exp-path');
+            const b = document.getElementById('srv-exp-body');
+            const h = document.getElementById('srv-exp-hint');
+            if (srvExpPath === 'thispc') {
+                p.innerText = 'This PC';
+                h.innerText = 'Click Local Disk (C:) to open';
+                b.innerHTML = `<div class="exp-item" style="border:1px solid #cbd5e1; background:#f8fafc; max-width:320px;" onclick="openSrvExplorer('c')">
+                    <span style="font-size:32px;">💾</span>
+                    <div><strong>Local Disk (C:)</strong><div style="font-size:11px; color:#475569;">65.0 GB free of 100 GB (NTFS)</div></div>
+                </div>`;
+            } else {
+                p.innerText = 'Local Disk (C:\\)';
+                h.innerText = 'Right-click empty space -> New -> Folder';
+                let wsusHtml = wsusFolderCreated
+                    ? `<div class="exp-item" style="background:#ecfdf5; border-color:#86efac;"><span style="font-size:24px;">📁</span><div><strong style="color:#15803d;">WSUS</strong><div style="font-size:11px; color:#15803d;">WSUS Update Storage Directory (C:\\WSUS) ✓</div></div></div>`
+                    : '';
+                b.innerHTML = `<div class="exp-item" style="opacity:0.6; cursor:default;"><span style="font-size:24px;">📁</span><div>Windows</div></div>
+                    <div class="exp-item" style="opacity:0.6; cursor:default;"><span style="font-size:24px;">📁</span><div>Program Files</div></div>
+                    ${wsusHtml}
+                    <div style="margin-top:16px; padding:10px 12px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-size:12px;">
+                        💡 <b>Right-click</b> anywhere in this white area &rarr; <b>New &rarr; Folder</b> &rarr; name it <code>WSUS</code>.
+                    </div>`;
+            }
+        }
+        function createWsusFolder(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-srv-c').style.display = 'none';
+            if (wsusFolderCreated) { showToast("C:\\WSUS already exists!"); return; }
+            const name = prompt("Enter new folder name inside C:\\:", "WSUS");
+            if (name === null) return;
+            if (name.trim().toUpperCase() !== 'WSUS') { alert("Please name the folder: WSUS"); return; }
+            wsusFolderCreated = true;
+            renderSrvExp();
+            setBadge('st-folder', 'Done ✓', 's-done');
+            document.getElementById('sm-card-folder').innerText = 'C:\\WSUS Ready ✓';
+            document.getElementById('sm-card-folder').style.color = '#15803d';
+            showToast("Created C:\\WSUS! Now open Server Manager to install the WSUS role.");
+            if (step === 1) { step = 2; updateGuide(); }
+        }
+
+        // --- STEP 2-3: SERVER MANAGER -> INSTALL WSUS ROLE + POST-INSTALL TASKS ---
+        function openServerManager() { document.getElementById('srv-sm-window').style.display = 'flex'; }
+
+        function openAddRolesWizard() {
+            if (!wsusFolderCreated) { alert("First create the C:\\WSUS folder in File Explorer (Step 1)!"); return; }
+            if (wsusInstalled) { showToast("WSUS Role is already installed!"); return; }
+            arPage = 1;
+            document.getElementById('srv-addroles-window').style.display = 'flex';
+            renderArPage();
+        }
+
+        function renderArPage() {
+            for (let i = 1; i <= 10; i++) {
+                const el = document.getElementById('ar-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === arPage) el.classList.add('active');
+                else if (i < arPage) el.classList.add('done');
+            }
+            const pane = document.getElementById('ar-main-pane');
+            const prev = document.getElementById('ar-prev-btn');
+            const next = document.getElementById('ar-next-btn');
+            prev.style.display = (arPage > 1 && arPage < 10) ? 'inline-block' : 'none';
+            next.disabled = false;
+
+            if (arPage === 1) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Before You Begin</h3><p>Install <b>Windows Server Update Services (WSUS)</b> on <b>SMEC-DC1.smec.com</b>.</p>`;
+            } else if (arPage === 2) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select installation type</h3><label style="font-weight:600;"><input type="radio" checked> Role-based or feature-based installation</label>`;
+            } else if (arPage === 3) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select destination server</h3><table class="mmc-table" style="border:1px solid #ccc;"><tr><th>Name</th><th>IP Address</th><th>OS</th></tr><tr style="background:#e5f1fb;"><td><strong>SMEC-DC1.smec.com</strong></td><td>192.168.1.1</td><td>Windows Server 2025</td></tr></table>`;
+            } else if (arPage === 4) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select server roles</h3>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; display:flex; flex-direction:column; gap:8px;">
+                        <label style="color:#64748b;"><input type="checkbox" checked disabled> Active Directory Domain Services (Installed)</label>
+                        <label style="color:#64748b;"><input type="checkbox" checked disabled> DNS Server (Installed)</label>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" ${arWsusChecked?'checked':''} onchange="arWsusChecked=this.checked; if(this.checked) showToast('Included IIS Web Server & WSUS Management Tools.');"> 🔄 Windows Server Update Services</label>
+                    </div>`;
+            } else if (arPage === 5) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select features</h3><p>Required .NET Framework and Windows Internal Database (WID) features are pre-selected. Click <b>Next</b>.</p>`;
+            } else if (arPage === 6) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Windows Server Update Services (WSUS)</h3><p>WSUS enables administrators to centrally manage and distribute Microsoft product updates to domain computers. Click <b>Next</b> to choose <b>Role Services</b>.</p>`;
+            } else if (arPage === 7) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Select role services (WSUS)</h3>
+                    <div style="border:1px solid #ccc; padding:12px; border-radius:4px; background:#fafafa; display:flex; flex-direction:column; gap:8px;">
+                        <label style="font-weight:700; color:#005a9e;"><input type="checkbox" ${arWidChecked?'checked':''} onchange="arWidChecked=this.checked"> WID Connectivity (Windows Internal Database)</label>
+                        <label style="font-weight:700; color:#005a9e;"><input type="checkbox" ${arSvcChecked?'checked':''} onchange="arSvcChecked=this.checked"> WSUS Services</label>
+                        <label style="color:#64748b;"><input type="checkbox" disabled> SQL Server Connectivity</label>
+                    </div>`;
+            } else if (arPage === 8) {
+                next.innerText = 'Next >';
+                pane.innerHTML = `<h3 style="margin-top:0;">Content Location Selection</h3>
+                    <label style="display:block; font-weight:600; margin-bottom:8px;"><input type="checkbox" checked disabled> Store updates in the following location:</label>
+                    <input type="text" id="ar-wsus-path" value="${arPathVal}" placeholder="C:\\WSUS" style="width:100%; font-family:Consolas, monospace;" oninput="arPathVal=this.value" onkeypress="if(event.key==='Enter') arNext()">
+                    <p style="font-size:11.5px; color:#475569;">Enter the local folder you created in Step 1: <code>C:\\WSUS</code></p>`;
+                setTimeout(() => { const i = document.getElementById('ar-wsus-path'); if (i) i.focus(); }, 30);
+            } else if (arPage === 9) {
+                next.innerText = 'Install';
+                pane.innerHTML = `<h3 style="margin-top:0;">Confirm installation selections</h3>
+                    <ul>
+                        <li>Server: <b>SMEC-DC1.smec.com (192.168.1.1)</b></li>
+                        <li>Role: <b>Windows Server Update Services (WID + WSUS Services)</b></li>
+                        <li>Content Path: <code>C:\\WSUS</code></li>
+                    </ul><p>Click <b>Install</b> to begin.</p>`;
+            } else if (arPage === 10) {
+                next.innerText = 'Close';
+                next.disabled = !wsusInstalled;
+                pane.innerHTML = `<h3 style="margin-top:0;">Installation progress</h3>
+                    <div id="ar-prog-txt">Installing WSUS, WID Database, and IIS (Port 8530)...</div>
+                    <div class="prog-track"><div id="ar-prog-fill" class="prog-fill"></div></div>
+                    <div id="ar-done-msg" style="display:none; padding:10px; background:#fffbeb; border:1px solid #f59e0b; border-radius:4px; color:#92400e; font-weight:600;">
+                        ✓ Installation succeeded! Configuration required: Click <b>Close</b>, then click the <b>🚩 1</b> notification flag in Server Manager to run <b>Launch Post-Installation tasks</b>!
+                    </div>`;
+                if (!wsusInstalled) runWsusInstall();
+            }
+        }
+
+        function arPrev() { if (arPage > 1 && arPage < 10) { arPage--; renderArPage(); } }
+        function arNext() {
+            if (arPage === 4 && !arWsusChecked) { alert("Please check 'Windows Server Update Services'!"); return; }
+            if (arPage === 7 && (!arWidChecked || !arSvcChecked)) { alert("Please keep both 'WID Connectivity' and 'WSUS Services' checked!"); return; }
+            if (arPage === 8 && arPathVal.trim().toLowerCase() !== 'c:\\wsus') { alert("Please enter the content path: C:\\WSUS"); return; }
+            if (arPage === 10) { closeWindow('srv-addroles-window'); return; }
+            arPage++;
+            renderArPage();
+        }
+
+        function runWsusInstall() {
+            setTimeout(() => { const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '55%'; }, 350);
+            setTimeout(() => {
+                wsusInstalled = true;
+                const f = document.getElementById('ar-prog-fill'); if (f) f.style.width = '100%';
+                const t = document.getElementById('ar-prog-txt'); if (t) t.innerText = 'Installation succeeded. Configuration required.';
+                const d = document.getElementById('ar-done-msg'); if (d) d.style.display = 'block';
+                document.getElementById('ar-next-btn').disabled = false;
+                document.getElementById('sm-card-role').innerText = 'Installed ✓';
+                document.getElementById('sm-card-role').style.color = '#15803d';
+                document.getElementById('sm-flag-count').innerText = '1';
+                document.getElementById('sm-flag-btn').classList.add('has-alert');
+                document.getElementById('sm-flag-body').innerHTML = `
+                    <div style="margin-bottom:8px; color:#0f172a;"><strong>Post-deployment Configuration</strong><br>Configuration required for Windows Server Update Services at SMEC-DC1.</div>
+                    <button class="primary-btn" onclick="launchPostInstallTasks(event)" style="width:100%;">⚙️ Launch Post-Installation tasks</button>`;
+                setBadge('st-install', 'Done ✓', 's-done');
+                if (step === 2) { step = 3; updateGuide(); }
+            }, 1350);
+        }
+
+        function launchPostInstallTasks(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('sm-flag-menu').style.display = 'none';
+            if (postInstallDone) return;
+            document.getElementById('sm-post-prog-box').style.display = 'block';
+            setBadge('st-post', 'Running...', 's-warn');
+            setTimeout(() => { document.getElementById('sm-post-fill').style.width = '50%'; }, 300);
+            setTimeout(() => {
+                postInstallDone = true;
+                document.getElementById('sm-post-fill').style.width = '100%';
+                document.getElementById('sm-post-txt').innerText = '✓ Post-Installation tasks completed successfully! (WID SUSDB & IIS Port 8530 ready)';
+                document.getElementById('sm-post-txt').style.color = '#15803d';
+                document.getElementById('sm-flag-count').innerText = '0';
+                document.getElementById('sm-flag-btn').classList.remove('has-alert');
+                document.getElementById('sm-flag-body').innerHTML = '<div style="color:#15803d; font-weight:600;">✓ All post-installation tasks completed.</div>';
+                document.getElementById('sm-card-post').innerText = 'Completed ✓';
+                document.getElementById('sm-card-post').style.color = '#15803d';
+                document.getElementById('sm-tools-wsus').style.display = 'block';
+                document.getElementById('desktop-wsus-icon').style.display = 'flex';
+                document.getElementById('start-wsus-app').style.display = 'flex';
+                document.getElementById('srv-side-sub').innerText = 'WSUS: Ready (Needs Config)';
+                setBadge('st-post', 'Done ✓', 's-done');
+                showToast("✓ Post-Installation done! Open Tools -> Windows Server Update Services.");
+                if (step === 3) { step = 4; updateGuide(); }
+            }, 1450);
+        }
+
+        // --- STEP 4-5: WSUS CONFIGURATION WIZARD ---
+        function openWsusEntry(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('sm-tools-menu').style.display = 'none';
+            if (!postInstallDone) { alert("First finish installing WSUS and running Launch Post-Installation tasks in Server Manager!"); return; }
+            if (!wsusWizDone) {
+                wwPage = 1;
+                document.getElementById('wsus-wiz-window').style.display = 'flex';
+                renderWsusWiz();
+                if (step === 4) { step = 5; updateGuide(); }
+            } else {
+                document.getElementById('wsus-console-window').style.display = 'flex';
+                selectWsusNode(clientReported ? 'clients_grp' : 'overview');
+            }
+        }
+
+        function renderWsusWiz() {
+            for (let i = 1; i <= 10; i++) {
+                const el = document.getElementById('ww-nav-' + i);
+                el.classList.remove('active', 'done');
+                if (i === wwPage) el.classList.add('active');
+                else if (i < wwPage) el.classList.add('done');
+            }
+            const p = document.getElementById('ww-main-pane');
+            const prev = document.getElementById('ww-prev-btn');
+            const next = document.getElementById('ww-next-btn');
+            prev.style.display = wwPage > 1 ? 'inline-block' : 'none';
+            next.innerText = wwPage === 10 ? 'Finish' : 'Next >';
+            next.disabled = false;
+
+            if (wwPage === 1) {
+                p.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Before You Begin</h3><p>Welcome to the <b>Windows Server Update Services Configuration Wizard</b>. Ensure your server can connect to Microsoft Update to download the update catalog.</p>`;
+            } else if (wwPage === 2) {
+                p.innerHTML = `<h3 style="margin-top:0;">Join the Microsoft Update Improvement Program</h3><label><input type="checkbox"> Yes, I would like to join (Optional)</label>`;
+            } else if (wwPage === 3) {
+                p.innerHTML = `<h3 style="margin-top:0;">Choose Upstream Server</h3>
+                    <label style="display:block; font-weight:700; color:#005a9e; margin-bottom:8px;"><input type="radio" name="wwup" checked onchange="wwUpstream='ms'"> Synchronize from Microsoft Update</label>
+                    <label style="display:block; color:#64748b;"><input type="radio" name="wwup" onchange="wwUpstream='other'"> Synchronize from another Windows Server Update Services server</label>`;
+            } else if (wwPage === 4) {
+                p.innerHTML = `<h3 style="margin-top:0;">Specify Proxy Server</h3><label style="color:#555;"><input type="checkbox" disabled> Use a proxy server when synchronizing</label><p style="font-size:12px; color:#64748b;">No proxy required for this lab. Click <b>Next</b>.</p>`;
+            } else if (wwPage === 5) {
+                next.disabled = !wwConnected;
+                p.innerHTML = `<h3 style="margin-top:0;">Connect to Upstream Server</h3>
+                    <p>Click <b>Start Connecting</b> to download available products, classifications, and languages from Microsoft Update.</p>
+                    <button class="primary-btn" onclick="startUpstreamConnect()" ${wwConnected?'disabled':''}>${wwConnected?'Connected ✓':'Start Connecting'}</button>
+                    <div class="prog-track"><div id="ww-conn-fill" class="prog-fill" style="width:${wwConnected?'100%':'0%'};"></div></div>
+                    <div id="ww-conn-msg" style="font-size:12px; color:${wwConnected?'#15803d':'#475569'}; font-weight:600;">${wwConnected?'✓ Connected to Microsoft Update! Click Next.':'Waiting to connect...'}</div>`;
+            } else if (wwPage === 6) {
+                p.innerHTML = `<h3 style="margin-top:0;">Choose Languages</h3>
+                    <label style="display:block; font-weight:700; color:#005a9e;"><input type="radio" checked> Download updates only in these languages:</label>
+                    <div style="border:1px solid #ccc; padding:10px; margin-top:8px; border-radius:4px;">
+                        <label style="font-weight:700;"><input type="checkbox" ${wwLangEn?'checked':''} onchange="wwLangEn=this.checked"> English</label>
+                    </div>`;
+            } else if (wwPage === 7) {
+                p.innerHTML = `<h3 style="margin-top:0;">Choose Products</h3>
+                    <p>Select the Microsoft products you want WSUS to update:</p>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; display:flex; flex-direction:column; gap:7px;">
+                        <label style="color:#64748b;"><input type="checkbox"> Windows Server 2025</label>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" ${wwProdWin11?'checked':''} onchange="wwProdWin11=this.checked"> 💻 Windows 11</label>
+                        <label style="color:#64748b;"><input type="checkbox"> Microsoft Edge</label>
+                    </div>`;
+            } else if (wwPage === 8) {
+                p.innerHTML = `<h3 style="margin-top:0;">Choose Classifications</h3>
+                    <p>Select the update classifications to synchronize:</p>
+                    <div style="border:1px solid #ccc; padding:10px; border-radius:4px; display:flex; flex-direction:column; gap:7px;">
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" ${wwClassCrit?'checked':''} onchange="wwClassCrit=this.checked"> 🔴 Critical Updates</label>
+                        <label style="font-weight:700; color:#005a9e; cursor:pointer;"><input type="checkbox" ${wwClassSec?'checked':''} onchange="wwClassSec=this.checked"> 🛡️ Security Updates</label>
+                        <label style="color:#64748b;"><input type="checkbox"> Definition Updates</label>
+                        <label style="color:#64748b;"><input type="checkbox"> Feature Packs</label>
+                    </div>`;
+            } else if (wwPage === 9) {
+                p.innerHTML = `<h3 style="margin-top:0;">Set Sync Schedule</h3>
+                    <label style="display:block; font-weight:700; color:#005a9e; margin-bottom:8px;"><input type="radio" name="wwsync" ${wwSyncManual?'checked':''} onchange="wwSyncManual=true"> Synchronize manually</label>
+                    <label style="display:block; color:#64748b;"><input type="radio" name="wwsync" ${!wwSyncManual?'checked':''} onchange="wwSyncManual=false"> Synchronize automatically (Daily at 3:00 AM)</label>`;
+            } else if (wwPage === 10) {
+                p.innerHTML = `<h3 style="margin-top:0; color:#15803d;">Finished</h3>
+                    <p>You have finished configuring WSUS on <b>SMEC-DC1</b>!</p>
+                    <label style="display:block; padding:10px; background:#eff6ff; border:1px solid #93c5fd; border-radius:4px; font-weight:700; color:#005a9e; cursor:pointer;">
+                        <input type="checkbox" ${wwBeginSync?'checked':''} onchange="wwBeginSync=this.checked"> Begin initial synchronization
+                    </label>`;
+            }
+        }
+
+        function startUpstreamConnect() {
+            document.getElementById('ww-conn-msg').innerText = 'Connecting to Microsoft Update catalog...';
+            setTimeout(() => { const f = document.getElementById('ww-conn-fill'); if (f) f.style.width = '60%'; }, 300);
+            setTimeout(() => {
+                wwConnected = true;
+                renderWsusWiz();
+            }, 1100);
+        }
+
+        function wwPrev() { if (wwPage > 1) { wwPage--; renderWsusWiz(); } }
+        function wwNext() {
+            if (wwPage === 3 && wwUpstream !== 'ms') { alert("Select 'Synchronize from Microsoft Update'!"); return; }
+            if (wwPage === 6 && !wwLangEn) { alert("Keep 'English' checked!"); return; }
+            if (wwPage === 7 && !wwProdWin11) { alert("Please check 'Windows 11' so our Windows 11 Client PC receives updates!"); return; }
+            if (wwPage === 8 && (!wwClassCrit || !wwClassSec)) { alert("Please check both 'Critical Updates' and 'Security Updates'!"); return; }
+            if (wwPage === 10) {
+                if (!wwBeginSync) { alert("Please check 'Begin initial synchronization' before clicking Finish!"); return; }
+                wsusWizDone = true;
+                closeWindow('wsus-wiz-window');
+                closeWindow('srv-sm-window');
+                setBadge('st-wiz', 'Synced ✓', 's-done');
+                document.getElementById('srv-side-sub').innerText = 'WSUS: Running (:8530) ✓';
+                document.getElementById('wsus-console-window').style.display = 'flex';
+                selectWsusNode('overview');
+                showToast("✓ Initial sync complete! Now right-click All Computers -> Add Computer Group 'Clients'.");
+                if (step === 5) { step = 6; updateGuide(); }
+                return;
+            }
+            wwPage++;
+            renderWsusWiz();
+        }
+
+        // --- STEP 6 & STEP 10: WSUS MANAGEMENT CONSOLE ---
+        function selectWsusNode(node, el, e) {
+            if (e) e.stopPropagation();
+            if (el) {
+                document.querySelectorAll('#wsus-console-window li').forEach(x => x.classList.remove('selected'));
+                el.classList.add('selected');
+            }
+            const c = document.getElementById('wsus-center');
+            const a = document.getElementById('wsus-actions-body');
+
+            if (node === 'overview') {
+                c.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">SMEC-DC1 (WSUS Server Overview)</h3>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12px; margin-bottom:12px;">
+                        <div style="border:1px solid #cbd5e1; border-radius:5px; padding:10px; background:#f8fafc;">
+                            <strong>Synchronization Status</strong><div style="color:#15803d; font-weight:700; margin-top:4px;">Succeeded (1 Security Update) ✓</div>
+                        </div>
+                        <div style="border:1px solid #cbd5e1; border-radius:5px; padding:10px; background:#f8fafc;">
+                            <strong>Computers Registered</strong><div style="color:${clientReported?'#15803d':'#64748b'}; font-weight:700; margin-top:4px;">${clientReported?'1 (CLIENT-PC.smec.com) ✓':'0 (Waiting for GPO Check-in)'}</div>
+                        </div>
+                    </div>
+                    <p style="font-size:12px; color:#475569;">Port: <code>8530 (HTTP)</code> | Content: <code>C:\\WSUS</code></p>`;
+                a.innerHTML = `<a href="#" onclick="openAddGroupModal(event)" style="color:#0078D7; font-weight:700; text-decoration:none;">➕ Add Computer Group...</a>`;
+            } else if (node === 'all_comp' || node === 'clients_grp') {
+                const cliRow = clientReported
+                    ? `<tr style="background:#ecfdf5;"><td><strong>💻 CLIENT-PC.smec.com</strong></td><td>192.168.1.10</td><td>Windows 11</td><td>${clientUpdateInstalled?'<strong style="color:#15803d;">100% Installed ✓</strong>':(updateApproved?'Approved (Pending Install)':'1 Update Needed')}</td></tr>`
+                    : `<tr><td colspan="4" style="color:#64748b; font-style:italic;">No computers have reported yet. Configure WSUS Policy in GPMC and run gpupdate /force on Client PC.</td></tr>`;
+                c.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Computers &rarr; ${node==='clients_grp'?'Clients':'All Computers'}</h3>
+                    <table class="mmc-table" style="border:1px solid #e2e8f0;">
+                        <tr><th>Name</th><th>IP Address</th><th>OS</th><th>Patch Status</th></tr>
+                        ${cliRow}
+                    </table>`;
+                a.innerHTML = `<a href="#" onclick="openAddGroupModal(event)" style="color:#0078D7; font-weight:700; text-decoration:none;">➕ Add Computer Group...</a>`;
+            } else if (node === 'security' || node === 'all_updates' || node === 'critical') {
+                c.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Updates &rarr; Security Updates (Windows 11)</h3>
+                    <table class="mmc-table" style="border:1px solid #e2e8f0;">
+                        <tr><th>Title</th><th>KB</th><th>Approval</th><th>Status</th></tr>
+                        <tr oncontextmenu="showContext('ctx-wsus-update', event)" style="background:${updateApproved?'#ecfdf5':'#fffbeb'}; cursor:pointer;">
+                            <td><strong>Example Windows 11 24H2 update (KB5046617 · November 2024)</strong></td>
+                            <td style="font-family:Consolas;">KB5046617</td>
+                            <td><strong>${updateApproved?'Install (Clients) ✓':'Not Approved'}</strong></td>
+                            <td>${clientUpdateInstalled?'Installed ✓':(clientReported?'Needed (1)':'Synced')}</td>
+                        </tr>
+                    </table>
+                    <p style="font-size:11.5px; color:#475569; margin-top:10px;">💡 <b>Right-click</b> <code>KB5046617</code> (or click <b>✅ Approve...</b> in Actions) to approve it for the <b>Clients</b> group.</p>`;
+                a.innerHTML = `<a href="#" onclick="openApproveModal(event)" style="color:#15803d; font-weight:700; text-decoration:none;">✅ Approve KB5046617...</a>`;
+            } else {
+                c.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">WSUS Node</h3><p style="font-size:12.5px; color:#555;">Select <b>All Computers</b> or <b>Security Updates</b> on the left.</p>`;
+                a.innerHTML = ``;
+            }
+        }
+
+        function openAddGroupModal(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            document.getElementById('ctx-wsus-allcomp').style.display = 'none';
+            if (clientsGroupCreated) { showToast("Computer Group 'Clients' already exists!"); return; }
+            document.getElementById('new-grp-inp').value = '';
+            document.getElementById('add-group-modal').style.display = 'flex';
+            setTimeout(() => document.getElementById('new-grp-inp').focus(), 40);
+        }
+
+        function saveComputerGroup() {
+            const name = document.getElementById('new-grp-inp').value.trim();
+            if (name.toLowerCase() !== 'clients') { alert("Please enter Computer Group name: Clients"); return; }
+            clientsGroupCreated = true;
+            closeWindow('add-group-modal');
+            document.getElementById('wsus-comp-groups').innerHTML += `<li id="wsus-clients-node" onclick="selectWsusNode('clients_grp', this, event)" style="color:#15803d; font-weight:700;">💻 Clients</li>`;
+            selectWsusNode('clients_grp', document.getElementById('wsus-clients-node'));
+            setBadge('st-grp', 'Clients ✓', 's-done');
+            showToast("Computer Group 'Clients' created! Now open Group Policy Management (gpmc.msc).");
+            if (step === 6) { step = 7; updateGuide(); }
+        }
+
+        function openApproveModal(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            document.getElementById('ctx-wsus-update').style.display = 'none';
+            if (!clientReported) { alert("First configure the WSUS GPO and run gpupdate /force + wuauclt /detectnow on Client PC so it reports to WSUS!"); return; }
+            document.getElementById('sel-approve-clients').value = updateApproved ? 'install' : 'none';
+            document.getElementById('approve-modal').style.display = 'flex';
+        }
+
+        function saveUpdateApproval() {
+            if (document.getElementById('sel-approve-clients').value !== 'install') {
+                alert("Please set Clients group approval to 'Approved for Install'!");
+                return;
+            }
+            updateApproved = true;
+            closeWindow('approve-modal');
+            selectWsusNode('security', document.getElementById('wsus-sec-node'));
+            setBadge('st-approve', 'Approved ✓', 's-done');
+            showToast("✓ KB5046617 Approved for Clients! Switch to Client PC and open Windows Update.");
+            if (step === 10) { step = 11; updateGuide(); }
+        }
+
+        // --- STEP 7-8: GROUP POLICY MANAGEMENT (gpmc.msc & EDITOR) ---
+        function openGpmc(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('sm-tools-menu').style.display = 'none';
+            if (!clientsGroupCreated) { alert("First finish configuring WSUS and creating the 'Clients' computer group!"); return; }
+            document.getElementById('gpmc-window').style.display = 'flex';
+        }
+
+        function createWsusGpo(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-gpmc-domain').style.display = 'none';
+            if (wsusGpoCreated) { showToast("WSUS Policy GPO already exists!"); return; }
+            const name = prompt("New GPO Name (linked to smec.com):", "WSUS Policy");
+            if (name === null) return;
+            if (name.trim().toLowerCase() !== 'wsus policy') { alert("Please name the GPO: WSUS Policy"); return; }
+            wsusGpoCreated = true;
+            document.getElementById('gpmc-gpo-list').innerHTML += `<li id="gpmc-wsus-gpo" oncontextmenu="showContext('ctx-gpmc-gpo', event)" onclick="showToast('Right-click WSUS Policy -> Edit...')" style="color:#15803d; font-weight:700;">📜 WSUS Policy</li>`;
+            document.getElementById('gpmc-right').innerHTML = `<h3 style="margin-top:0; color:#15803d;">WSUS Policy Created &amp; Linked to smec.com ✓</h3><p>Right-click <b>📜 WSUS Policy</b> on the left pane &rarr; click <b>✏️ Edit...</b> to configure the 3 WSUS settings.</p>`;
+            showToast("GPO 'WSUS Policy' created! Right-click it -> Edit...");
+        }
+
+        function openGpoEditor(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('ctx-gpmc-gpo').style.display = 'none';
+            document.getElementById('gpo-editor-window').style.display = 'flex';
+            renderGpoPolicies();
+            if (step === 7) { step = 8; updateGuide(); }
+        }
+
+        function renderGpoPolicies() {
+            const r = document.getElementById('gpo-editor-right');
+            r.innerHTML = `<h3 style="margin-top:0; color:#005a9e;">Manage updates offered from Windows Server Update Service</h3>
+                <p style="font-size:12px; color:#475569; margin-top:0;">Click each of the 3 policies below to Enable and configure it:</p>
+                <table class="mmc-table" style="border:1px solid #cbd5e1;">
+                    <tr><th>Setting</th><th>State</th><th>Action</th></tr>
+                    <tr style="background:${gpoAutoUpd?'#ecfdf5':'#fff'};">
+                        <td><strong>1. Configure Automatic Updates</strong></td>
+                        <td>${gpoAutoUpd?'<strong style="color:#15803d;">Enabled (Opt 4) ✓</strong>':'Not Configured'}</td>
+                        <td><button class="primary-btn" onclick="openGpoSetting('auto')">Edit</button></td>
+                    </tr>
+                    <tr style="background:${gpoIntranet?'#ecfdf5':'#fff'};">
+                        <td><strong>2. Specify intranet Microsoft update service location</strong></td>
+                        <td>${gpoIntranet?'<strong style="color:#15803d;">Enabled ('+gpoWsusUrl+') ✓</strong>':'Not Configured'}</td>
+                        <td><button class="primary-btn" onclick="openGpoSetting('intranet')">Edit</button></td>
+                    </tr>
+                    <tr style="background:${gpoTargeting?'#ecfdf5':'#fff'};">
+                        <td><strong>3. Enable client-side targeting</strong></td>
+                        <td>${gpoTargeting?'<strong style="color:#15803d;">Enabled ('+gpoTargetGrp+') ✓</strong>':'Not Configured'}</td>
+                        <td><button class="primary-btn" onclick="openGpoSetting('target')">Edit</button></td>
+                    </tr>
+                </table>`;
+        }
+
+        function openGpoSetting(key) {
+            activeGpoSetting = key;
+            const title = document.getElementById('gsm-title');
+            const body = document.getElementById('gsm-body');
+            if (key === 'auto') {
+                title.innerText = 'Configure Automatic Updates';
+                body.innerHTML = `<div style="margin-bottom:12px;"><label style="font-weight:700; color:#005a9e;"><input type="radio" name="gstate" id="gs-en" ${gpoAutoUpd?'checked':''}> Enabled</label> &nbsp;&nbsp; <label><input type="radio" name="gstate" ${!gpoAutoUpd?'checked':''}> Not Configured</label></div>
+                    <div style="border:1px solid #cbd5e1; padding:12px; border-radius:4px; background:#f8fafc;">
+                        <label style="display:block; font-weight:600; margin-bottom:6px;">Configure automatic updating:</label>
+                        <select id="gs-auto-opt" style="width:100%;">
+                            <option value="2">2 - Notify for download and auto install</option>
+                            <option value="3">3 - Auto download and notify for install</option>
+                            <option value="4" selected>4 - Auto download and schedule the install</option>
+                        </select>
+                    </div>`;
+            } else if (key === 'intranet') {
+                title.innerText = 'Specify intranet Microsoft update service location';
+                body.innerHTML = `<div style="margin-bottom:12px;"><label style="font-weight:700; color:#005a9e;"><input type="radio" name="gstate" id="gs-en" ${gpoIntranet?'checked':''}> Enabled</label> &nbsp;&nbsp; <label><input type="radio" name="gstate" ${!gpoIntranet?'checked':''}> Not Configured</label></div>
+                    <div style="border:1px solid #cbd5e1; padding:12px; border-radius:4px; background:#f8fafc; display:flex; flex-direction:column; gap:10px;">
+                        <div>
+                            <label style="display:block; font-weight:600; margin-bottom:4px;">Set the intranet update service for detecting updates:</label>
+                            <input type="text" id="gs-url1" value="${gpoWsusUrl}" placeholder="http://192.168.1.1:8530" style="width:100%; font-family:Consolas, monospace;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-weight:600; margin-bottom:4px;">Set the intranet statistics server:</label>
+                            <input type="text" id="gs-url2" value="${gpoWsusUrl}" placeholder="http://192.168.1.1:8530" style="width:100%; font-family:Consolas, monospace;">
+                        </div>
+                    </div>`;
+            } else if (key === 'target') {
+                title.innerText = 'Enable client-side targeting';
+                body.innerHTML = `<div style="margin-bottom:12px;"><label style="font-weight:700; color:#005a9e;"><input type="radio" name="gstate" id="gs-en" ${gpoTargeting?'checked':''}> Enabled</label> &nbsp;&nbsp; <label><input type="radio" name="gstate" ${!gpoTargeting?'checked':''}> Not Configured</label></div>
+                    <div style="border:1px solid #cbd5e1; padding:12px; border-radius:4px; background:#f8fafc;">
+                        <label style="display:block; font-weight:600; margin-bottom:4px;">Target group name for this computer:</label>
+                        <input type="text" id="gs-grp" value="${gpoTargetGrp}" placeholder="Clients" style="width:100%;">
+                    </div>`;
+            }
+            document.getElementById('gpo-setting-modal').style.display = 'flex';
+        }
+
+        function saveGpoSetting() {
+            const isEn = document.getElementById('gs-en').checked;
+            if (!isEn) { alert("Please select 'Enabled'!"); return; }
+
+            if (activeGpoSetting === 'auto') {
+                gpoAutoUpd = true;
+                gpoAutoOpt = document.getElementById('gs-auto-opt').value;
+            } else if (activeGpoSetting === 'intranet') {
+                const u1 = document.getElementById('gs-url1').value.trim().toLowerCase().replace(/\/$/, '');
+                const u2 = document.getElementById('gs-url2').value.trim().toLowerCase().replace(/\/$/, '');
+                const validUrls = ['http://192.168.1.1:8530', 'http://smec-dc1.smec.com:8530'];
+                if (!validUrls.includes(u1) || !validUrls.includes(u2)) {
+                    alert("Please enter http://192.168.1.1:8530 (or http://smec-dc1.smec.com:8530) in BOTH boxes!");
+                    return;
+                }
+                gpoIntranet = true;
+                gpoWsusUrl = u1;
+            } else if (activeGpoSetting === 'target') {
+                const g = document.getElementById('gs-grp').value.trim();
+                if (g.toLowerCase() !== 'clients') { alert("Please enter Target group name: Clients"); return; }
+                gpoTargeting = true;
+                gpoTargetGrp = 'Clients';
+            }
+
+            closeWindow('gpo-setting-modal');
+            renderGpoPolicies();
+
+            if (gpoAutoUpd && gpoIntranet && gpoTargeting) {
+                setBadge('st-gpo', '3/3 Done ✓', 's-done');
+                showToast("✓ All 3 WSUS GPO policies configured! Now switch to Client PC on the left sidebar.");
+                if (step === 8) { step = 9; updateGuide(); }
+            }
+        }
+
+        // --- STEP 9, 11, 12: CLIENT PC CMD & WINDOWS UPDATE ---
+        function openCliCmd() {
+            document.getElementById('cli-cmd-window').style.display = 'flex';
+            setTimeout(() => document.getElementById('cli-cmd-input').focus(), 40);
+        }
+
+        function runCliCmd() {
+            const inp = document.getElementById('cli-cmd-input');
+            const out = document.getElementById('cli-cmd-output');
+            const raw = inp.value.trim();
+            const cmd = raw.toLowerCase().replace(/\s+/g, ' ');
+            inp.value = '';
+            let res = `C:\\Windows\\System32> ${raw}\n`;
+
+            if (cmd === 'cls') { out.textContent = ''; return; }
+            if (cmd === 'gpupdate /force') {
+                if (!(gpoAutoUpd && gpoIntranet && gpoTargeting)) {
+                    res += `Updating policy...\nComputer Policy update has completed, but WSUS Policy is not fully configured on SMEC-DC1 yet.\n\n`;
+                } else {
+                    clientGpUpdated = true;
+                    document.getElementById('cli-side-sub').innerText = 'WSUS GPO: Applied ✓';
+                    document.getElementById('cli-top-sub').innerText = `IP: 192.168.1.10 | WSUS Server: ${gpoWsusUrl} | Group: Clients`;
+                    res += `Updating policy...\n\nComputer Policy update has completed successfully.\n  Applied GPO: WSUS Policy (smec.com)\n  Intranet WSUS: ${gpoWsusUrl}\n  Target Group:  Clients\nUser Policy update has completed successfully.\n\nNow run 'wuauclt /detectnow' (or 'usoclient StartScan') to report to WSUS!\n\n`;
+                    showToast("WSUS Policy applied! Now run: wuauclt /detectnow");
+                }
+            } else if (cmd === 'wuauclt /detectnow' || cmd === 'wuauclt /reportnow' || cmd === 'usoclient startscan') {
+                if (!clientGpUpdated) {
+                    res += `Run 'gpupdate /force' first so CLIENT-PC receives the WSUS GPO!\n\n`;
+                } else {
+                    clientReported = true;
+                    setBadge('st-scan', 'Reported ✓', 's-done');
+                    res += `Contacting WSUS Server at ${gpoWsusUrl}...\n[OK] CLIENT-PC.smec.com successfully registered in Computer Group: Clients.\n[OK] Reported status: 1 Security Update (KB5046617) needed.\n\n`;
+                    showToast("✓ CLIENT-PC reported to WSUS! Switch back to Server to approve KB5046617.");
+                    if (step === 9) { step = 10; updateGuide(); }
+                }
+            } else if (cmd !== '') {
+                res += `'${raw}' is not recognized. Try 'gpupdate /force' or 'wuauclt /detectnow'.\n\n`;
+            }
+
+            out.textContent += res;
+            document.getElementById('cli-cmd-body').scrollTop = document.getElementById('cli-cmd-body').scrollHeight;
+        }
+
+        function openCliWu() {
+            document.getElementById('cli-wu-window').style.display = 'flex';
+            renderCliWu();
+        }
+
+        function renderCliWu() {
+            const b = document.getElementById('cli-wu-body');
+            if (clientUpdateInstalled) {
+                b.innerHTML = `<div style="border:2px solid #16a34a; background:#f0fdf4; border-radius:8px; padding:22px; max-width:580px; margin:16px auto;">
+                    <h2 style="margin:0 0 8px 0; color:#15803d;">✓ You're up to date!</h2>
+                    <p style="margin:0 0 10px 0; color:#166534;"><b>KB5046617 — Example only: Windows 11 version 24H2 (November 2024)</b> was successfully downloaded and installed from your local WSUS Server (<code>${gpoWsusUrl}</code>).</p>
+                    <div style="font-size:12px; color:#15803d; font-family:Consolas;">Managed by: smec.com (WSUS Policy · Group: Clients)</div>
+                </div>`;
+                return;
+            }
+            if (!clientCheckedWu) {
+                b.innerHTML = `<div style="max-width:580px; margin:14px auto; background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:22px;">
+                    <div style="font-size:11.5px; color:#b45309; font-weight:700; margin-bottom:10px;">* Some settings are managed by your organization (WSUS Policy)</div>
+                    <h2 style="margin:0 0 8px 0; color:#0f172a;">Windows Update</h2>
+                    <p style="font-size:12.5px; color:#475569; margin-bottom:16px;">Intranet Update Server: <code>${gpoWsusUrl || 'Not configured'}</code></p>
+                    <button class="primary-btn" onclick="checkCliUpdates()">🔄 Check for updates</button>
+                </div>`;
+            } else {
+                b.innerHTML = `<div style="max-width:580px; margin:14px auto; background:#fff; border:1px solid #93c5fd; border-radius:8px; padding:22px;">
+                    <div style="font-size:11.5px; color:#005a9e; font-weight:700; margin-bottom:8px;">✓ Found 1 Approved Update from WSUS (${gpoWsusUrl})</div>
+                    <h3 style="margin:0 0 6px 0; color:#0f172a;">Example Windows 11 24H2 update (KB5046617 · November 2024)</h3>
+                    <div id="cli-wu-status" style="font-size:12px; color:#475569; margin-bottom:12px;">Source: Local WSUS Server (C:\\WSUS on SMEC-DC1) · Status: Ready to install</div>
+                    <div class="prog-track" id="cli-wu-prog-wrap" style="display:none;"><div id="cli-wu-fill" class="prog-fill"></div></div>
+                    <button id="btn-cli-install" class="primary-btn" onclick="installCliUpdate()">⬇️ Download &amp; Install now</button>
+                </div>`;
+            }
+        }
+
+        function checkCliUpdates() {
+            if (!updateApproved) {
+                alert("First switch to Server (SMEC-DC1) and Approve KB5046617 for the 'Clients' group in WSUS Console!");
+                return;
+            }
+            clientCheckedWu = true;
+            renderCliWu();
+            showToast("Found approved update KB5046617 from WSUS! Click 'Download & Install now'.");
+            if (step === 11) { step = 12; updateGuide(); }
+        }
+
+        function installCliUpdate() {
+            document.getElementById('btn-cli-install').disabled = true;
+            document.getElementById('cli-wu-prog-wrap').style.display = 'block';
+            document.getElementById('cli-wu-status').innerText = `Downloading KB5046617 from ${gpoWsusUrl}...`;
+            setTimeout(() => { document.getElementById('cli-wu-fill').style.width = '50%'; document.getElementById('cli-wu-status').innerText = 'Installing KB5046617 (50%)...'; }, 450);
+            setTimeout(() => {
+                document.getElementById('cli-wu-fill').style.width = '100%';
+                clientUpdateInstalled = true;
+                setBadge('st-patch', 'Installed ✓', 's-done');
+                document.getElementById('cli-side-sub').innerText = 'Patched (KB5046617) ✓';
+                renderCliWu();
+                if (step === 12) {
+                    step = 13; updateGuide();
+                    showToast("🎉 Full WSUS Server + GPO + Client Patching Lab Complete!");
+                }
+            }, 1450);
+        }
+
+
+        // Full reference checklist is intentionally separate from the simulated 12-step path.
+        function openFullChecklist() {
+            document.getElementById('wsus-full-checklist').style.display = 'block';
+            updateFullChecklistProgress();
+        }
+        function closeFullChecklist() { document.getElementById('wsus-full-checklist').style.display = 'none'; }
+        function updateFullChecklistProgress() {
+            const all = document.querySelectorAll('#wsus-full-checklist input[type="checkbox"]');
+            const done = document.querySelectorAll('#wsus-full-checklist input[type="checkbox"]:checked').length;
+            document.getElementById('wsus-check-progress').innerText = `${done} / ${all.length} checklist items completed`;
+        }
+        function resetFullChecklist() {
+            document.querySelectorAll('#wsus-full-checklist input[type="checkbox"]').forEach(c => c.checked = false);
+            updateFullChecklistProgress();
+        }
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.matches('#wsus-full-checklist input[type="checkbox"]')) updateFullChecklistProgress();
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeFullChecklist();
+        });
+
+        window.onload = () => { updateGuide(); };
+    </script>
+</body>
+</html>
