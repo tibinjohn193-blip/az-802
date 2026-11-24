@@ -1925,7 +1925,8 @@
                 // System Properties text
                 document.getElementById('sysdm-full-name').textContent = s.hostname;
                 document.getElementById('sysdm-domain-name').textContent = s.domain;
-                document.getElementById('input-computer-name').value = s.hostname;
+                const compNameInput = document.getElementById('input-computer-name');
+                if (compNameInput) compNameInput.value = s.hostname;
 
                 // Server Manager summary
                 document.getElementById('sm-summary-name').textContent = s.hostname;
