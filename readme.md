@@ -64,6 +64,13 @@ This project provides **100% browser-based interactive simulations** for complex
 
 *  [🖥️ Lab 24:Remote Access Routing — Static & Default Routing Lab ](lab24.md)
 
+*  [🖥️ Lab 25:Windows Server Update Services (WSUS) Full Server & Client Lab ](lab25.md)
+
+
+
+
+
+
 
 
 
